@@ -2,6 +2,16 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:18 17:32
+
+**Resumen:** Se agregó la regla de trabajo "pausa para Sync" en `AGENTS.md`.
+
+**Cambios:**
+- Se documentó que cualquier cambio en scripts de build que requiera Sync (`libs.versions.toml`, `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`) debe detener al agente: se informa al humano y se espera a que realice el Sync en Android Studio antes de continuar.
+
+**Archivos modificados:**
+- `AGENTS.md`
+
 ## 2026:09:18 17:29
 
 **Resumen:** Fase B1 del plan: dependencias y andamiaje. La app arranca con un `AppNavHost` vacío en los dos temas, con Hilt, Room 3, WorkManager, Navigation Compose, CameraX, Coil 3 y Firebase BoM en el catálogo de versiones.

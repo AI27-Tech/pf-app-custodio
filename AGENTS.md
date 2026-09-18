@@ -16,6 +16,10 @@ GENERIC_RULES.md contains reusable working rules. This file adds the project's A
 - Instrumented / Compose UI tests (need emulator or connected device): `./gradlew connectedDebugAndroidTest`
 - Install on device: `./gradlew installDebug`
 
+## Workflow: pausa para Sync
+
+- Después de tocar scripts de build que requieren Sync (`gradle/libs.versions.toml`, `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`), párate: informa al humano y espera a que haga el Sync en Android Studio antes de continuar con más cambios o con verificación.
+
 ## Toolchain
 
 - AGP 9.4.1, Gradle 9.6.0 (wrapper), Kotlin 2.3.10 (compose compiler plugin) + KSP 2.3.10, Compose BOM 2026.02.01.
