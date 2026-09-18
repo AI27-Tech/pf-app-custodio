@@ -2,6 +2,31 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:18 17:29
+
+**Resumen:** Fase B1 del plan: dependencias y andamiaje. La app arranca con un `AppNavHost` vacío en los dos temas, con Hilt, Room 3, WorkManager, Navigation Compose, CameraX, Coil 3 y Firebase BoM en el catálogo de versiones.
+
+**Cambios:**
+- Se amplió `gradle/libs.versions.toml` con el catálogo completo de la fase B1: KSP, Hilt y `hilt-navigation-compose`, Room 3 (`androidx.room3`, solo KSP), WorkManager, Navigation Compose, CameraX (core/camera2/lifecycle/view), Coil 3, Firebase BoM con auth/firestore/storage/crashlytics, y los plugins de google-services y Crashlytics.
+- Se activó el plugin de google-services (`4.5.0`) en `:app`, cerrando el pendiente de B0: el `google-services.json` ya se procesa y `assembleDebug` compila con el plugin activo.
+- Se alineó el toolchain con el Kotlin embebido de AGP 9.4: compose compiler y KSP en `2.3.10` (el `2.2.10-2.0.2` inicial chocaba con el guardrail `kotlin.sourceSets` de AGP 9).
+- Se aplicaron los plugins de KSP y Hilt en `:app`; el compilador de Hilt y Room corren por KSP.
+- Se creó `AppCustodioApplication` con `@HiltAndroidApp` y se registró en el manifest.
+- Se creó `ui/navigation/AppNavHost.kt` con el `NavHost` que arranca en la ruta `inicio` (contenido vacío) y previews de los dos temas; `MainActivity` pasó a `@AndroidEntryPoint` y renderiza el `AppNavHost`.
+- Se agregó `values-es-rMX/strings.xml` (textos en español de México); `AppCustodioTheme` ya soporta los dos temas (claro/oscuro).
+- El plugin de Crashlytics queda **versionado pero sin aplicar**: tiene fricción conocida con AGP 9 y la consola Firebase no existe todavía (carril A); se aplica en B5.
+
+**Archivos modificados:**
+- `gradle/libs.versions.toml`
+- `build.gradle.kts`
+- `app/build.gradle.kts`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/com/ai27/app/custodio/AppCustodioApplication.kt`
+- `app/src/main/java/com/ai27/app/custodio/MainActivity.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/res/values-es-rMX/strings.xml`
+- `AGENTS.md`
+
 ## 2026:09:18 17:20
 
 **Resumen:** Primer commit del repositorio: andamiaje de la app Android, configuración de Firebase, reescritura del plan de diseño y guardarraíles del repo.
