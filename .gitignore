@@ -1,0 +1,117 @@
+# ---------------------------------------------------------------------------
+# App Custodio — .gitignore
+#
+# Nota deliberada: `google-services.json` NO se ignora. Se commitea a propósito
+# (ver PLAN.md §9): no es un secreto y simplifica un repo de una sola app.
+# Lo que sí se ignora abajo son las credenciales que de verdad son secretas:
+# keystores de firma y llaves de cuenta de servicio.
+# ---------------------------------------------------------------------------
+
+# --- Gradle y build ---
+.gradle/
+build/
+/captures
+out/
+
+# --- Kotlin (directorio de sesiones de Kotlin 2.x) ---
+.kotlin/
+
+# --- Configuración local de la máquina ---
+local.properties
+
+# --- Módulos legados de IntelliJ ---
+*.iml
+*.ipr
+*.iws
+
+# --- Android Studio / IntelliJ: ruido por máquina y por usuario ---
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/deploymentTargetDropDown.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/androidTestResultsUserPreferences.xml
+/.idea/appInsightsSettings.xml
+/.idea/shelf/
+/.idea/httpRequests/
+/.idea/inspectionProfiles/
+/.idea/*.local.xml
+
+# --- Firma de release: NUNCA se commitea ---
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+signing.properties
+secrets.properties
+
+# --- Llaves de cuenta de servicio (App Distribution, despliegue de reglas, CI) ---
+*service-account*.json
+serviceAccountKey.json
+*.pem
+*.key
+
+# --- Artefactos de empaquetado ---
+*.apk
+*.aab
+*.ap_
+*.apks
+*.dex
+output-metadata.json
+/release/
+
+# --- Firebase: emulador, exportaciones y logs ---
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+database-debug.log
+pubsub-debug.log
+storage-debug.log
+ui-debug.log
+firebase-export-*/
+emulator-data/
+
+# --- Crashlytics: artefactos generados ---
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# --- Reportes de pruebas, lint y cobertura ---
+lint-results*.html
+lint-results*.xml
+lint-results*.txt
+lint-baseline.xml
+*.exec
+.jacoco/
+/reports/
+/test-results/
+
+# --- Perfilado y volcados ---
+*.hprof
+*.trace
+/profile/
+
+# --- Logs sueltos ---
+*.log
+
+# --- NDK / código nativo ---
+.externalNativeBuild
+.cxx/
+obj/
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# --- Editores ---
+*.swp
+*~
+.vscode/
