@@ -2,6 +2,18 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:18 17:39
+
+**Resumen:** Se corrige el crash al arrancar la app causado por la librería de Crashlytics sin su plugin de Gradle.
+
+**Cambios:**
+- Se eliminó `firebase-crashlytics` del runtime y del catálogo de versiones: sin el plugin de Gradle de Crashlytics no se genera el `crashlyticsBuildId` y la app reventaba al iniciar (`IllegalStateException: The Crashlytics build ID is missing`).
+- Se mantienen el Firebase BoM y auth/firestore/storage; Crashlytics (librería + plugin) vuelve en B5 conforme al plan.
+
+**Archivos modificados:**
+- `app/build.gradle.kts`
+- `gradle/libs.versions.toml`
+
 ## 2026:09:18 17:35
 
 **Resumen:** Se incorporan al repositorio las reglas genéricas de `docs/GENERIC_RULES.md`, las pautas móviles de `docs/MOBILE_GUIDELINES.md` y la configuración del IDE (`.idea/`).

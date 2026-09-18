@@ -73,12 +73,11 @@ dependencies {
     // Imágenes (miniaturas y rejilla)
     implementation(libs.coil.compose)
 
-    // Firebase
+    // Firebase (Crashlytics se agrega en B5 cuando se aplica su plugin de Gradle)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
-    implementation(libs.firebase.crashlytics)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
