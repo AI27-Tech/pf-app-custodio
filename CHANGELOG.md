@@ -2,6 +2,28 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:18 17:35
+
+**Resumen:** Se incorporan al repositorio las reglas genéricas de `docs/GENERIC_RULES.md`, las pautas móviles de `docs/MOBILE_GUIDELINES.md` y la configuración del IDE (`.idea/`).
+
+**Cambios:**
+- Se agregan `docs/GENERIC_RULES.md` (reglas de trabajo reutilizables para agentes de codificación) y `docs/MOBILE_GUIDELINES.md` (pautas específicas de Android).
+- Se versiona la configuración de Android Studio (`.idea/`) generada en la apertura del proyecto.
+
+**Archivos modificados:**
+- `docs/GENERIC_RULES.md`
+- `docs/MOBILE_GUIDELINES.md`
+- `.idea/.name`
+- `.idea/AndroidProjectSystem.xml`
+- `.idea/codeStyles/`
+- `.idea/compiler.xml`
+- `.idea/deviceManager.xml`
+- `.idea/gradle.xml`
+- `.idea/markdown.xml`
+- `.idea/misc.xml`
+- `.idea/runConfigurations.xml`
+- `.idea/vcs.xml`
+
 ## 2026:09:18 17:32
 
 **Resumen:** Se agregó la regla de trabajo "pausa para Sync" en `AGENTS.md`.
