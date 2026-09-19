@@ -14,6 +14,7 @@ data class CapturaUiState(
     val creandoViaje: Boolean = false,
     val capturando: Boolean = false,
     val cerrandoViaje: Boolean = false,
+    val descartandoViaje: Boolean = false,
     val cerrandoSesion: Boolean = false,
     val confirmacionCerrarSesion: Boolean = false,
     val pendientesSinSubir: Int = 0,

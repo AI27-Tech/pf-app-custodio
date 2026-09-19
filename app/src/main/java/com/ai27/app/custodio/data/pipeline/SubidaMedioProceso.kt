@@ -29,6 +29,7 @@ class SubidaMedioProceso(
         if (medio.estadoSubida == EstadoSubida.COMPLETA) return Result.Success(Unit)
         val reporte = reporteRepository.obtenerPorId(reporteId)
             ?: return Result.Success(Unit)
+        if (reporte.ciclo == Ciclo.DESCARTADO) return Result.Success(Unit) // sin evidencia futura a un viaje descartado
 
         val aseguro = asegurarReporte(reporte)
         when (aseguro) {

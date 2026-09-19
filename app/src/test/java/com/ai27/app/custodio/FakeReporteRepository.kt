@@ -22,12 +22,15 @@ class FakeReporteRepository(
     override fun observarActivo(custodioUid: String): Flow<Reporte?> =
         MutableStateFlow(reportes.firstOrNull { it.custodioUid == custodioUid && it.ciclo == Ciclo.ACTIVO })
 
+    override fun observarPorId(reporteId: String): Flow<Reporte?> =
+        MutableStateFlow(reportes.firstOrNull { it.id == reporteId })
+
     override fun observarHistorial(custodioUid: String, fechaDesde: String): Flow<List<Reporte>> =
         MutableStateFlow(
             reportes
                 .filter {
                     it.custodioUid == custodioUid &&
-                        it.ciclo == Ciclo.CERRADO &&
+                        it.ciclo != Ciclo.ACTIVO &&
                         it.fechaLocal >= fechaDesde
                 }
                 .sortedByDescending { it.createdAtDevice },

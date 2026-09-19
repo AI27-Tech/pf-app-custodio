@@ -28,6 +28,9 @@ class RoomReporteRepository(
     override fun observarActivo(custodioUid: String): Flow<Reporte?> =
         dao.observarActivo(custodioUid).map { it?.aDominio() }
 
+    override fun observarPorId(reporteId: String): Flow<Reporte?> =
+        dao.observarPorId(reporteId).map { it?.aDominio() }
+
     override fun observarHistorial(custodioUid: String, fechaDesde: String): Flow<List<Reporte>> =
         dao.observarHistorial(custodioUid, fechaDesde).map { lista -> lista.map { it.aDominio() } }
 

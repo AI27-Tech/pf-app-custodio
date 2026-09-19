@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
@@ -65,6 +66,7 @@ import java.io.File
 
 @Composable
 fun CapturaRoute(
+    onVerHistorial: () -> Unit,
     viewModel: CapturaViewModel = hiltViewModel(),
 ) {
     val estado by viewModel.uiState.collectAsState()
@@ -82,7 +84,9 @@ fun CapturaRoute(
         onBorrarPendiente = viewModel::borrarPendiente,
         onReintentar = viewModel::reintentar,
         onCerrarViaje = viewModel::cerrarViaje,
+        onDescartarViaje = viewModel::descartarViaje,
         onCerrarSesion = viewModel::solicitarCerrarSesion,
+        onVerHistorial = onVerHistorial,
         onCancelarCerrarSesion = viewModel::cancelarCerrarSesion,
         onConfirmarCerrarSesion = viewModel::confirmarCerrarSesion,
         onConsumirError = viewModel::consumirError,
@@ -111,7 +115,9 @@ fun CapturaScreen(
     onBorrarPendiente: (medioId: String) -> Unit,
     onReintentar: (medioId: String) -> Unit,
     onCerrarViaje: () -> Unit,
+    onDescartarViaje: (motivo: String) -> Unit,
     onCerrarSesion: () -> Unit,
+    onVerHistorial: () -> Unit,
     onCancelarCerrarSesion: () -> Unit,
     onConfirmarCerrarSesion: () -> Unit,
     onConsumirError: () -> Unit,
@@ -148,6 +154,8 @@ fun CapturaScreen(
     var controllerCamara by remember { mutableStateOf<LifecycleCameraController?>(null) }
     var medioABorrar by remember { mutableStateOf<Medio?>(null) }
     var confirmarCierre by remember { mutableStateOf(false) }
+    var confirmarDescarte by remember { mutableStateOf(false) }
+    var motivoDescarte by remember { mutableStateOf("") }
 
     Scaffold { padding ->
         Column(
@@ -157,6 +165,8 @@ fun CapturaScreen(
         ) {
             BarraSesion(
                 correo = estado.custodio?.correo.orEmpty(),
+                pendientesSinSubir = estado.pendientesSinSubir,
+                onVerHistorial = onVerHistorial,
                 onCerrarSesion = onCerrarSesion,
             )
             val reporte = estado.reporte
@@ -189,6 +199,7 @@ fun CapturaScreen(
                     onConfirmarBorrar = { medioABorrar = it },
                     onReintentar = onReintentar,
                     onCerrarViaje = { confirmarCierre = true },
+                    onSolicitarDescarte = { confirmarDescarte = true },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -238,6 +249,51 @@ fun CapturaScreen(
         )
     }
 
+    if (confirmarDescarte) {
+        AlertDialog(
+            onDismissRequest = {
+                confirmarDescarte = false
+                motivoDescarte = ""
+            },
+            title = { Text("¿Descartar el viaje?") },
+            text = {
+                Column {
+                    Text(
+                        "Esto marca el viaje como descartado. Lo que ya se subió " +
+                            "no se borra; se excluye de los reportes del analista.",
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = motivoDescarte,
+                        onValueChange = { motivoDescarte = it },
+                        label = { Text("Motivo del descarte") },
+                        placeholder = { Text("Obligatorio") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDescartarViaje(motivoDescarte)
+                        confirmarDescarte = false
+                        motivoDescarte = ""
+                    },
+                    enabled = motivoDescarte.isNotBlank() && !estado.descartandoViaje,
+                ) {
+                    Text(if (estado.descartandoViaje) "Descartando…" else "Descartar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    confirmarDescarte = false
+                    motivoDescarte = ""
+                }) { Text("Cancelar") }
+            },
+        )
+    }
+
     if (estado.confirmacionCerrarSesion) {
         AlertDialog(
             onDismissRequest = onCancelarCerrarSesion,
@@ -281,6 +337,8 @@ fun CapturaScreen(
 @Composable
 private fun BarraSesion(
     correo: String,
+    pendientesSinSubir: Int,
+    onVerHistorial: () -> Unit,
     onCerrarSesion: () -> Unit,
 ) {
     if (correo.isBlank()) return
@@ -297,6 +355,33 @@ private fun BarraSesion(
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = if (pendientesSinSubir > 0) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+            modifier = Modifier.padding(end = 4.dp),
+        ) {
+            Text(
+                text = "$pendientesSinSubir sin subir",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (pendientesSinSubir > 0) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+        IconButton(onClick = onVerHistorial) {
+            Icon(
+                Icons.AutoMirrored.Filled.List,
+                contentDescription = "Historial de viajes",
+                tint = MaterialTheme.colorScheme.outline,
+            )
+        }
         IconButton(onClick = onCerrarSesion) {
             Icon(
                 Icons.Filled.ExitToApp,
@@ -365,6 +450,7 @@ private fun ColumnaCaptura(
     onConfirmarBorrar: (Medio) -> Unit,
     onReintentar: (medioId: String) -> Unit,
     onCerrarViaje: () -> Unit,
+    onSolicitarDescarte: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -373,7 +459,9 @@ private fun ColumnaCaptura(
             placas = estado.reporte?.placasCapturadas.orEmpty(),
             contador = estado.medios.size,
             cerrandoViaje = estado.cerrandoViaje,
+            descartandoViaje = estado.descartandoViaje,
             onCerrarViaje = onCerrarViaje,
+            onSolicitarDescarte = onSolicitarDescarte,
         )
 
         if (permisos.camara) {
@@ -439,25 +527,48 @@ private fun BloqueEncabezado(
     placas: String,
     contador: Int,
     cerrandoViaje: Boolean,
+    descartandoViaje: Boolean,
     onCerrarViaje: () -> Unit,
+    onSolicitarDescarte: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Viaje", style = MaterialTheme.typography.labelMedium)
-            Text(placas, style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Viaje", style = MaterialTheme.typography.labelMedium)
+                Text(placas, style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                text = "$contador de 50",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+            TextButton(onClick = onCerrarViaje, enabled = !cerrandoViaje && !descartandoViaje) {
+                Text("Cerrar viaje")
+            }
         }
-        Text(
-            text = "$contador de 50",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-        TextButton(onClick = onCerrarViaje, enabled = !cerrandoViaje) {
-            Text("Cerrar viaje")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(
+                onClick = onSolicitarDescarte,
+                enabled = !cerrandoViaje && !descartandoViaje,
+            ) {
+                Text(
+                    text = "Descartar viaje",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
     }
 }

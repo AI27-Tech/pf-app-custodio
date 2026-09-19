@@ -2,6 +2,37 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:19 16:30
+
+**Resumen:** B6: historial y estados. Pantalla de historial (30 días, solo lectura, buscador por placa) y detalle de viaje (solo lectura) con chips de ciclo y estado de subida; descarte de viaje con motivo obligatorio; badge permanente de pendientes.
+
+**Cambios:**
+- Historial: `ReporteDao.observarHistorial` ahora emite solo `Ciclo.CERRADO` y `Ciclo.DESCARTADO` de los últimos 30 días (`fechaLocal >= fechaDesde`), ordenados descendente; `observarPorId` (Flow) nuevo en `ReporteDao`/`ReporteRepository`/`RoomReporteRepository` para el detalle. Todo sale de Room local, sin pull remoto.
+- Descarte: `CapturaViewModel` inyecta `DescartarReporte` y expone `descartarViaje(motivo)`; tras descartar (y también tras `cerrarViaje`) se llama `programadorSubidas.sincronizarReporte(id)` para empujar la transición DESCARTADO/CERRADO a Firestore (corrige un hueco de B5: cerrar/descartar no sincronizaba el ciclo).
+- Guard del pipeline: `SubidaMedioProceso` no sube evidencia a un reporte **descartado localmente** (corta antes de `asegurarReporte`); el contador tampoco avanza.
+- UI: nueva jerarquía `ui/historial/` — `HistorialUiState` (estado + `filtrarPorPlaca` puro), `HistorialViewModel` (combina historial + pendientes de la sesión + filtro), `HistorialScreen` (encabezado con botón atrás, buscador por placa, tarjetas con chips `Cerrado/Descartado` y `Enviado/Pendiente/Subiendo/Error`, vacíos "Sin viajes…" / "Ningún viaje coincide…"), `DetalleReporteViewModel` (lee `reporteId` del `SavedStateHandle`, combina reporte + medios + catálogo de etiquetas) y `DetalleReporteScreen` (solo lectura: placas, fecha, ciclo, estado, contador, comentario, motivo de descarte, miniaturas/fotos y notas con su etiqueta).
+- Navegación: rutas `historial` y `detalle/{reporteId}` en `AppNavHost`; botón historial y badge "N sin subir" en `BarraSesion`; "Descartar viaje" en el encabezado con diálogo de motivo obligatorio (confirm deshabilitado mientras está vacío o descartando).
+- Hilt: `CapturaModule` provee ahora `DescartarReporte` y `ObtenerHistorial`.
+- Pruebas JVM (67 verdes): `ObtenerHistorialTest` (descartado aparece con su motivo y el activo no), `SubidaMedioProcesoTest` (reporte descartado local → no sube, no crea doc, no avanza contadores), `HistorialFiltroTest` (filtro sin mayúsculas, parcial, vacío) y `RoomReporteRepositoryTest` (historial con CERRADO/DESCARTADO excluyendo ACTIVO contra Room real + `observarPorId`).
+- Pendiente manual (no automatizado): recorrer el ciclo completo en un dispositivo real (crear → capturar → cerrar y verlo en Historial → detalle → descartar con motivo y verlo reflejado).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/di/CapturaModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProceso.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/ReporteDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/ReporteRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomReporteRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/historial/` (nuevo: HistorialUiState, HistorialViewModel, HistorialScreen, DetalleReporteViewModel, DetalleReporteScreen)
+- `app/src/test/java/com/ai27/app/custodio/FakeReporteRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/ObtenerHistorialTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProcesoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/RoomReporteRepositoryTest.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/ui/historial/HistorialFiltroTest.kt` (nuevo)
+- `AGENTS.md`, `CHANGELOG.md`
+
 ## 2026:09:19 15:05
 
 **Resumen:** B5: pipeline de subida a Firebase con WorkManager, repositorios de Firestore/Storage, contadores y reintentos con backoff, reintento manual desde la celda FALLIDA, y reglas de seguridad de Firestore y Storage probadas contra el Emulator Suite de Firebase.

@@ -11,6 +11,7 @@ interface ReporteRepository {
     suspend fun obtenerActivo(custodioUid: String): Reporte?
     suspend fun obtenerPorId(reporteId: String): Reporte?
     fun observarActivo(custodioUid: String): Flow<Reporte?>
+    fun observarPorId(reporteId: String): Flow<Reporte?>
     fun observarHistorial(custodioUid: String, fechaDesde: String): Flow<List<Reporte>>
     suspend fun crear(reporte: Reporte): Result<Reporte>
     suspend fun cerrar(

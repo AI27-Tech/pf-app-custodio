@@ -8,8 +8,10 @@ import com.ai27.app.custodio.domain.repository.ReporteRepository
 import com.ai27.app.custodio.domain.usecase.CapturarMedio
 import com.ai27.app.custodio.domain.usecase.CerrarReporte
 import com.ai27.app.custodio.domain.usecase.CrearReporte
+import com.ai27.app.custodio.domain.usecase.DescartarReporte
 import com.ai27.app.custodio.domain.usecase.EtiquetarMedio
 import com.ai27.app.custodio.domain.usecase.ObtenerEtiquetas
+import com.ai27.app.custodio.domain.usecase.ObtenerHistorial
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -46,6 +48,14 @@ object CapturaModule {
         reporteRepository: ReporteRepository,
         medioRepository: MedioRepository,
     ): CerrarReporte = CerrarReporte(reporteRepository, medioRepository)
+
+    @Provides
+    fun proveeDescartarReporte(reporteRepository: ReporteRepository): DescartarReporte =
+        DescartarReporte(reporteRepository)
+
+    @Provides
+    fun proveeObtenerHistorial(reporteRepository: ReporteRepository): ObtenerHistorial =
+        ObtenerHistorial(reporteRepository)
 
     @Provides
     @Singleton

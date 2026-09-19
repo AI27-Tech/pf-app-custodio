@@ -132,6 +132,20 @@ class SubidaMedioProcesoTest {
     }
 
     @Test
+    fun `no sube evidencia a un reporte descartado localmente`() = runBlocking {
+        repoReportes.reportes[0] = repoReportes.reportes[0].copy(ciclo = Ciclo.DESCARTADO)
+
+        val resultado = proceso.ejecutar("r-1", medio.id)
+
+        assertTrue(resultado is Result.Success)
+        assertEquals(0, medioRemoto.subidos.size)
+        assertEquals(0, medioRemoto.docsCreados.size)
+        assertEquals(0, reporteRemoto.creaciones)
+        assertEquals(0, reporteRemoto.actualizacionesContadores)
+        assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(medio.id)!!.estadoSubida)
+    }
+
+    @Test
     fun `marca fallida y no avanza contadores cuando falla la subida`() = runBlocking {
         medioRemoto.debeFallarSubida = true
 

@@ -20,7 +20,14 @@ interface ReporteDao {
     @Query("SELECT * FROM reportes WHERE id = :id LIMIT 1")
     suspend fun obtenerPorId(id: String): ReporteEntity?
 
-    @Query("SELECT * FROM reportes WHERE custodioUid = :custodioUid AND ciclo = 'CERRADO' AND fechaLocal >= :fechaDesde ORDER BY createdAtDevice DESC")
+    @Query("SELECT * FROM reportes WHERE id = :id LIMIT 1")
+    fun observarPorId(id: String): Flow<ReporteEntity?>
+
+    @Query(
+        "SELECT * FROM reportes WHERE custodioUid = :custodioUid " +
+            "AND ciclo IN ('CERRADO','DESCARTADO') AND fechaLocal >= :fechaDesde " +
+            "ORDER BY createdAtDevice DESC",
+    )
     fun observarHistorial(custodioUid: String, fechaDesde: String): Flow<List<ReporteEntity>>
 
     @Query(

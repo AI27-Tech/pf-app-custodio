@@ -23,6 +23,7 @@ import com.ai27.app.custodio.domain.repository.SesionRepositorio
 import com.ai27.app.custodio.domain.usecase.CapturarMedio
 import com.ai27.app.custodio.domain.usecase.CerrarReporte
 import com.ai27.app.custodio.domain.usecase.CrearReporte
+import com.ai27.app.custodio.domain.usecase.DescartarReporte
 import com.ai27.app.custodio.domain.usecase.EtiquetarMedio
 import com.ai27.app.custodio.domain.usecase.ObtenerEtiquetas
 import com.ai27.app.custodio.domain.usecase.ReintentarSubida
@@ -52,6 +53,7 @@ class CapturaViewModel @Inject constructor(
     private val capturarMedio: CapturarMedio,
     private val etiquetarMedio: EtiquetarMedio,
     private val cerrarReporte: CerrarReporte,
+    private val descartarReporte: DescartarReporte,
     private val obtenerEtiquetas: ObtenerEtiquetas,
     private val reintentarSubida: ReintentarSubida,
     private val proveedorUbicacion: ProveedorUbicacion,
@@ -302,8 +304,29 @@ class CapturaViewModel @Inject constructor(
             val resultado = cerrarReporte(reporte.id)
             interno.update {
                 when (resultado) {
-                    is Result.Success -> it.copy(cerrandoViaje = false)
+                    is Result.Success -> {
+                        programadorSubidas.sincronizarReporte(resultado.value.id)
+                        it.copy(cerrandoViaje = false)
+                    }
                     is Result.Failure -> it.copy(cerrandoViaje = false, error = resultado.error.aMensajeUsuario())
+                }
+            }
+        }
+    }
+
+    fun descartarViaje(motivo: String) {
+        val reporte = uiState.value.reporte ?: return
+        if (interno.value.descartandoViaje) return
+        viewModelScope.launch {
+            interno.update { it.copy(descartandoViaje = true, error = null) }
+            val resultado = descartarReporte(reporte.id, motivo.trim())
+            interno.update {
+                when (resultado) {
+                    is Result.Success -> {
+                        programadorSubidas.sincronizarReporte(resultado.value.id)
+                        it.copy(descartandoViaje = false)
+                    }
+                    is Result.Failure -> it.copy(descartandoViaje = false, error = resultado.error.aMensajeUsuario())
                 }
             }
         }
