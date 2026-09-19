@@ -2,6 +2,29 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:19 17:10
+
+**Resumen:** B7: release y documentación. APK release firmado con keystore propio, Crashlytics integrado (plugin + SDK), WorkManagerInitializer fuera del manifest para desbloquear `lintVitalRelease`, y README de provisión de equipos y cuentas + App Distribution.
+
+**Cambios:**
+- Firma de release: keystore propio `app/keystore/release.jks` (RSA-2048, 25 años, alias `custodio`) y `keystore.properties`, **ambos gitignored** (ya cubierto por `*.jks` y `keystore.properties`). `app/build.gradle.kts` lee las credenciales si el archivo existe; si falta, `release` queda sin firmar (`signingConfigs.release` + `buildTypes.release.signingConfig` condicionales). Nota: la firma se configuró con `import java.util.Properties` y sentencias explícitas porque `java.util.Properties` no resolvía por nombre completo en este script y `.use { }` fallaba la inferencia con Kotlin 2.3 embebido.
+- Crashlytics: plugin `com.google.firebase.crashlytics` **aplicado en `:app`** (versión 3.0.8 del catálogo), librería runtime vía BoM (`firebase-crashlytics`), SDK inicializado en `AppCustodioApplication.onCreate` y recolección explícita en el manifest (`firebase_crashlytics_collection_enabled=true`). El bloque `firebaseCrashlytics { mappingFileUploadEnabled }` NO se usa: el accessor no genera con AGP 9 y con R8 apagado no hay mapping; el reporte real queda operativo cuando exista la consola (carril A).
+- Manifest: además del meta-data de Crashlytics, se removió el `androidx.work.WorkManagerInitializer` (provider de startup con `tools:node="remove"`), porque `AppCustodioApplication` implementa `Configuration.Provider` y `lintVitalRelease` lo marcaba error fatal. Este lint venía latente desde B5 y afloró al hacer el primer build de release.
+- `assembleRelease` verde (lintVitalRelease incluido); APK firmado V1+V2 verificado con `apksigner` (~22,5 MB, output en `app/build/outputs/apk/release/app-release.apk`).
+- Docs: `README.md` nuevo (no existía) con build/verificación, provisión de equipos (sideload, App Distribution), alta/baja de cuentas (A2) con sus pasos 1–3 del carril A, resguardo del keystore y verificación manual del ciclo completo (aún pendiente en dispositivo real con el carril A disponible).
+- `AGENTS.md`: B7 en el resumen de fases, comando `assembleRelease` en Commands, Crashlytics aplicado y nota de firma de release.
+
+**Archivos modificados:**
+- `app/build.gradle.kts` (plugin Crashlytics, signingConfig release, dependencia `firebase-crashlytics`)
+- `gradle/libs.versions.toml` (librería `firebase-crashlytics`)
+- `app/src/main/AndroidManifest.xml` (meta-data Crashlytics, remoción WorkManagerInitializer)
+- `app/src/main/java/com/ai27/app/custodio/AppCustodioApplication.kt` (init Crashlytics)
+- `README.md` (nuevo)
+- `AGENTS.md`, `CHANGELOG.md`
+- Generados y gitignored (no commitear): `app/keystore/release.jks`, `keystore.properties`
+
+**Pendiente manual:** carril A en la consola (A1 servicios, A3 reglas, A2 cuentas, A4 catálogo de etiquetas) y, una vez disponible, desplegar el APK a un equipo de campo y validar el ciclo completo en Firestore (criterio B7).
+
 ## 2026:09:19 16:30
 
 **Resumen:** B6: historial y estados. Pantalla de historial (30 días, solo lectura, buscador por placa) y detalle de viaje (solo lectura) con chips de ciclo y estado de subida; descarte de viaje con motivo obligatorio; badge permanente de pendientes.

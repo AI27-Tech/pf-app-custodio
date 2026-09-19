@@ -4,8 +4,29 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.crashlytics)
 
 }
+
+// Firma de release: el keystore y sus contraseñas viven en keystore.properties
+// (gitignored). Si el archivo no existe, release queda sin firmar y solo se usa
+// para verificaciones locales (assembleRelease exige firma, installRelease no).
+import java.util.Properties
+
+val archivoKeystore = rootProject.file("keystore.properties")
+val keystoreProperties: Properties? =
+    if (archivoKeystore.exists()) {
+        val props = Properties()
+        val entrada = archivoKeystore.inputStream()
+        try {
+            props.load(entrada)
+        } finally {
+            entrada.close()
+        }
+        props
+    } else {
+        null
+    }
 
 android {
     namespace = "com.ai27.app.custodio"
@@ -23,8 +44,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (keystoreProperties != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = keystoreProperties?.let { signingConfigs.getByName("release") }
             optimization {
                 enable = false
             }
@@ -78,11 +111,12 @@ dependencies {
     // Ubicación (GPS por archivo)
     implementation(libs.play.services.location)
 
-    // Firebase (Crashlytics se agrega en B5 cuando se aplica su plugin de Gradle)
+    // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
+    implementation(libs.firebase.crashlytics)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
