@@ -13,6 +13,7 @@ import com.ai27.app.custodio.domain.repository.ReporteRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import java.io.File
 import javax.inject.Singleton
@@ -23,7 +24,7 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun proveeBaseDatos(context: Context): AppCustodioDatabase =
+    fun proveeBaseDatos(@ApplicationContext context: Context): AppCustodioDatabase =
         AppCustodioDatabase.crearBaseDatos(context)
 
     @Provides
@@ -44,6 +45,6 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun proveeAlmacenArchivos(context: Context): AlmacenArchivos =
+    fun proveeAlmacenArchivos(@ApplicationContext context: Context): AlmacenArchivos =
         FilesDirAlmacenArchivos(File(context.filesDir, "medios"))
 }

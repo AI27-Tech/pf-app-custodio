@@ -1,0 +1,104 @@
+package com.ai27.app.custodio
+
+import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
+import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.repository.RoomMedioRepository
+import com.ai27.app.custodio.data.repository.RoomReporteRepository
+import com.ai27.app.custodio.domain.Result
+import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Medio
+import com.ai27.app.custodio.domain.model.OrigenMedio
+import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.domain.usecase.CapturarMedio
+import com.ai27.app.custodio.domain.usecase.CrearReporte
+import java.io.File
+import java.nio.file.Files
+import java.time.Instant
+import java.util.UUID
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class RoomMedioRepositoryTest {
+
+    private lateinit var database: AppCustodioDatabase
+    private lateinit var archivoDb: File
+    private lateinit var directorioMedios: File
+    private val fijo = Instant.parse("2026-09-18T15:00:00Z")
+
+    @Before
+    fun setUp() {
+        archivoDb = File.createTempFile("b3-medios-", ".db").also { it.delete() }
+        database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        directorioMedios = Files.createTempDirectory("b3-medios-dir").toFile()
+    }
+
+    @After
+    fun tearDown() {
+        database.close()
+        archivoDb.delete()
+        directorioMedios.deleteRecursively()
+    }
+
+    private fun medio(reporteId: String, tipo: TipoMedio = TipoMedio.FOTO): Medio = Medio(
+        id = UUID.randomUUID().toString(),
+        reporteId = reporteId,
+        tipo = tipo,
+        origen = if (tipo == TipoMedio.FOTO) OrigenMedio.CAMARA else OrigenMedio.GRABADORA,
+        createdAtDevice = fijo,
+        contentType = if (tipo == TipoMedio.FOTO) "image/jpeg" else "audio/mp4",
+        estadoSubida = EstadoSubida.PENDIENTE,
+    )
+
+    @Test
+    fun `guardar con miniatura escribe original y miniatura y borrar pendiente los elimina`() = runBlocking {
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
+
+        val capturar = CapturarMedio(repoReportes, repoMedios, ahora = { fijo })
+        val resultado = capturar(
+            custodioUid = "c-1",
+            reporteId = reporte.id,
+            tipo = TipoMedio.FOTO,
+            origen = OrigenMedio.CAMARA,
+            contenido = ByteArray(2048),
+            miniatura = ByteArray(512),
+        )
+        val guardado = (resultado as Result.Success).value
+
+        assertTrue(File(guardado.localPath!!).exists())
+        assertTrue(File(guardado.thumbnailPath!!).exists())
+        assertEquals(2, directorioMedios.listFiles()!!.size)
+
+        val borrado = repoMedios.borrarPendiente(guardado.id)
+        assertTrue(borrado is Result.Success)
+        assertFalse(File(guardado.localPath).exists())
+        assertFalse(File(guardado.thumbnailPath).exists())
+        assertEquals(0, directorioMedios.listFiles()!!.size)
+    }
+
+    @Test
+    fun `etiquetar actualiza etiqueta y ubicacionTexto solo cuando se pasa`() = runBlocking {
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
+        val guardado = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
+
+        val conUbicacion = repoMedios.etiquetar(guardado.id, "fotografia", "Entrada 3")
+        assertTrue(conUbicacion is Result.Success)
+        assertEquals("fotografia", (conUbicacion as Result.Success).value.etiqueta)
+        assertEquals("Entrada 3", conUbicacion.value.ubicacionTexto)
+
+        val sinUbicacion = repoMedios.etiquetar(guardado.id, "inspeccion")
+        assertTrue(sinUbicacion is Result.Success)
+        assertEquals("inspeccion", (sinUbicacion as Result.Success).value.etiqueta)
+        assertEquals("Entrada 3", sinUbicacion.value.ubicacionTexto)
+    }
+}

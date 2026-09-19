@@ -2,6 +2,46 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:19 00:18
+
+**Resumen:** B3: pantalla de captura completa (foto y nota de voz), etiquetado obligatorio con chips, miniaturas locales, rejilla de hasta 50 medios con borrado solo antes de subir y cierre del viaje; todo persiste en Room y sobrevive a reiniciar la app.
+
+**Cambios:**
+- Captura: `CapturaViewModel`/@HiltViewModel + pantalla Compose: cámara lista vía CameraX (`LifecycleCameraController`, captura en memoria 1920×1080, miniaturas 320 px en `Miniaturas`), disparo → hoja modal de etiqueta (chips del catálogo obligatorios, campo de ubicación como fallback cuando no hay GPS) y grabadora MediaRecorder AAC `.m4a` con temporizador visible y tope de 5 min.
+- Rejilla 4 columnas con miniatura (Coil) o ícono de nota, badge de etiqueta y borrado con confirmación solo para medíos `PENDIENTE`; encabezado con placa, contador "X de 50" y botón "Cerrar viaje" (usa `CerrarReporte`, exige ≥1 archivo).
+- "Nuevo viaje": formulario de placa cuando no hay reporte activo; navegación arranca en `CapturaRoute`.
+- Identidad provisional hasta B4: custodio fijo `custodio-provisional` + `deviceId` de `ANDROID_ID`; cliente provisional.
+- GPS por archivo: `ProveedorUbicacion` (FusedLocationProvider 1-shot, ~8 s límite, precisión + antigüedad) con fallback de texto; `ubicacionTexto` se guarda con `EtiquetarMedio`.
+- Dominio/datos: `guardar(medio, contenido, miniatura)` persiste `thumbnailPath` y lo borra junto con el archivo en `borrarPendiente`; `etiquetar` acepta `ubicacionTexto` (COALESCE en el DAO).
+- Permisos runtime CAMERA/RECORD_AUDIO/ACCESS_FINE_LOCATION en el arranque (+ manifest).
+- Dependencias: `play-services-location` `21.4.0` y `material-icons-core` (BOM).
+- Pruebas nuevas: miniatura en `CapturarMedioTest`, `RoomMedioRepositoryTest` (escribe y borra archivo+miniatura; `ubicacionTexto` preservado). Verificado en emulador: capturar foto y nota, etiquetar, reiniciar la app y recuperar el viaje activo, borrar pendiente y cerrar viaje.
+
+**Archivos modificados:**
+- `gradle/libs.versions.toml`
+- `app/build.gradle.kts`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/CapturarMedio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/EtiquetarMedio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioErrorMensaje.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/Miniaturas.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/Grabadora.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/ubicacion/ProveedorUbicacion.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/IdentidadModule.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/UbicacionModule.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/CapturaModule.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/DatabaseModule.kt` (context calificado)
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/**` (nuevo: CapturaScreen/Route, CapturaViewModel, CapturaUiState, HojaEtiqueta, VistaCamara)
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/res/drawable/ic_mic.xml`, `ic_foto.xml` (nuevos)
+- `app/src/test/java/com/ai27/app/custodio/CapturarMedioTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/RoomMedioRepositoryTest.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:18 18:10
 
 **Resumen:** B2: dominio puro (modelos, errores sellados y 8 casos de uso) y persistencia local Room + archivos, con invariante de un solo reporte ACTIVO por custodio garantizado por un índice único parcial.

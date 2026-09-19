@@ -12,8 +12,18 @@ class FakeMedioRepository(
     val archivosGuardados: MutableMap<String, ByteArray> = mutableMapOf(),
 ) : MedioRepository {
 
-    override suspend fun guardar(medio: Medio, contenido: ByteArray): Result<Medio> {
-        val guardado = medio.copy(localPath = "fisico/${medio.id}")
+    override suspend fun guardar(
+        medio: Medio,
+        contenido: ByteArray,
+        miniatura: ByteArray?,
+    ): Result<Medio> {
+        val guardado = if (miniatura != null) {
+            val rutaMini = "fisico/${medio.id}-min"
+            archivosGuardados[rutaMini] = miniatura
+            medio.copy(localPath = "fisico/${medio.id}", thumbnailPath = rutaMini)
+        } else {
+            medio.copy(localPath = "fisico/${medio.id}")
+        }
         medios.add(guardado)
         archivosGuardados[guardado.localPath!!] = contenido
         return Result.Success(guardado)
@@ -28,12 +38,20 @@ class FakeMedioRepository(
     override fun observarDelReporte(reporteId: String): Flow<List<Medio>> =
         MutableStateFlow(medios.filter { it.reporteId == reporteId })
 
-    override suspend fun etiquetar(medioId: String, etiquetaId: String): Result<Medio> {
+    override suspend fun etiquetar(
+        medioId: String,
+        etiquetaId: String,
+        ubicacionTexto: String?,
+    ): Result<Medio> {
         val indice = medios.indexOfFirst { it.id == medioId }
         if (indice == -1) {
             return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
         }
-        val actualizado = medios[indice].copy(etiqueta = etiquetaId)
+        val anterior = medios[indice]
+        val actualizado = anterior.copy(
+            etiqueta = etiquetaId,
+            ubicacionTexto = ubicacionTexto ?: anterior.ubicacionTexto,
+        )
         medios[indice] = actualizado
         return Result.Success(actualizado)
     }
@@ -55,6 +73,7 @@ class FakeMedioRepository(
             return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioEnSubida)
         }
         archivosGuardados.remove(medio.localPath)
+        medio.thumbnailPath?.let { archivosGuardados.remove(it) }
         medios.remove(medio)
         return Result.Success(medio)
     }

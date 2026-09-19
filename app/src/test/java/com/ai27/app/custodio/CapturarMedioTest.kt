@@ -156,4 +156,37 @@ class CapturarMedioTest {
         assertEquals("audio/mp4", medio.contentType)
         assertEquals(90_000L, medio.durationMs)
     }
+
+    @Test
+    fun `guarda miniatura cuando se pasa`() = runBlocking {
+        val miniatura = ByteArray(512)
+        val resultado = caso()(
+            custodioUid = "c-1",
+            reporteId = reporteActivo.id,
+            tipo = TipoMedio.FOTO,
+            origen = OrigenMedio.CAMARA,
+            contenido = ByteArray(2048),
+            miniatura = miniatura,
+        )
+
+        assertTrue(resultado is Result.Success)
+        val medio = (resultado as Result.Success).value
+        assertEquals("fisico/${medio.id}-min", medio.thumbnailPath)
+        assertTrue(repoMedios.archivosGuardados[medio.thumbnailPath!!]!!.contentEquals(miniatura))
+    }
+
+    @Test
+    fun `audio no lleva miniatura`() = runBlocking {
+        val resultado = caso()(
+            custodioUid = "c-1",
+            reporteId = reporteActivo.id,
+            tipo = TipoMedio.AUDIO,
+            origen = OrigenMedio.GRABADORA,
+            contenido = ByteArray(100),
+            durationMs = 30_000,
+        )
+
+        assertTrue(resultado is Result.Success)
+        assertEquals(null, (resultado as Result.Success).value.thumbnailPath)
+    }
 }

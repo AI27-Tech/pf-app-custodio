@@ -43,6 +43,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
@@ -73,6 +74,9 @@ dependencies {
 
     // Imágenes (miniaturas y rejilla)
     implementation(libs.coil.compose)
+
+    // Ubicación (GPS por archivo)
+    implementation(libs.play.services.location)
 
     // Firebase (Crashlytics se agrega en B5 cuando se aplica su plugin de Gradle)
     implementation(platform(libs.firebase.bom))

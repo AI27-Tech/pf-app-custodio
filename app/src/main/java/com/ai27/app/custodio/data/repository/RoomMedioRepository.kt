@@ -19,13 +19,19 @@ class RoomMedioRepository(
 
     private val dao = database.medioDao()
 
-    override suspend fun guardar(medio: Medio, contenido: ByteArray): Result<Medio> {
+    override suspend fun guardar(medio: Medio, contenido: ByteArray, miniatura: ByteArray?): Result<Medio> {
         val ruta = almacenArchivos.guardar(medio.id, contenido)
-        val entidad = medio.copy(localPath = ruta).aEntidad()
+        val rutaMiniatura = miniatura?.let {
+            almacenArchivos.guardar("${medio.id}-min", it)
+        }
+        val entidad = medio
+            .copy(localPath = ruta, thumbnailPath = rutaMiniatura)
+            .aEntidad()
         return if (dao.insertar(entidad) != -1L) {
             Result.Success(entidad.aDominio())
         } else {
             almacenArchivos.borrar(ruta)
+            rutaMiniatura?.let { r -> almacenArchivos.borrar(r) }
             Result.Failure(DominioError.Inesperado(IllegalStateException("Insert de medio ignorado")))
         }
     }
@@ -39,8 +45,8 @@ class RoomMedioRepository(
     override fun observarDelReporte(reporteId: String): Flow<List<Medio>> =
         dao.observarDelReporte(reporteId).map { lista -> lista.map { it.aDominio() } }
 
-    override suspend fun etiquetar(medioId: String, etiquetaId: String): Result<Medio> {
-        val filas = dao.etiquetar(medioId, etiquetaId)
+    override suspend fun etiquetar(medioId: String, etiquetaId: String, ubicacionTexto: String?): Result<Medio> {
+        val filas = dao.etiquetar(medioId, etiquetaId, ubicacionTexto)
         val actualizado = dao.obtenerPorId(medioId)
         return if (filas == 1 && actualizado != null) {
             Result.Success(actualizado.aDominio())
@@ -63,6 +69,7 @@ class RoomMedioRepository(
         val filas = dao.borrarPendiente(medioId)
         return if (filas == 1) {
             medio.localPath?.let { ruta -> almacenArchivos.borrar(ruta) }
+            medio.thumbnailPath?.let { ruta -> almacenArchivos.borrar(ruta) }
             Result.Success(medio.aDominio())
         } else {
             Result.Failure(DominioError.MedioEnSubida)

@@ -1,0 +1,276 @@
+package com.ai27.app.custodio.ui.captura
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ai27.app.custodio.data.local.media.Grabadora
+import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
+import com.ai27.app.custodio.domain.Result
+import com.ai27.app.custodio.domain.error.DominioError
+import com.ai27.app.custodio.domain.error.aMensajeUsuario
+import com.ai27.app.custodio.domain.model.Custodio
+import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Etiqueta
+import com.ai27.app.custodio.domain.model.Gps
+import com.ai27.app.custodio.domain.model.Limites
+import com.ai27.app.custodio.domain.model.Medio
+import com.ai27.app.custodio.domain.model.OrigenMedio
+import com.ai27.app.custodio.domain.model.Reporte
+import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.domain.repository.MedioRepository
+import com.ai27.app.custodio.domain.repository.ReporteRepository
+import com.ai27.app.custodio.domain.usecase.CapturarMedio
+import com.ai27.app.custodio.domain.usecase.CerrarReporte
+import com.ai27.app.custodio.domain.usecase.CrearReporte
+import com.ai27.app.custodio.domain.usecase.EtiquetarMedio
+import com.ai27.app.custodio.domain.usecase.ObtenerEtiquetas
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import javax.inject.Named
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+@HiltViewModel
+class CapturaViewModel @Inject constructor(
+    private val reporteRepository: ReporteRepository,
+    private val medioRepository: MedioRepository,
+    private val crearReporte: CrearReporte,
+    private val capturarMedio: CapturarMedio,
+    private val etiquetarMedio: EtiquetarMedio,
+    private val cerrarReporte: CerrarReporte,
+    private val obtenerEtiquetas: ObtenerEtiquetas,
+    private val proveedorUbicacion: ProveedorUbicacion,
+    private val grabadora: Grabadora,
+    @Named("custodioProvisional") private val custodio: Custodio,
+    @Named("deviceId") private val deviceId: String,
+) : ViewModel() {
+
+    private val interno = MutableStateFlow(CapturaUiState())
+
+    private val reporteYMedios: kotlinx.coroutines.flow.Flow<Pair<Reporte?, List<Medio>>> =
+        reporteRepository.observarActivo(custodio.uid).flatMapLatest { reporte ->
+            if (reporte == null) {
+                flowOf(null to emptyList())
+            } else {
+                medioRepository.observarDelReporte(reporte.id).map { reporte to it }
+            }
+        }
+
+    val uiState: StateFlow<CapturaUiState> = combine(reporteYMedios, interno) { (reporte, medios), base ->
+        base.copy(reporte = reporte, medios = medios)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = CapturaUiState(),
+    )
+
+    private var jobTimerAudio: Job? = null
+
+    init {
+        viewModelScope.launch {
+            interno.update { it.copy(etiquetas = obtenerEtiquetas()) }
+        }
+    }
+
+    fun onPlacaCambio(placa: String) {
+        interno.update { it.copy(placaEscrita = placa, error = null) }
+    }
+
+    fun iniciarViaje() {
+        val placa = interno.value.placaEscrita
+        if (placa.isBlank()) {
+            interno.update { it.copy(error = "Escribe la placa para iniciar el viaje.") }
+            return
+        }
+        viewModelScope.launch {
+            interno.update { it.copy(creandoViaje = true, error = null) }
+            when (val resultado = crearReporte(
+                custodio = custodio,
+                deviceId = deviceId,
+                clienteId = CLIENTE_PROVISIONAL,
+                placasCapturadas = placa,
+            )) {
+                is Result.Success -> interno.update { it.copy(creandoViaje = false, placaEscrita = "" ) }
+                is Result.Failure -> interno.update {
+                    it.copy(creandoViaje = false, error = resultado.error.aMensajeUsuario())
+                }
+            }
+        }
+    }
+
+    fun capturarFoto(jpeg: ByteArray, miniatura: ByteArray?) {
+        val reporte = uiState.value.reporte ?: return
+        if (interno.value.capturando || interno.value.grabandoAudio) return
+        if (jpeg.isEmpty()) return
+        viewModelScope.launch {
+            interno.update { it.copy(capturando = true) }
+            val gps = obtenerGpsLinear()
+            val resultado = capturarMedio(
+                custodioUid = custodio.uid,
+                reporteId = reporte.id,
+                tipo = TipoMedio.FOTO,
+                origen = OrigenMedio.CAMARA,
+                contenido = jpeg,
+                miniatura = miniatura,
+                gps = gps,
+            )
+            interno.update {
+                when (resultado) {
+                    is Result.Success -> it.copy(
+                        capturando = false,
+                        ubicacionTextoEscrita = "",
+                        medioPendienteDeEtiquetar = resultado.value,
+                    )
+                    is Result.Failure -> it.copy(capturando = false, error = resultado.error.aMensajeUsuario())
+                }
+            }
+        }
+    }
+
+    fun iniciarGrabacionDeAudio() {
+        if (interno.value.grabandoAudio || interno.value.capturando) return
+        if (uiState.value.reporte == null) return
+        if (!grabadora.iniciar()) {
+            interno.update { it.copy(error = "No se pudo iniciar la grabación.") }
+            return
+        }
+        interno.update { it.copy(grabandoAudio = true, segundosAudio = 0L) }
+        jobTimerAudio = viewModelScope.launch {
+            while (interno.value.grabandoAudio) {
+                delay(1_000L)
+                if (!interno.value.grabandoAudio) break
+                val segundos = grabadora.duracionActualMs() / 1_000L
+                interno.update { it.copy(segundosAudio = segundos) }
+                if (grabadora.duracionActualMs() >= Limites.AUDIO_MAX_MS) {
+                    detenerGrabacionDeAudio()
+                }
+            }
+        }
+    }
+
+    fun detenerGrabacionDeAudio() {
+        if (!interno.value.grabandoAudio) return
+        jobTimerAudio?.cancel()
+        jobTimerAudio = null
+        interno.update { it.copy(grabandoAudio = false, segundosAudio = 0L) }
+        val reporte = uiState.value.reporte ?: run {
+            grabadora.descartar()
+            return
+        }
+        viewModelScope.launch {
+            val grabacion = grabadora.detener()
+            if (grabacion == null) return@launch
+            interno.update { it.copy(capturando = true) }
+            val gps = obtenerGpsLinear()
+            val resultado = capturarMedio(
+                custodioUid = custodio.uid,
+                reporteId = reporte.id,
+                tipo = TipoMedio.AUDIO,
+                origen = OrigenMedio.GRABADORA,
+                contenido = grabacion.bytes,
+                durationMs = grabacion.durationMs,
+                gps = gps,
+            )
+            interno.update {
+                when (resultado) {
+                    is Result.Success -> it.copy(
+                        capturando = false,
+                        ubicacionTextoEscrita = "",
+                        medioPendienteDeEtiquetar = resultado.value,
+                    )
+                    is Result.Failure -> it.copy(capturando = false, error = resultado.error.aMensajeUsuario())
+                }
+            }
+        }
+    }
+
+    fun descartarAudio() {
+        jobTimerAudio?.cancel()
+        jobTimerAudio = null
+        interno.update { it.copy(grabandoAudio = false, segundosAudio = 0L) }
+        grabadora.descartar()
+    }
+
+    fun guardarEtiqueta(medioId: String, etiquetaId: String) {
+        if (etiquetaId.isBlank()) {
+            interno.update { it.copy(error = "La etiqueta es obligatoria.") }
+            return
+        }
+        viewModelScope.launch {
+            val resultado = etiquetarMedio(
+                medioId = medioId,
+                etiquetaId = etiquetaId,
+                ubicacionTexto = interno.value.ubicacionTextoEscrita.trim().ifBlank { null },
+            )
+            interno.update {
+                when (resultado) {
+                    is Result.Success -> it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "")
+                    is Result.Failure -> it.copy(error = resultado.error.aMensajeUsuario())
+                }
+            }
+        }
+    }
+
+    fun descartarEtiquetado() {
+        interno.update { it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "") }
+    }
+
+    fun onUbicacionTextoCambio(texto: String) {
+        interno.update { it.copy(ubicacionTextoEscrita = texto) }
+    }
+
+    fun borrarPendiente(medioId: String) {
+        val medio = uiState.value.medios.firstOrNull { it.id == medioId } ?: return
+        if (medio.estadoSubida != EstadoSubida.PENDIENTE) return
+        viewModelScope.launch {
+            val resultado = medioRepository.borrarPendiente(medioId)
+            if (resultado is Result.Failure) {
+                interno.update { it.copy(error = resultado.error.aMensajeUsuario()) }
+            }
+        }
+    }
+
+    fun cerrarViaje() {
+        val reporte = uiState.value.reporte ?: return
+        if (interno.value.cerrandoViaje) return
+        viewModelScope.launch {
+            interno.update { it.copy(cerrandoViaje = true, error = null) }
+            val resultado = cerrarReporte(reporte.id)
+            interno.update {
+                when (resultado) {
+                    is Result.Success -> it.copy(cerrandoViaje = false)
+                    is Result.Failure -> it.copy(cerrandoViaje = false, error = resultado.error.aMensajeUsuario())
+                }
+            }
+        }
+    }
+
+    fun consumirError() {
+        interno.update { it.copy(error = null) }
+    }
+
+    private suspend fun obtenerGpsLinear(): Gps? = try {
+        withTimeoutOrNull(TIEMPO_OBTENER_UBICACION_MS) {
+            proveedorUbicacion.obtener()
+        }
+    } catch (_: SecurityException) {
+        null
+    } catch (_: Exception) {
+        null
+    }
+
+    private companion object {
+        const val CLIENTE_PROVISIONAL = "cliente-provisional"
+        const val TIEMPO_OBTENER_UBICACION_MS = 8_000L
+    }
+}

@@ -25,6 +25,7 @@ class CapturarMedio(
         tipo: TipoMedio,
         origen: OrigenMedio,
         contenido: ByteArray,
+        miniatura: ByteArray? = null,
         durationMs: Long? = null,
         gps: Gps? = null,
         ubicacionTexto: String? = null,
@@ -68,6 +69,6 @@ class CapturarMedio(
             sizeBytes = contenido.size.toLong(),
             durationMs = durationMs,
         )
-        return medioRepository.guardar(medio, contenido)
+        return medioRepository.guardar(medio, contenido, miniatura = miniatura)
     }
 }

@@ -1,0 +1,27 @@
+package com.ai27.app.custodio.ui.captura
+
+import com.ai27.app.custodio.domain.model.Etiqueta
+import com.ai27.app.custodio.domain.model.Medio
+import com.ai27.app.custodio.domain.model.Reporte
+
+data class CapturaUiState(
+    val reporte: Reporte? = null,
+    val etiquetas: List<Etiqueta> = emptyList(),
+    val medios: List<Medio> = emptyList(),
+    val placaEscrita: String = "",
+    val creandoViaje: Boolean = false,
+    val capturando: Boolean = false,
+    val cerrandoViaje: Boolean = false,
+    val grabandoAudio: Boolean = false,
+    val segundosAudio: Long = 0L,
+    val medioPendienteDeEtiquetar: Medio? = null,
+    val ubicacionTextoEscrita: String = "",
+    val error: String? = null,
+) {
+    val limiteAlcanzado: Boolean
+        get() = medios.size >= LIMITE_MEDIOS_REJILLA
+
+    companion object {
+        const val LIMITE_MEDIOS_REJILLA = 50
+    }
+}

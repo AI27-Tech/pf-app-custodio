@@ -10,11 +10,15 @@ class EtiquetarMedio(
     private val medioRepository: MedioRepository,
     private val etiquetaRepository: EtiquetaRepository,
 ) {
-    suspend operator fun invoke(medioId: String, etiquetaId: String): Result<Medio> {
+    suspend operator fun invoke(
+        medioId: String,
+        etiquetaId: String,
+        ubicacionTexto: String? = null,
+    ): Result<Medio> {
         val valida = etiquetaRepository.obtener().any { it.id == etiquetaId && it.activo }
         if (!valida) {
             return Result.Failure(DominioError.EtiquetaInvalida(etiquetaId))
         }
-        return medioRepository.etiquetar(medioId, etiquetaId)
+        return medioRepository.etiquetar(medioId, etiquetaId, ubicacionTexto)
     }
 }

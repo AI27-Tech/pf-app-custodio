@@ -5,6 +5,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.ai27.app.custodio.ui.captura.CapturaRoute
 import com.ai27.app.custodio.ui.theme.AppCustodioTheme
 
 object Rutas {
@@ -18,7 +19,7 @@ fun AppNavHost() {
         navController = navController,
         startDestination = Rutas.INICIO
     ) {
-        composable(Rutas.INICIO) { }
+        composable(Rutas.INICIO) { CapturaRoute() }
     }
 }
 
