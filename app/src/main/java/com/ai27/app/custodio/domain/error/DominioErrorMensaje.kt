@@ -16,5 +16,7 @@ fun DominioError.aMensajeUsuario(): String = when (this) {
     DominioError.MedioNoEncontrado -> "El archivo ya no existe."
     DominioError.MedioEnSubida -> "El archivo ya está en subida y no puede borrarse."
     DominioError.MedioYaSubido -> "El archivo ya fue subido."
+    DominioError.CredencialesInvalidas -> "Correo o contraseña incorrectos."
+    DominioError.SinConexion -> "Sin conexión. Revisa tu red e inténtalo de nuevo."
     is DominioError.Inesperado -> "Algo salió mal. Intenta de nuevo."
 }

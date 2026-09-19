@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,6 +80,9 @@ fun CapturaRoute(
         onCerrarHoja = viewModel::descartarEtiquetado,
         onBorrarPendiente = viewModel::borrarPendiente,
         onCerrarViaje = viewModel::cerrarViaje,
+        onCerrarSesion = viewModel::solicitarCerrarSesion,
+        onCancelarCerrarSesion = viewModel::cancelarCerrarSesion,
+        onConfirmarCerrarSesion = viewModel::confirmarCerrarSesion,
         onConsumirError = viewModel::consumirError,
     )
 }
@@ -104,6 +108,9 @@ fun CapturaScreen(
     onCerrarHoja: () -> Unit,
     onBorrarPendiente: (medioId: String) -> Unit,
     onCerrarViaje: () -> Unit,
+    onCerrarSesion: () -> Unit,
+    onCancelarCerrarSesion: () -> Unit,
+    onConfirmarCerrarSesion: () -> Unit,
     onConsumirError: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -145,6 +152,10 @@ fun CapturaScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
+            BarraSesion(
+                correo = estado.custodio?.correo.orEmpty(),
+                onCerrarSesion = onCerrarSesion,
+            )
             val reporte = estado.reporte
             if (reporte == null) {
                 NuevoViaje(
@@ -223,6 +234,34 @@ fun CapturaScreen(
         )
     }
 
+    if (estado.confirmacionCerrarSesion) {
+        AlertDialog(
+            onDismissRequest = onCancelarCerrarSesion,
+            title = { Text("¿Cerrar sesión?") },
+            text = {
+                Column {
+                    Text("Sesión de ${estado.custodio?.correo.orEmpty()}")
+                    if (estado.pendientesSinSubir > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Tienes ${estado.pendientesSinSubir} archivos sin subir. " +
+                                "Si cierras sesión, esa evidencia perderá su cola de subida.",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmarCerrarSesion) {
+                    Text(if (estado.pendientesSinSubir > 0) "Salir de todos modos" else "Salir")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelarCerrarSesion) { Text("Cancelar") }
+            },
+        )
+    }
+
     estado.error?.let { mensaje ->
         AlertDialog(
             onDismissRequest = onConsumirError,
@@ -232,6 +271,35 @@ fun CapturaScreen(
                 TextButton(onClick = onConsumirError) { Text("Entendido") }
             },
         )
+    }
+}
+
+@Composable
+private fun BarraSesion(
+    correo: String,
+    onCerrarSesion: () -> Unit,
+) {
+    if (correo.isBlank()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = correo,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.outline,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onCerrarSesion) {
+            Icon(
+                Icons.Filled.ExitToApp,
+                contentDescription = "Cerrar sesión",
+                tint = MaterialTheme.colorScheme.outline,
+            )
+        }
     }
 }
 

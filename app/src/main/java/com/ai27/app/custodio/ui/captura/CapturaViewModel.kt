@@ -18,6 +18,7 @@ import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.TipoMedio
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.repository.ReporteRepository
+import com.ai27.app.custodio.domain.repository.SesionRepositorio
 import com.ai27.app.custodio.domain.usecase.CapturarMedio
 import com.ai27.app.custodio.domain.usecase.CerrarReporte
 import com.ai27.app.custodio.domain.usecase.CrearReporte
@@ -44,6 +45,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class CapturaViewModel @Inject constructor(
     private val reporteRepository: ReporteRepository,
     private val medioRepository: MedioRepository,
+    private val sesionRepositorio: SesionRepositorio,
     private val crearReporte: CrearReporte,
     private val capturarMedio: CapturarMedio,
     private val etiquetarMedio: EtiquetarMedio,
@@ -51,23 +53,45 @@ class CapturaViewModel @Inject constructor(
     private val obtenerEtiquetas: ObtenerEtiquetas,
     private val proveedorUbicacion: ProveedorUbicacion,
     private val grabadora: Grabadora,
-    @Named("custodioProvisional") private val custodio: Custodio,
     @Named("deviceId") private val deviceId: String,
 ) : ViewModel() {
 
     private val interno = MutableStateFlow(CapturaUiState())
 
+    private val custodioFlow = sesionRepositorio.observarCustodio()
+
     private val reporteYMedios: kotlinx.coroutines.flow.Flow<Pair<Reporte?, List<Medio>>> =
-        reporteRepository.observarActivo(custodio.uid).flatMapLatest { reporte ->
-            if (reporte == null) {
-                flowOf(null to emptyList())
-            } else {
-                medioRepository.observarDelReporte(reporte.id).map { reporte to it }
+        custodioFlow.flatMapLatest { custodio ->
+            val uid = custodio?.uid ?: return@flatMapLatest flowOf(null to emptyList())
+            reporteRepository.observarActivo(uid).flatMapLatest { reporte ->
+                if (reporte == null) {
+                    flowOf(null to emptyList())
+                } else {
+                    medioRepository.observarDelReporte(reporte.id).map { reporte to it }
+                }
             }
         }
 
-    val uiState: StateFlow<CapturaUiState> = combine(reporteYMedios, interno) { (reporte, medios), base ->
-        base.copy(reporte = reporte, medios = medios)
+    private val custodioYPendientes: kotlinx.coroutines.flow.Flow<Pair<Custodio?, Int>> =
+        custodioFlow.flatMapLatest { custodio ->
+            if (custodio == null) {
+                flowOf(null to 0)
+            } else {
+                medioRepository.observarPendientes(custodio.uid).map { custodio to it }
+            }
+        }
+
+    val uiState: StateFlow<CapturaUiState> = combine(
+        reporteYMedios,
+        custodioYPendientes,
+        interno,
+    ) { (reporte, medios), (custodio, pendientes), base ->
+        base.copy(
+            custodio = custodio,
+            reporte = reporte,
+            medios = medios,
+            pendientesSinSubir = pendientes,
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -87,6 +111,7 @@ class CapturaViewModel @Inject constructor(
     }
 
     fun iniciarViaje() {
+        val custodio = uiState.value.custodio ?: return
         val placa = interno.value.placaEscrita
         if (placa.isBlank()) {
             interno.update { it.copy(error = "Escribe la placa para iniciar el viaje.") }
@@ -109,7 +134,9 @@ class CapturaViewModel @Inject constructor(
     }
 
     fun capturarFoto(jpeg: ByteArray, miniatura: ByteArray?) {
-        val reporte = uiState.value.reporte ?: return
+        val custodio = uiState.value.custodio
+        val reporte = uiState.value.reporte
+        if (custodio == null || reporte == null) return
         if (interno.value.capturando || interno.value.grabandoAudio) return
         if (jpeg.isEmpty()) return
         viewModelScope.launch {
@@ -163,7 +190,9 @@ class CapturaViewModel @Inject constructor(
         jobTimerAudio?.cancel()
         jobTimerAudio = null
         interno.update { it.copy(grabandoAudio = false, segundosAudio = 0L) }
-        val reporte = uiState.value.reporte ?: run {
+        val custodio = uiState.value.custodio
+        val reporte = uiState.value.reporte
+        if (custodio == null || reporte == null) {
             grabadora.descartar()
             return
         }
@@ -257,6 +286,37 @@ class CapturaViewModel @Inject constructor(
 
     fun consumirError() {
         interno.update { it.copy(error = null) }
+    }
+
+    fun solicitarCerrarSesion() {
+        val pendientes = uiState.value.pendientesSinSubir
+        if (pendientes > 0) {
+            interno.update { it.copy(confirmacionCerrarSesion = true) }
+        } else {
+            ejecutarCierreSesion()
+        }
+    }
+
+    fun cancelarCerrarSesion() {
+        interno.update { it.copy(confirmacionCerrarSesion = false) }
+    }
+
+    fun confirmarCerrarSesion() {
+        interno.update { it.copy(confirmacionCerrarSesion = false) }
+        ejecutarCierreSesion()
+    }
+
+    private fun ejecutarCierreSesion() {
+        if (interno.value.cerrandoSesion) return
+        viewModelScope.launch {
+            interno.update { it.copy(cerrandoSesion = true, error = null) }
+            when (val resultado = sesionRepositorio.cerrarSesion()) {
+                is Result.Success -> interno.update { it.copy(cerrandoSesion = false) }
+                is Result.Failure -> interno.update {
+                    it.copy(cerrandoSesion = false, error = resultado.error.aMensajeUsuario())
+                }
+            }
+        }
     }
 
     private suspend fun obtenerGpsLinear(): Gps? = try {

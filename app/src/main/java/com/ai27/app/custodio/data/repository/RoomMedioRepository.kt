@@ -45,6 +45,9 @@ class RoomMedioRepository(
     override fun observarDelReporte(reporteId: String): Flow<List<Medio>> =
         dao.observarDelReporte(reporteId).map { lista -> lista.map { it.aDominio() } }
 
+    override fun observarPendientes(custodioUid: String): Flow<Int> =
+        dao.contarPendientes(custodioUid)
+
     override suspend fun etiquetar(medioId: String, etiquetaId: String, ubicacionTexto: String?): Result<Medio> {
         val filas = dao.etiquetar(medioId, etiquetaId, ubicacionTexto)
         val actualizado = dao.obtenerPorId(medioId)

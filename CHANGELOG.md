@@ -2,6 +2,41 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:19 00:51
+
+**Resumen:** B4: autenticación con correo y contraseña (Firebase Auth), identidad real del custodio en lugar de la provisional, sesión persistente que dirige la navegación (login ↔ captura) y logout visible bloqueado mientras haya archivos sin subir, con opción forzada "Salir de todos modos".
+
+**Cambios:**
+- Sesión: `SesionRepositorio` (`observarCustodio`/`iniciarSesion`/`cerrarSesion`); `FirebaseAuthSesionRepositorio` con `callbackFlow` para `authStateChanges` y `suspendCancellableCoroutine` para `Task` (sin dependencias nuevas); mapeo puro de códigos de Auth → `CredencialesInvalidas`/`SinConexion`/`Inesperado`.
+- Navegación: `RootViewModel` con `EstadoSesion` CARGANDO/NO_SESION/CON_SESION y gate en `AppNavHost` (`LOGIN` → `INICIO`, popUpTo, overlay de carga); pantalla de login con validación y errores legibles.
+- Identidad: se retira el custodio provisional `custodio-provisional`; `Custodio(uid, correo)` proviene de la sesión; `IdentidadModule` conserva solo el `deviceId` (`ANDROID_ID`).
+- Captura: barra de sesión con correo y botón `Cerrar sesión`; logout con 0 pendientes es inmediato; con pendientes (`estadoSubida != COMPLETA`, JOIN medios↔reportes por custodio) pide confirmación y avisa de la cola; verificación en emulador detectó que las acciones leían el custodio de un estado interno sin poblar → ahora leen del `uiState` combinado.
+- Manifest: se agrega permiso `INTERNET` (requerido por Firebase Auth).
+- Pruebas: `AuthErrorMappingTest` (mapeo de errores de sesión) y `FakeMedioRepository` con `observarPendientes`; 39 verdes. Verificado en emulador con cuenta real: login, sesión sobrevive a reinicio, bloqueo de logout con pendiente (cancelar y forzado).
+
+**Archivos modificados:**
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/SesionRepositorio.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioError.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioErrorMensaje.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/AuthDataSource.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/AuthModule.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/IdentidadModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginScreen.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginViewModel.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginUiState.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/RootViewModel.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaUiState.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/remote/AuthErrorMappingTest.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:19 00:18
 
 **Resumen:** B3: pantalla de captura completa (foto y nota de voz), etiquetado obligatorio con chips, miniaturas locales, rejilla de hasta 50 medios con borrado solo antes de subir y cierre del viaje; todo persiste en Room y sobrevive a reiniciar la app.

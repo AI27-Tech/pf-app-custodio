@@ -20,6 +20,15 @@ interface MedioDao {
     @Query("SELECT * FROM medios WHERE reporteId = :reporteId ORDER BY createdAtDevice ASC")
     fun observarDelReporte(reporteId: String): Flow<List<MedioEntity>>
 
+    @Query(
+        """
+        SELECT COUNT(*) FROM medios m
+        INNER JOIN reportes r ON m.reporteId = r.id
+        WHERE r.custodioUid = :custodioUid AND m.estadoSubida != 'COMPLETA'
+        """,
+    )
+    fun contarPendientes(custodioUid: String): Flow<Int>
+
     @Query("UPDATE medios SET etiqueta = :etiqueta, ubicacionTexto = COALESCE(:ubicacionTexto, ubicacionTexto) WHERE id = :id")
     suspend fun etiquetar(id: String, etiqueta: String, ubicacionTexto: String?): Int
 

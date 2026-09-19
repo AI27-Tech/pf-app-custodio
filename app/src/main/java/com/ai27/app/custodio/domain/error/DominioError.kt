@@ -16,5 +16,7 @@ sealed interface DominioError {
     data object MedioNoEncontrado : DominioError
     data object MedioEnSubida : DominioError
     data object MedioYaSubido : DominioError
+    data object CredencialesInvalidas : DominioError
+    data object SinConexion : DominioError
     data class Inesperado(val causa: Throwable) : DominioError
 }

@@ -12,6 +12,12 @@ class FakeMedioRepository(
     val archivosGuardados: MutableMap<String, ByteArray> = mutableMapOf(),
 ) : MedioRepository {
 
+    private val pendientes = MutableStateFlow(0)
+
+    fun actualizarPendientes() {
+        pendientes.value = medios.count { it.estadoSubida != EstadoSubida.COMPLETA }
+    }
+
     override suspend fun guardar(
         medio: Medio,
         contenido: ByteArray,
@@ -26,6 +32,7 @@ class FakeMedioRepository(
         }
         medios.add(guardado)
         archivosGuardados[guardado.localPath!!] = contenido
+        actualizarPendientes()
         return Result.Success(guardado)
     }
 
@@ -37,6 +44,8 @@ class FakeMedioRepository(
 
     override fun observarDelReporte(reporteId: String): Flow<List<Medio>> =
         MutableStateFlow(medios.filter { it.reporteId == reporteId })
+
+    override fun observarPendientes(custodioUid: String): Flow<Int> = pendientes
 
     override suspend fun etiquetar(
         medioId: String,
@@ -63,6 +72,7 @@ class FakeMedioRepository(
         }
         val actualizado = medios[indice].copy(estadoSubida = estado)
         medios[indice] = actualizado
+        actualizarPendientes()
         return Result.Success(actualizado)
     }
 
@@ -75,6 +85,7 @@ class FakeMedioRepository(
         archivosGuardados.remove(medio.localPath)
         medio.thumbnailPath?.let { archivosGuardados.remove(it) }
         medios.remove(medio)
+        actualizarPendientes()
         return Result.Success(medio)
     }
 }
