@@ -2,6 +2,28 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:18 18:10
+
+**Resumen:** B2: dominio puro (modelos, errores sellados y 8 casos de uso) y persistencia local Room + archivos, con invariante de un solo reporte ACTIVO por custodio garantizado por un índice único parcial.
+
+**Cambios:**
+- Dominio puro Kotlin (sin Android/Firebase): `Result<T>`, `DominioError` sellado, modelos `Etiqueta/Gps/Custodio/Reporte/Medio` + enums `Ciclo/EstadoSubida`, límites (`50` medios/reporte, audio ≤ `5 min`), util (zona `America/Mexico_City`, normalización de placas, ventana de 30 días) y repositorios.
+- Casos de uso: Crear, CapturarMedio, EtiquetarMedio, Cerrar, Descartar, ReintentarSubida, ObtenerHistorial, ObtenerEtiquetas (validan invariantes y devuelven `Result`).
+- Datos: `@Database` con `ReporteEntity`/`MedioEntity` y DAOs suspend/Flow; **índice único parcial** `ux_reportes_activo_por_custodio` en callback `onCreate`/`onOpen` (Room 3 no soporta índices parciales en `@Index`).
+- Almacén de archivos `FilesDirAlmacenArchivos` (fotos/audios en `filesDir/medios`), mappers dominio↔entidad, repositorios `RoomReporteRepository`/`RoomMedioRepository`, catálogo de etiquetas provisional y `DatabaseModule` (Hilt, `BundledSQLiteDriver`).
+- `Room.databaseBuilder` ahora acepta ruta explícita para reutilizar la misma configuración en pruebas JVM de host.
+- Dependencias: `androidx.sqlite:sqlite-bundled` `2.7.0` (runtime + tests JVM de host).
+- Pruebas (32, verdes): fakes y cobertura de los 8 casos de uso + `InvarianteUnSoloActivoTest` que ejecuta la carrera de dos reportes activos sobre una base Room real y verifica que queda exactamente uno.
+
+**Archivos modificados:**
+- `gradle/libs.versions.toml`
+- `app/build.gradle.kts`
+- `app/src/main/java/com/ai27/app/custodio/domain/**` (nuevos)
+- `app/src/main/java/com/ai27/app/custodio/data/**` (nuevos)
+- `app/src/main/java/com/ai27/app/custodio/di/DatabaseModule.kt` (nuevo)
+- `app/src/test/**` (nuevos, incluye `jniLibs/libsqliteJni.dylib` para host macOS arm64)
+- `CHANGELOG.md`
+
 ## 2026:09:18 17:39
 
 **Resumen:** Se corrige el crash al arrancar la app causado por la librería de Crashlytics sin su plugin de Gradle.
