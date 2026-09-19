@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.domain.repository
 
 import com.ai27.app.custodio.domain.Result
+import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.ResumenMedios
 import java.time.Instant
@@ -20,4 +21,11 @@ interface ReporteRepository {
         mediosEsperados: Int,
     ): Result<Reporte>
     suspend fun descartar(reporteId: String, closedAt: Instant, motivo: String): Result<Reporte>
+    suspend fun actualizarSubida(
+        reporteId: String,
+        estado: EstadoSubida,
+        mediosSubidos: Int,
+        completo: Boolean,
+    ): Result<Reporte>
+    suspend fun obtenerPendientesSubida(): List<Reporte>
 }

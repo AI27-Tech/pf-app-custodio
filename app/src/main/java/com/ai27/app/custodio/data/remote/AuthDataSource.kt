@@ -49,7 +49,7 @@ class FirebaseAuthSesionRepositorio(
     }
 }
 
-private suspend fun <T> Task<T>.esperar(): T = suspendCancellableCoroutine { cont ->
+internal suspend fun <T> Task<T>.esperar(): T = suspendCancellableCoroutine { cont ->
     addOnCompleteListener(com.google.android.gms.tasks.OnCompleteListener<T> { resultado ->
         val excepcion = resultado.exception
         when {

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Android app: Kotlin + Jetpack Compose (Material3), single module `:app`, package `com.ai27.app.custodio`. B1 completado: `AppCustodioApplication` con Hilt registrada en el manifest, `MainActivity` con `@AndroidEntryPoint` y `AppNavHost` que arranca en la ruta `login`, y el catálogo de dependencias (Hilt, Room 3, WorkManager, Navigation Compose, CameraX, Coil 3, Firebase BoM, play-services-location) en `gradle/libs.versions.toml`. B2 completado: dominio puro + persistencia local Room (`AppCustodioDatabase`, índice único parcial de reporte activo) y archivos en `filesDir/medios`. B3 completado: pantalla de captura (CameraX foto + MediaRecorder nota de voz ≤5 min, GPS por archivo one-shot ~8 s con fallback de texto), etiquetado obligatorio con chips, miniaturas 320 px, rejilla de 50 medios con borrado solo pre-subida, "Nuevo viaje" por placa y "Cerrar viaje". B4 completado: autenticación con Firebase Auth (correo+contraseña), `RootViewModel`/gate en `AppNavHost` con rutas `login`/`inicio`, sesión persistente, barra de sesión con `Cerrar sesión` bloqueado (confirmación) mientras hay archivos sin subir; `Custodio(uid, correo)` sale de la sesión (ya no hay identidad provisional). `ExampleUnitTest`/`ExampleInstrumentedTest` siguen siendo scaffolding.
+Android app: Kotlin + Jetpack Compose (Material3), single module `:app`, package `com.ai27.app.custodio`. B1 completado: `AppCustodioApplication` con Hilt registrada en el manifest, `MainActivity` con `@AndroidEntryPoint` y `AppNavHost` que arranca en la ruta `login`, y el catálogo de dependencias (Hilt, Room 3, WorkManager, Navigation Compose, CameraX, Coil 3, Firebase BoM, play-services-location) en `gradle/libs.versions.toml`. B2 completado: dominio puro + persistencia local Room (`AppCustodioDatabase`, índice único parcial de reporte activo) y archivos en `filesDir/medios`. B3 completado: pantalla de captura (CameraX foto + MediaRecorder nota de voz ≤5 min, GPS por archivo one-shot ~8 s con fallback de texto), etiquetado obligatorio con chips, miniaturas 320 px, rejilla de 50 medios con borrado solo pre-subida, "Nuevo viaje" por placa y "Cerrar viaje". B4 completado: autenticación con Firebase Auth (correo+contraseña), `RootViewModel`/gate en `AppNavHost` con rutas `login`/`inicio`, sesión persistente, barra de sesión con `Cerrar sesión` bloqueado (confirmación) mientras hay archivos sin subir; `Custodio(uid, correo)` sale de la sesión (ya no hay identidad provisional). B5 completado: pipeline de subida a Firebase con WorkManager (repositorios Firestore/Storage idempotentes, `ReporteSyncProceso`/`SubidaMedioProceso`, workers con reintentos y backoff, unique work por medio/reporte, reconciliación al arrancar, reintento manual desde la celda FALLIDA), y reglas de seguridad de Firestore y Storage probadas contra el Emulator Suite de Firebase. `ExampleUnitTest`/`ExampleInstrumentedTest` siguen siendo scaffolding.
 
 ## Required reading
 
@@ -15,6 +15,7 @@ GENERIC_RULES.md contains reusable working rules. This file adds the project's A
   - Single test: `./gradlew testDebugUnitTest --tests "com.ai27.app.custodio.ExampleUnitTest"`
 - Instrumented / Compose UI tests (need emulator or connected device): `./gradlew connectedDebugAndroidTest`
 - Install on device: `./gradlew installDebug`
+- Reglas de seguridad contra el Emulator Suite (requiere Node): `cd firebase && npm test`. Ejecuta `firebase emulators:exec --only firestore,storage --project demo-custodio` sobre `firebase/test/reglas.test.js`. Primera vez: `cd firebase && npm install` (la carpeta `firebase/node_modules/` está gitignored).
 
 ## Workflow: pausa para Sync
 
@@ -32,7 +33,7 @@ GENERIC_RULES.md contains reusable working rules. This file adds the project's A
 - `compileSdk` must use the new block form: `compileSdk { version = release(37) }`. A bare `compileSdk = 37` will not compile.
 - Minify/R8 lives in `buildTypes.release.optimization { enable = ... }`. `minifyEnabled` / `isMinifyEnabled` no longer exist. Release currently has R8 disabled (`optimization { enable = false }`).
 - Keep rules live in `app/src/main/keepRules/` (existing `rules.keep`), not `proguard-rules.pro`.
-- El plugin de Crashlytics (`com.google.firebase.crashlytics`) está versionado en el catálogo pero **no aplicado**: tiene fricción conocida con AGP 9 y la consola Firebase aún no existe (carril A). Se aplica en B5, cuando el pipeline de subida entra en uso.
+- El plugin de Crashlytics (`com.google.firebase.crashlytics`) está versionado en el catálogo pero **no aplicado**: tiene fricción conocida con AGP 9 y la consola Firebase aún no existe (carril A). La decisión del usuario lo mueve a **B7 / release**, no a B5.
 
 ## Config notes
 

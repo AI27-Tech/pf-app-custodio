@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// Reglas de Firestore del PLAN §5.3:
+// - reportes: el custodio dueño crea (solo ACTIVO), transiciona ACTIVO->CERRADO/DESCARTADO,
+//   y en CERRADO solo avanzar subida/mediosSubidos/completo. Nada se borra.
+// - medios: create-only del dueño y solo si el reporte es suyo.
+// - catalogos: lectura para cualquier custodio autenticado.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function esDuenoDe(recurso) {
+      return recurso.data.custodioUid == request.auth.uid;
+    }
+
+    // Solo puede cambiar las llaves permitidas entre dos versiones del documento.
+    function soloCambia(nuevas, anteriores, permitidas) {
+      return nuevas.diff(anteriores).affectedKeys().hasOnly(permitidas);
+    }
+
+    function reportePerteneceA(reporteId) {
+      return get(/databases/$(database)/documents/reportes/$(reporteId)).data.custodioUid == request.auth.uid;
+    }
+
+    match /reportes/{reporteId} {
+
+      allow read: if autenticado() && esDuenoDe(resource);
+
+      // Un reporte siempre nace ACTIVO; el cierre offline llega como ACTIVO->CERRADO
+      // en dos pasos desde la app (PLAN §6.2).
+      allow create: if autenticado()
+        && esDuenoDe(request.resource)
+        && request.resource.data.ciclo == 'ACTIVO';
+
+      function transicionValida() {
+        let previo = resource.data;
+        let nuevo = request.resource.data;
+        let soloContadores = soloCambia(nuevo, previo, ['subida', 'mediosSubidos', 'completo']);
+        return (previo.ciclo == 'ACTIVO' && nuevo.ciclo == 'CERRADO')
+          || (previo.ciclo == 'ACTIVO' && nuevo.ciclo == 'DESCARTADO')
+          || (previo.ciclo == 'ACTIVO' && nuevo.ciclo == 'ACTIVO' && soloContadores)
+          || (previo.ciclo == 'CERRADO' && nuevo.ciclo == 'CERRADO' && soloContadores);
+      }
+
+      allow update: if autenticado() && esDuenoDe(resource) && transicionValida();
+      allow delete: if false;
+    }
+
+    match /medios/{medioId} {
+
+      allow read: if autenticado() && esDuenoDe(resource);
+
+      allow create: if autenticado()
+        && esDuenoDe(request.resource)
+        && reportePerteneceA(request.resource.data.reporteId);
+
+      allow update, delete: if false;
+    }
+
+    match /catalogos/{catalogo} {
+      allow read: if autenticado();
+    }
+
+    match /usuarios/{uid} {
+      allow read, create: if autenticado() && request.auth.uid == uid;
+    }
+  }
+}

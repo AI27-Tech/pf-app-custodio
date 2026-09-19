@@ -5,6 +5,7 @@ import com.ai27.app.custodio.data.mapper.aDominio
 import com.ai27.app.custodio.data.mapper.aEntidad
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
+import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.ResumenMedios
 import com.ai27.app.custodio.domain.repository.ReporteRepository
@@ -89,4 +90,22 @@ class RoomReporteRepository(
             )
         }
     }
+
+    override suspend fun actualizarSubida(
+        reporteId: String,
+        estado: EstadoSubida,
+        mediosSubidos: Int,
+        completo: Boolean,
+    ): Result<Reporte> {
+        val filas = dao.actualizarSubida(reporteId, estado.name, mediosSubidos, completo)
+        val actualizado = dao.obtenerPorId(reporteId)
+        return if (filas == 1 && actualizado != null) {
+            Result.Success(actualizado.aDominio())
+        } else {
+            Result.Failure(DominioError.ReporteNoEncontrado)
+        }
+    }
+
+    override suspend fun obtenerPendientesSubida(): List<Reporte> =
+        dao.obtenerPendientesSubida().map { it.aDominio() }
 }

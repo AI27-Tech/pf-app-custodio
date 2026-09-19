@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,6 +80,7 @@ fun CapturaRoute(
         onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
         onCerrarHoja = viewModel::descartarEtiquetado,
         onBorrarPendiente = viewModel::borrarPendiente,
+        onReintentar = viewModel::reintentar,
         onCerrarViaje = viewModel::cerrarViaje,
         onCerrarSesion = viewModel::solicitarCerrarSesion,
         onCancelarCerrarSesion = viewModel::cancelarCerrarSesion,
@@ -107,6 +109,7 @@ fun CapturaScreen(
     onUbicacionTextoCambio: (String) -> Unit,
     onCerrarHoja: () -> Unit,
     onBorrarPendiente: (medioId: String) -> Unit,
+    onReintentar: (medioId: String) -> Unit,
     onCerrarViaje: () -> Unit,
     onCerrarSesion: () -> Unit,
     onCancelarCerrarSesion: () -> Unit,
@@ -184,6 +187,7 @@ fun CapturaScreen(
                     onDetenerAudio = onDetenerAudio,
                     onDescartarAudio = onDescartarAudio,
                     onConfirmarBorrar = { medioABorrar = it },
+                    onReintentar = onReintentar,
                     onCerrarViaje = { confirmarCierre = true },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -359,6 +363,7 @@ private fun ColumnaCaptura(
     onDetenerAudio: () -> Unit,
     onDescartarAudio: () -> Unit,
     onConfirmarBorrar: (Medio) -> Unit,
+    onReintentar: (medioId: String) -> Unit,
     onCerrarViaje: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -421,6 +426,7 @@ private fun ColumnaCaptura(
         RejillaMedios(
             medios = estado.medios,
             onConfirmarBorrar = onConfirmarBorrar,
+            onReintentar = { onReintentar(it.id) },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -520,6 +526,7 @@ private fun ControlesCaptura(
 private fun RejillaMedios(
     medios: List<Medio>,
     onConfirmarBorrar: (Medio) -> Unit,
+    onReintentar: (Medio) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (medios.isEmpty()) {
@@ -544,6 +551,7 @@ private fun RejillaMedios(
             CeldaMedio(
                 medio = medio,
                 onConfirmarBorrar = { onConfirmarBorrar(medio) },
+                onReintentar = { onReintentar(medio) },
             )
         }
     }
@@ -553,6 +561,7 @@ private fun RejillaMedios(
 private fun CeldaMedio(
     medio: Medio,
     onConfirmarBorrar: () -> Unit,
+    onReintentar: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -592,6 +601,39 @@ private fun CeldaMedio(
                 Icon(
                     Icons.Filled.Delete,
                     contentDescription = "Borrar captura",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        if (medio.estadoSubida == EstadoSubida.FALLIDA) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(4.dp),
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+            ) {
+                Text(
+                    text = "FALLIDA",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            FilledIconButton(
+                onClick = onReintentar,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(28.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                ),
+            ) {
+                Icon(
+                    Icons.Filled.Refresh,
+                    contentDescription = "Reintentar subida",
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.size(18.dp),
                 )

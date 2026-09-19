@@ -2,6 +2,54 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:19 15:05
+
+**Resumen:** B5: pipeline de subida a Firebase con WorkManager, repositorios de Firestore/Storage, contadores y reintentos con backoff, reintento manual desde la celda FALLIDA, y reglas de seguridad de Firestore y Storage probadas contra el Emulator Suite de Firebase.
+
+**Cambios:**
+- Pipeline idempotente de subida: `ReporteSyncProceso` y `SubidaMedioProceso` (orquestadores testables en `data/pipeline/`); el primer archivo etiquetado crea/asegura el reporte en Firestore y encola la subida; cada medio sube con progreso y actualiza los contadores; si el reporte quedó DESCARTADO en el servidor el medio queda PENDIENTE sin subir; cualquier fallo marca el medio como `FALLIDA` (reintentable) y el reporte como `EN_PROGRESO`.
+- WorkManager: `WorkerSubidaMedio` y `WorkerSyncReporte` (máx. 4 intentos con backoff exponencial, red CONNECTED), `SubidaScheduler` con unique work por medio/reporte y `reconciliar()` al arrancar, y `CustodioWorkerFactory` con `@Inject` (sin dependencia extra de hilt-work; `AppCustodioApplication` implementa `Configuration.Provider`).
+- Remotos: `FirebaseReporteRemoto`/`FirebaseMedioRemoto` idempotentes (upsert de contadores por la regla ACTIVO→CERRADO/CERRADO→CERRADO), `RutasStorage` (`medios/{reporteId}/{fileName}`), `Sha256` para IDs deterministas y mapeo de documentos en `DocumentoMappers`.
+- UI: `CapturaViewModel` encola sync al `iniciarViaje` y subida al `guardarEtiqueta`; botón de reintento con badge "FALLIDA" en la celda del medio (encadenado `onReintentar` desde `CapturaScreen`).
+- Pruebas JVM (64 verdes): `SubidaMedioProcesoTest` y `ReporteSyncProcesoTest` sobre fakes (remotos falsos, `FakeAlmacenArchivos`) que verifican orden, contadores, reintentos y el caso DESCARTADO en servidor.
+- Reglas de seguridad (Emulator Suite): `firebase/firestore.rules` y `firebase/storage.rules` + `firebase/test/reglas.test.js` (31 verificaciones) corridas con `cd firebase && npm test` → `firebase emulators:exec --only firestore,storage --project demo-custodio`. `reportes` create solo ACTIVO y del dueño; updates solo ACTIVO→CERRADO/DESCARTADO/ACTIVO o CERRADO→CERRADO (solo contadores, valores absolutos); delete negado. `medios` create-only del dueño (permite upload tardío a CERRADO); update/delete negados. Storage `medios/{reporteId}/{fileName}`: read/create/update del dueño, delete negado. Nota: en los tests de reglas, `context.firestore()`/`storage()` solo se obtiene **una vez por contexto** (repetirlo lanza "Firestore has already been started" porque vuelve a aplicar `useEmulator`).
+- Pila del suite: `@firebase/rules-unit-testing` ^3.0.4 + `firebase` ^10.14.1 + `firebase-tools` ^13.29.0 en `firebase/package.json`; requiere Node y `npm install` la primera vez.
+- Pendiente manual (no automatizado): verificación end-to-end en dispositivo real (captura en modo avión → recupera la red → sube solo a Firestore y Storage).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/AppCustodioApplication.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/archivo/AlmacenArchivos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/archivo/FilesDirAlmacenArchivos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/ReporteDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/AuthDataSource.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomReporteRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/ReporteRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/ReintentarSubida.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapper/DocumentoMappers.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/` (nuevo: ReporteSyncProceso, SubidaMedioProceso)
+- `app/src/main/java/com/ai27/app/custodio/data/remote/ErroresRemoto.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirebaseMedioRemoto.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirebaseReporteRemoto.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/remote/MedioRemoto.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/remote/ReporteRemoto.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/remote/RutasStorage.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/util/Sha256.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/worker/` (nuevo: WorkerSubidaMedio, WorkerSyncReporte, SubidaScheduler, CustodioWorkerFactory)
+- `app/src/main/java/com/ai27/app/custodio/di/PipelineModule.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/domain/model/SubidaReporte.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeReporteRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/` (nuevo: FakesPipeline, SubidaMedioProcesoTest, ReporteSyncProcesoTest)
+- `firebase/firestore.rules`, `firebase/storage.rules` (nuevos)
+- `firebase/firebase.json`, `firebase/package.json`, `firebase/test/reglas.test.js` (nuevos)
+- `.gitignore`
+- `CHANGELOG.md`
+
 ## 2026:09:19 00:51
 
 **Resumen:** B4: autenticación con correo y contraseña (Firebase Auth), identidad real del custodio en lugar de la provisional, sesión persistente que dirige la navegación (login ↔ captura) y logout visible bloqueado mientras haya archivos sin subir, con opción forzada "Salir de todos modos".

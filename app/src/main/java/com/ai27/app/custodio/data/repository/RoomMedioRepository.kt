@@ -66,6 +66,26 @@ class RoomMedioRepository(
         }
     }
 
+    override suspend fun marcarSubidaCompleta(
+        medioId: String,
+        storagePath: String,
+        sha256: String,
+    ): Result<Medio> {
+        val medio = dao.obtenerPorId(medioId)
+            ?: return Result.Failure(DominioError.MedioNoEncontrado)
+        val filas = dao.marcarSubidaCompleta(medioId, storagePath, sha256)
+        if (filas != 1) {
+            return Result.Failure(DominioError.MedioNoEncontrado)
+        }
+        // El archivo original ya está en Storage; se borra local. La miniatura se conserva
+        // porque la rejilla la muestra mientras el viaje sigue abierto.
+        medio.localPath?.let { ruta -> almacenArchivos.borrar(ruta) }
+        return Result.Success(dao.obtenerPorId(medioId)!!.aDominio())
+    }
+
+    override suspend fun obtenerPendientes(): List<Medio> =
+        dao.obtenerPendientes().map { it.aDominio() }
+
     override suspend fun borrarPendiente(medioId: String): Result<Medio> {
         val medio = dao.obtenerPorId(medioId)
             ?: return Result.Failure(DominioError.MedioNoEncontrado)

@@ -1,0 +1,83 @@
+package com.ai27.app.custodio.di
+
+import android.content.Context
+import androidx.work.WorkManager
+import com.ai27.app.custodio.data.pipeline.ReporteSyncProceso
+import com.ai27.app.custodio.data.pipeline.SubidaMedioProceso
+import com.ai27.app.custodio.data.remote.FirebaseMedioRemoto
+import com.ai27.app.custodio.data.remote.FirebaseReporteRemoto
+import com.ai27.app.custodio.data.remote.MedioRemoto
+import com.ai27.app.custodio.data.remote.ReporteRemoto
+import com.ai27.app.custodio.data.worker.CustodioWorkerFactory
+import com.ai27.app.custodio.data.worker.SubidaScheduler
+import com.ai27.app.custodio.domain.repository.MedioRepository
+import com.ai27.app.custodio.domain.repository.ReporteRepository
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object PipelineModule {
+
+    @Provides
+    @Singleton
+    fun proveeFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+
+    @Provides
+    @Singleton
+    fun proveeStorage(): FirebaseStorage = FirebaseStorage.getInstance()
+
+    @Provides
+    @Singleton
+    fun proveeReporteRemoto(firestore: FirebaseFirestore): ReporteRemoto =
+        FirebaseReporteRemoto(firestore)
+
+    @Provides
+    @Singleton
+    fun proveeMedioRemoto(
+        storage: FirebaseStorage,
+        firestore: FirebaseFirestore,
+    ): MedioRemoto = FirebaseMedioRemoto(storage, firestore)
+
+    @Provides
+    fun proveeReporteSyncProceso(
+        reporteRepository: ReporteRepository,
+        medioRepository: MedioRepository,
+        reporteRemoto: ReporteRemoto,
+    ): ReporteSyncProceso = ReporteSyncProceso(reporteRepository, medioRepository, reporteRemoto)
+
+    @Provides
+    fun proveeSubidaMedioProceso(
+        reporteRepository: ReporteRepository,
+        medioRepository: MedioRepository,
+        reporteRemoto: ReporteRemoto,
+        medioRemoto: MedioRemoto,
+        almacenArchivos: com.ai27.app.custodio.data.local.archivo.AlmacenArchivos,
+    ): SubidaMedioProceso =
+        SubidaMedioProceso(reporteRepository, medioRepository, reporteRemoto, medioRemoto, almacenArchivos)
+
+    @Provides
+    fun proveeWorkManager(@ApplicationContext context: Context): WorkManager =
+        WorkManager.getInstance(context)
+
+    @Provides
+    @Singleton
+    fun proveeSubidaScheduler(
+        @ApplicationContext context: Context,
+        reporteRepository: ReporteRepository,
+        medioRepository: MedioRepository,
+    ): SubidaScheduler = SubidaScheduler(context, reporteRepository, medioRepository)
+
+    @Provides
+    @Singleton
+    fun proveeWorkerFactory(
+        procesoSubida: SubidaMedioProceso,
+        procesoSync: ReporteSyncProceso,
+    ): CustodioWorkerFactory = CustodioWorkerFactory(procesoSubida, procesoSync)
+}

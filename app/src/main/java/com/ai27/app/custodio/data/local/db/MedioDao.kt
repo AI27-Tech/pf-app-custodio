@@ -35,6 +35,12 @@ interface MedioDao {
     @Query("UPDATE medios SET estadoSubida = :estado WHERE id = :id")
     suspend fun actualizarEstadoSubida(id: String, estado: String): Int
 
+    @Query("UPDATE medios SET estadoSubida = 'COMPLETA', storagePath = :storagePath, sha256 = :sha256 WHERE id = :id")
+    suspend fun marcarSubidaCompleta(id: String, storagePath: String, sha256: String): Int
+
+    @Query("SELECT * FROM medios WHERE estadoSubida != 'COMPLETA' ORDER BY createdAtDevice ASC")
+    suspend fun obtenerPendientes(): List<MedioEntity>
+
     @Query("DELETE FROM medios WHERE id = :id AND estadoSubida = 'PENDIENTE'")
     suspend fun borrarPendiente(id: String): Int
 }

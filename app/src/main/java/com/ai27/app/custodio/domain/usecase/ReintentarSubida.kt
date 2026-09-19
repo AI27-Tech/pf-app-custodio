@@ -5,8 +5,9 @@ import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.repository.MedioRepository
+import javax.inject.Inject
 
-class ReintentarSubida(
+class ReintentarSubida @Inject constructor(
     private val medioRepository: MedioRepository,
 ) {
     suspend operator fun invoke(medioId: String): Result<Medio> {

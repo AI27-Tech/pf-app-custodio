@@ -76,6 +76,35 @@ class FakeMedioRepository(
         return Result.Success(actualizado)
     }
 
+    override suspend fun marcarSubidaCompleta(
+        medioId: String,
+        storagePath: String,
+        sha256: String,
+    ): Result<Medio> {
+        val indice = medios.indexOfFirst { it.id == medioId }
+        if (indice == -1) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
+        }
+        val anterior = medios[indice]
+        val actualizado = anterior.copy(
+            estadoSubida = EstadoSubida.COMPLETA,
+            storagePath = storagePath,
+            sha256 = sha256,
+            localPath = null, // el archivo grande se borra al subir; la miniatura queda
+        )
+        medios[indice] = actualizado
+        archivosGuardados.remove(anterior.localPath)
+        actualizarPendientes()
+        return Result.Success(actualizado)
+    }
+
+    override suspend fun obtenerPendientes(): List<Medio> =
+        medios.filter {
+            it.reporteId.isNotBlank() &&
+                it.estadoSubida != EstadoSubida.COMPLETA &&
+                it.estadoSubida != EstadoSubida.FALLIDA
+        }
+
     override suspend fun borrarPendiente(medioId: String): Result<Medio> {
         val medio = medios.firstOrNull { it.id == medioId }
             ?: return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)

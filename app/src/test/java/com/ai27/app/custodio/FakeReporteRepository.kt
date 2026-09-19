@@ -96,4 +96,26 @@ class FakeReporteRepository(
         reportes[indice] = descartado
         return Result.Success(descartado)
     }
+
+    override suspend fun actualizarSubida(
+        reporteId: String,
+        estado: com.ai27.app.custodio.domain.model.EstadoSubida,
+        mediosSubidos: Int,
+        completo: Boolean,
+    ): Result<Reporte> {
+        val indice = reportes.indexOfFirst { it.id == reporteId }
+        if (indice == -1) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.ReporteNoEncontrado)
+        }
+        val actualizado = reportes[indice].copy(
+            subida = estado,
+            mediosSubidos = mediosSubidos,
+            completo = completo,
+        )
+        reportes[indice] = actualizado
+        return Result.Success(actualizado)
+    }
+
+    override suspend fun obtenerPendientesSubida(): List<Reporte> =
+        reportes.filter { it.custodioUid.isNotBlank() && it.ciclo != Ciclo.DESCARTADO }
 }

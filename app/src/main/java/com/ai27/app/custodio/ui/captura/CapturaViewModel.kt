@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
+import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.error.aMensajeUsuario
@@ -24,6 +25,7 @@ import com.ai27.app.custodio.domain.usecase.CerrarReporte
 import com.ai27.app.custodio.domain.usecase.CrearReporte
 import com.ai27.app.custodio.domain.usecase.EtiquetarMedio
 import com.ai27.app.custodio.domain.usecase.ObtenerEtiquetas
+import com.ai27.app.custodio.domain.usecase.ReintentarSubida
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import javax.inject.Named
@@ -51,8 +53,10 @@ class CapturaViewModel @Inject constructor(
     private val etiquetarMedio: EtiquetarMedio,
     private val cerrarReporte: CerrarReporte,
     private val obtenerEtiquetas: ObtenerEtiquetas,
+    private val reintentarSubida: ReintentarSubida,
     private val proveedorUbicacion: ProveedorUbicacion,
     private val grabadora: Grabadora,
+    private val programadorSubidas: SubidaScheduler,
     @Named("deviceId") private val deviceId: String,
 ) : ViewModel() {
 
@@ -103,6 +107,8 @@ class CapturaViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             interno.update { it.copy(etiquetas = obtenerEtiquetas()) }
+            // Repone la cola de subida de la sesión anterior (espera red por sí sola).
+            programadorSubidas.reconciliar()
         }
     }
 
@@ -125,7 +131,10 @@ class CapturaViewModel @Inject constructor(
                 clienteId = CLIENTE_PROVISIONAL,
                 placasCapturadas = placa,
             )) {
-                is Result.Success -> interno.update { it.copy(creandoViaje = false, placaEscrita = "" ) }
+                is Result.Success -> {
+                    interno.update { it.copy(creandoViaje = false, placaEscrita = "" ) }
+                    programadorSubidas.sincronizarReporte(resultado.value.id)
+                }
                 is Result.Failure -> interno.update {
                     it.copy(creandoViaje = false, error = resultado.error.aMensajeUsuario())
                 }
@@ -243,7 +252,10 @@ class CapturaViewModel @Inject constructor(
             )
             interno.update {
                 when (resultado) {
-                    is Result.Success -> it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "")
+                    is Result.Success -> {
+                        programadorSubidas.encolarSubidaMedio(resultado.value.reporteId, medioId)
+                        it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "")
+                    }
                     is Result.Failure -> it.copy(error = resultado.error.aMensajeUsuario())
                 }
             }
@@ -265,6 +277,19 @@ class CapturaViewModel @Inject constructor(
             val resultado = medioRepository.borrarPendiente(medioId)
             if (resultado is Result.Failure) {
                 interno.update { it.copy(error = resultado.error.aMensajeUsuario()) }
+            }
+        }
+    }
+
+    fun reintentar(medioId: String) {
+        val medio = uiState.value.medios.firstOrNull { it.id == medioId }
+            ?: return
+        if (medio.estadoSubida != EstadoSubida.FALLIDA) return
+        viewModelScope.launch {
+            val resultado = reintentarSubida(medioId)
+            when (resultado) {
+                is Result.Success -> programadorSubidas.encolarSubidaMedio(medio.reporteId, medioId)
+                is Result.Failure -> interno.update { it.copy(error = resultado.error.aMensajeUsuario()) }
             }
         }
     }

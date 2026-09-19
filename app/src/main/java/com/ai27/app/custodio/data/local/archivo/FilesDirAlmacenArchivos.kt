@@ -15,6 +15,11 @@ class FilesDirAlmacenArchivos(
         archivo.absolutePath
     }
 
+    override suspend fun leer(ruta: String): ByteArray? = withContext(Dispatchers.IO) {
+        val archivo = File(ruta)
+        if (archivo.exists()) archivo.readBytes() else null
+    }
+
     override suspend fun borrar(ruta: String) = withContext(Dispatchers.IO) {
         val archivo = File(ruta)
         if (archivo.exists()) {

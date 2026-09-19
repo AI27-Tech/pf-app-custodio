@@ -43,4 +43,13 @@ interface ReporteDao {
             "WHERE id = :id AND ciclo = 'ACTIVO'",
     )
     suspend fun descartar(id: String, closedAt: Long, motivo: String): Int
+
+    @Query(
+        "UPDATE reportes SET subida = :subida, mediosSubidos = :mediosSubidos, completo = :completo " +
+            "WHERE id = :id",
+    )
+    suspend fun actualizarSubida(id: String, subida: String, mediosSubidos: Int, completo: Boolean): Int
+
+    @Query("SELECT * FROM reportes WHERE subida != 'COMPLETA' ORDER BY createdAtDevice ASC")
+    suspend fun obtenerPendientesSubida(): List<ReporteEntity>
 }

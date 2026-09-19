@@ -13,5 +13,7 @@ interface MedioRepository {
     fun observarPendientes(custodioUid: String): Flow<Int>
     suspend fun etiquetar(medioId: String, etiquetaId: String, ubicacionTexto: String? = null): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
+    suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>
     suspend fun borrarPendiente(medioId: String): Result<Medio>
+    suspend fun obtenerPendientes(): List<Medio>
 }

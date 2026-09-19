@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Reglas de Storage del PLAN §5.3: los archivos viven en medios/{reporteId}/...,
+// el custodio dueño del reporte puede escribirlos (create/update, para reintentos
+// idempotentes); nada se borra y el read es solo del dueño.
+service firebase.storage {
+  function autenticado() {
+    return request.auth != null;
+  }
+
+  function duenoDelReporte(reporteId) {
+    return firestore.get(/databases/(default)/documents/reportes/$(reporteId)).data.custodioUid == request.auth.uid;
+  }
+
+  match /b/{bucket}/o {
+    match /medios/{reporteId}/{fileName} {
+      allow read, create, update: if autenticado() && duenoDelReporte(reporteId);
+      allow delete: if false;
+    }
+  }
+}
