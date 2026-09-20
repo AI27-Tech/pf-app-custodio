@@ -107,6 +107,7 @@ async function main() {
   await comprobar('alicia lee su reporte', assertSucceeds(dbA.doc('reportes/r-a').get()));
   await comprobar('alicia no lee el reporte de bruno', assertFails(dbA.doc('reportes/r-b').get()));
   await comprobar('bruno no lee el reporte de alicia', assertFails(dbB.doc('reportes/r-a').get()));
+  await comprobar('get de reporte inexistente no falla', assertSucceeds(dbA.doc('reportes/inexistente').get()));
   await comprobar('cualquier custodio lee catalogos', assertSucceeds(dbA.doc('catalogos/c1').get()));
   await comprobar('sin auth no escribe catalogos', assertFails(dbSinAuth.doc('catalogos/c1').set({ etiquetas: [] })));
 
