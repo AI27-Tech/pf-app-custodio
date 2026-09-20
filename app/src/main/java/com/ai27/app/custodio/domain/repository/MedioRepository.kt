@@ -11,6 +11,7 @@ interface MedioRepository {
     suspend fun obtenerDelReporte(reporteId: String): List<Medio>
     fun observarDelReporte(reporteId: String): Flow<List<Medio>>
     fun observarPendientes(custodioUid: String): Flow<Int>
+    fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>>
     suspend fun etiquetar(medioId: String, etiquetaId: String, ubicacionTexto: String? = null): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
     suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>

@@ -431,7 +431,7 @@ La deduplicación es el beneficio real de esta fase: tres barras superiores, tre
 
 Verificado: `assembleDebug` compila y `testDebugUnitTest` pasa. La comparación visual contra los PNG de `mock-app-design-language/` queda pendiente hasta correr los `@Preview` en el studio.
 
-### 11.5 Fase C3 — Navegación y descomposición de la pantalla gorda
+### 11.5 Fase C3 — Navegación y descomposición de la pantalla gorda ✅ hecha (2026-09-20)
 
 1. **Agregar la barra inferior** con Reporte, Historial y Ajustes en `AppNavHost.kt`, con el punto numérico de pendientes sobre Reporte. Hoy no hay ninguna.
 2. **Nuevos destinos:** `captura`, `audio`, `archivos`, `cierre`, `pendientes`, `ajustes`. El `object Rutas` pasa de 4 a 10.
@@ -439,6 +439,14 @@ Verificado: `assembleDebug` compila y `testDebugUnitTest` pasa. La comparación 
 4. **Un solo dueño del `Scaffold`.** Hoy `MainActivity` calcula `innerPadding` y no lo usa, y cada pantalla crea su propio `Scaffold` anidado. Con barra inferior eso rompe el padding. Decidir que el `Scaffold` vive en el host de navegación y las pantallas reciben el padding.
 5. **Rejilla a 3 columnas.** Hoy es `GridCells.Fixed(4)`; el mockup pide tres por fila.
 6. **Diálogos a componentes.** Los cinco `AlertDialog` inline salen a `ui/components/`.
+
+**Ejecutado:**
+- Navegación: `object Rutas` saltó a 10 destinos + el grafo anidado `viaje` (INICIO/CAPTURA/AUDIO/ARCHIVOS/CIERRE) que comparte el `CapturaViewModel` de la entrada del grafo vía `hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))`. El `Scaffold` único vive ahora en `AppNavHost`, con `contentWindowInsets = WindowInsets(0.dp)`, `BarraNavegacion` (badge de pendientes desde el `PendientesViewModel` de Activity) sólo en las pestañas y el gate de sesión movido a `LaunchedEffect(estadoRoot.estado)` con `popUpTo(VIAJE){inclusive=true}` al cerrar sesión. Las pantallas del flujo reciben `statusBarsPadding()` vía el `modifier` que les pasa el host; Historial/Detalle conservan su `Scaffold` anidado hasta C4. Ajustes existe como destino placeholder.
+- Descomposición: se borró `CapturaScreen.kt` (777 líneas) y quedaron cinco pantallas en `ui/viaje/` — `ReporteScreen` (raíz con barra de sesión y las tres llamadas), `CapturaEvidenciaScreen` (cámara fullscreen con disparador overlay y `HojaEtiqueta`), `AudioScreen` (cronómetro tabular + reintento/descarte), `ArchivosScreen` (rejilla `GridCells.Fixed(3)` con borrado pre-subida, chip FALLIDA y reintento) y `CierreScreen` (resumen con `resumenMedios`, `RenglonSwitch` de novedad y comentario locales para C4, cerrar con confirmación, descartar con motivo obligatorio). Se conservan `CapturaViewModel`, `CapturaUiState`, `VistaCamara` (con `tomarFoto`) y `HojaEtiqueta` en `ui/captura/`.
+- Pendientes: `MedioDao.obtenerPendientesDe` (`Flow<List<MedioEntity>>` por custodio, JOIN con reportes) + `MedioRepository.observarPendientesMedios` → `RoomMedioRepository` y `FakeMedioRepository`; `ui/pendientes/` con `PendientesViewModel` (Activity-scoped; alimenta el badge y `PendientesScreen` con reintento de fallidas) y `PendientesScreen`.
+- Diálogos: `ui/components/Dialogos.kt` con `DialogoConfirmacion`, `DialogoDescarte`, `DialogoCerrarSesion` y `DialogoError`, consumidos por las pantallas del flujo.
+
+Verificado: `assembleDebug` compila y `testDebugUnitTest` pasa. Pendiente visual: comparar los `@Preview` y las nuevas pantallas contra los PNG de `mock-app-design-language/` en el studio.
 
 ### 11.6 Fase C4 — Pantallas, una por una
 

@@ -38,6 +38,16 @@ interface MedioDao {
     @Query("UPDATE medios SET estadoSubida = 'COMPLETA', storagePath = :storagePath, sha256 = :sha256 WHERE id = :id")
     suspend fun marcarSubidaCompleta(id: String, storagePath: String, sha256: String): Int
 
+    @Query(
+        """
+        SELECT m.* FROM medios m
+        INNER JOIN reportes r ON m.reporteId = r.id
+        WHERE r.custodioUid = :custodioUid AND m.estadoSubida != 'COMPLETA'
+        ORDER BY m.createdAtDevice ASC
+        """,
+    )
+    fun observarPendientesDe(custodioUid: String): Flow<List<MedioEntity>>
+
     @Query("SELECT * FROM medios WHERE estadoSubida != 'COMPLETA' ORDER BY createdAtDevice ASC")
     suspend fun obtenerPendientes(): List<MedioEntity>
 

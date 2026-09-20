@@ -1,0 +1,61 @@
+package com.ai27.app.custodio.ui.pendientes
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ai27.app.custodio.data.worker.SubidaScheduler
+import com.ai27.app.custodio.domain.Result
+import com.ai27.app.custodio.domain.error.aMensajeUsuario
+import com.ai27.app.custodio.domain.model.Medio
+import com.ai27.app.custodio.domain.repository.MedioRepository
+import com.ai27.app.custodio.domain.repository.SesionRepositorio
+import com.ai27.app.custodio.domain.usecase.ReintentarSubida
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+@HiltViewModel
+class PendientesViewModel @Inject constructor(
+    sesionRepositorio: SesionRepositorio,
+    private val medioRepository: MedioRepository,
+    private val reintentarSubida: ReintentarSubida,
+    private val programadorSubidas: SubidaScheduler,
+) : ViewModel() {
+
+    private val _error = MutableStateFlow<String?>(null)
+
+    val pendientes: StateFlow<List<Medio>> = sesionRepositorio.observarCustodio()
+        .flatMapLatest { custodio ->
+            if (custodio == null) {
+                flowOf(emptyList())
+            } else {
+                medioRepository.observarPendientesMedios(custodio.uid)
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    val error: StateFlow<String?> = _error
+
+    fun reintentar(medio: Medio) {
+        viewModelScope.launch {
+            when (val resultado = reintentarSubida(medio.id)) {
+                is Result.Success -> programadorSubidas.encolarSubidaMedio(medio.reporteId, medio.id)
+                is Result.Failure -> _error.update { resultado.error.aMensajeUsuario() }
+            }
+        }
+    }
+
+    fun consumirError() {
+        _error.update { null }
+    }
+}

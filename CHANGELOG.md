@@ -2,6 +2,34 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:20 10:37
+
+**Resumen:** Fase C3: navegación con barra inferior y descomposición de `CapturaScreen.kt` (777 líneas) en cinco pantallas del flujo de viaje. Rutas de 4 a 10 + grafo anidado, `Scaffold` único en el host, rejilla a 3 columnas, pantalla de pendientes con reintento y diálogos a la biblioteca.
+
+**Cambios:**
+- Navegación: `object Rutas` salta a `login`, `viaje` (grafo anidado con `inicio`/`captura`/`audio`/`archivos`/`cierre`), `pendientes`, `historial`, `detalle/{reporteId}` y `ajustes`. Las pantallas del flujo comparten el `CapturaViewModel` de la entrada del grafo con `hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))`, así el viaje activo y el estado de captura sobreviven al cambio de pestaña.
+- Host: `AppNavHost` es el único dueño del `Scaffold` (`contentWindowInsets = WindowInsets(0.dp)`), pinta `BarraNavegacion` sólo en las tres pestañas (badge de pendientes desde `PendientesViewModel`, de ámbito Activity) y aplica `statusBarsPadding()` vía el `modifier` de cada pantalla del flujo. Cambio de pestaña por `popBackStack(ruta, false)` o `navigate`; Reporte vuelve con `popBackStack(VIAJE, false)`. El gate de sesión quedó en un `LaunchedEffect`: `CON_SESION` salta a `inicio` y `NO_SESION` hace `popUpTo(VIAJE){inclusive=true}` a `login`.
+- Descomposición: se elimina `ui/captura/CapturaScreen.kt` y nacen cinco pantallas en `ui/viaje/` — `ReporteScreen` (raíz: barra de sesión con correo y salida, nuevo viaje con `CampoPlaca`, unidad en curso con contra de 50, botones de captura/nota/archivos y `BotonPendientes`), `CapturaEvidenciaScreen` (cámara a pantalla completa con disparador circular de 72dp, contador en la barra y `HojaEtiqueta`; pide CAMERA/RECORD_AUDIO/ACCESS_FINE_LOCATION), `AudioScreen` (cronómetro tabular, máximo 5:00, cancelar en grabación, `HojaEtiqueta`), `ArchivosScreen` (rejilla `GridCells.Fixed(3)`, borrado sólo PENDIENTE con confirmación, chip FALLIDA con reintento y chip de etiqueta) y `CierreScreen` (resumen con `resumenMedios`, `RenglonSwitch` de novedad y comentario locales que C4 cablea, cerrar con confirmación y descartar con motivo obligatorio). Se conservan `CapturaViewModel`, `CapturaUiState`, `VistaCamara` (`tomarFoto`) y `HojaEtiqueta` en `ui/captura/`.
+- Pendientes: nueva fuente de la cola global de la sesión — `MedioDao.obtenerPendientesDe(custodioUid): Flow<List<MedioEntity>>` (JOIN con reportes) y `MedioRepository.observarPendientesMedios(custodioUid): Flow<List<Medio>>` (el nombre evita colisionar por tipo de retorno en JVM) con implementación en `RoomMedioRepository` y `FakeMedioRepository`. `PendientesViewModel` (Activity-scoped) alimenta el badge de la barra y `PendientesScreen` (lista `RenglonPendiente` con reintento de fallidas, vacío "Todo sincronizado").
+- Diálogos: los cinco `AlertDialog` inline salen a `ui/components/Dialogos.kt` (`DialogoConfirmacion`, `DialogoDescarte`, `DialogoCerrarSesion`, `DialogoError`); `DialogoCerrarSesion` pide confirmación con aviso de la cola como en B4.
+- `AjustesScreen` existe como destino placeholder ("Próximamente"); el contenido real es C4.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt` (reescrito)
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaScreen.kt` (eliminado)
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/` (nuevo: ReporteScreen, CapturaEvidenciaScreen, AudioScreen, ArchivosScreen, CierreScreen)
+- `app/src/main/java/com/ai27/app/custodio/ui/pendientes/` (nuevo: PendientesScreen, PendientesViewModel)
+- `app/src/main/java/com/ai27/app/custodio/ui/ajustes/AjustesScreen.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Dialogos.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+**Pendiente manual:** recorrer en dispositivo el flujo completo (iniciar viaje → capturar con etiqueta → archivos en 3 columnas → cierre con novedad/comentario → ver pendientes → historial) y comparar las cinco pantallas nuevas contra los `*_reparado` y el resto de PNG de `mock-app-design-language/`.
+
 ## 2026:09:20 09:53
 
 **Resumen:** Fase C2: biblioteca de componentes en `ui/components/`. Los 18 componentes base de los mockups portados a Compose con `@Preview` en claro y oscuro, iconografía de trazo propia en drawables, y deduplicación del chip de estado de subida.

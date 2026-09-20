@@ -13,9 +13,11 @@ class FakeMedioRepository(
 ) : MedioRepository {
 
     private val pendientes = MutableStateFlow(0)
+    private val pendientesMedios = MutableStateFlow<List<Medio>>(emptyList())
 
     fun actualizarPendientes() {
         pendientes.value = medios.count { it.estadoSubida != EstadoSubida.COMPLETA }
+        pendientesMedios.value = medios.filter { it.estadoSubida != EstadoSubida.COMPLETA }
     }
 
     override suspend fun guardar(
@@ -46,6 +48,8 @@ class FakeMedioRepository(
         MutableStateFlow(medios.filter { it.reporteId == reporteId })
 
     override fun observarPendientes(custodioUid: String): Flow<Int> = pendientes
+
+    override fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>> = pendientesMedios
 
     override suspend fun etiquetar(
         medioId: String,

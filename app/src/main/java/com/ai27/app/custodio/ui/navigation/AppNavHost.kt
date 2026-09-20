@@ -1,8 +1,13 @@
 package com.ai27.app.custodio.ui.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -10,62 +15,247 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.ai27.app.custodio.ui.captura.CapturaRoute
+import com.ai27.app.custodio.ui.ajustes.AjustesScreen
+import com.ai27.app.custodio.ui.captura.CapturaViewModel
+import com.ai27.app.custodio.ui.components.BarraNavegacion
+import com.ai27.app.custodio.ui.components.DestinoInferior
 import com.ai27.app.custodio.ui.historial.DetalleReporteRoute
 import com.ai27.app.custodio.ui.historial.HistorialRoute
 import com.ai27.app.custodio.ui.login.LoginRoute
+import com.ai27.app.custodio.ui.pendientes.PendientesScreen
+import com.ai27.app.custodio.ui.pendientes.PendientesViewModel
+import com.ai27.app.custodio.ui.viaje.ArchivosScreen
+import com.ai27.app.custodio.ui.viaje.AudioScreen
+import com.ai27.app.custodio.ui.viaje.CapturaEvidenciaScreen
+import com.ai27.app.custodio.ui.viaje.CierreScreen
+import com.ai27.app.custodio.ui.viaje.ReporteScreen
 
+/**
+ * Rutas de la app. El flujo de captura vive en el grafo anidado [VIAJE]: sus pantallas
+ * comparten el [CapturaViewModel] de la entrada del grafo. La barra inferior tiene tres
+ * pestañas ([DestinoInferior]); las rutas del grafo de viaje y el detalle se apilan encima
+ * sin barra.
+ */
 object Rutas {
     const val LOGIN = "login"
-    const val INICIO = "inicio"
+    const val VIAJE = "viaje"
+    const val INICIO = "inicio" // pestaña Reporte
+    const val CAPTURA = "captura"
+    const val AUDIO = "audio"
+    const val ARCHIVOS = "archivos"
+    const val CIERRE = "cierre"
+    const val PENDIENTES = "pendientes"
     const val HISTORIAL = "historial"
     const val DETALLE = "detalle/{reporteId}"
+    const val AJUSTES = "ajustes"
 
     fun detalle(reporteId: String): String = "detalle/$reporteId"
+}
+
+private val rutasAutenticadas = setOf(
+    Rutas.INICIO,
+    Rutas.CAPTURA,
+    Rutas.AUDIO,
+    Rutas.ARCHIVOS,
+    Rutas.CIERRE,
+    Rutas.PENDIENTES,
+    Rutas.HISTORIAL,
+    Rutas.DETALLE,
+    Rutas.AJUSTES,
+)
+
+private fun destinoDe(ruta: String?): DestinoInferior? = when (ruta) {
+    Rutas.INICIO -> DestinoInferior.REPORTE
+    Rutas.HISTORIAL -> DestinoInferior.HISTORIAL
+    Rutas.AJUSTES -> DestinoInferior.AJUSTES
+    else -> null
 }
 
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
     val rootViewModel: RootViewModel = hiltViewModel()
+    val pendientesViewModel: PendientesViewModel = hiltViewModel()
     val estadoRoot by rootViewModel.estado.collectAsState()
+    val pendientes by pendientesViewModel.pendientes.collectAsState()
+    val pendientesError by pendientesViewModel.error.collectAsState()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val rutaActual = backStackEntry?.destination?.route
+    val destinoSeleccionado = destinoDe(rutaActual)
 
-    NavHost(
-        navController = navController,
-        startDestination = Rutas.LOGIN,
-    ) {
-        composable(Rutas.LOGIN) { LoginRoute() }
-        composable(Rutas.INICIO) {
-            CapturaRoute(
-                onVerHistorial = { navController.navigate(Rutas.HISTORIAL) },
+    Scaffold(
+        bottomBar = {
+            val destino = destinoSeleccionado ?: return@Scaffold
+            BarraNavegacion(
+                seleccionado = destino,
+                pendientesSinSubir = pendientes.size,
+                onSeleccionar = { navegarADestino(navController, it, rutaActual) },
+                modifier = Modifier.navigationBarsPadding(),
             )
-        }
-        composable(Rutas.HISTORIAL) {
-            HistorialRoute(
-                onAtras = { navController.popBackStack() },
-                onVerDetalle = { reporteId -> navController.navigate(Rutas.detalle(reporteId)) },
-            )
-        }
-        composable(
-            route = Rutas.DETALLE,
-            arguments = listOf(navArgument("reporteId") { type = NavType.StringType }),
+        },
+        contentWindowInsets = WindowInsets(0.dp),
+    ) { padding ->
+        NavHost(
+            navController = navController,
+            startDestination = Rutas.LOGIN,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
         ) {
-            DetalleReporteRoute(
-                onAtras = { navController.popBackStack() },
-            )
+            composable(Rutas.LOGIN) { LoginRoute() }
+
+            navigation(startDestination = Rutas.INICIO, route = Rutas.VIAJE) {
+                composable(Rutas.INICIO) {
+                    val viewModel: CapturaViewModel =
+                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val estado by viewModel.uiState.collectAsState()
+                    ReporteScreen(
+                        estado = estado,
+                        onPlacaCambio = viewModel::onPlacaCambio,
+                        onIniciarViaje = viewModel::iniciarViaje,
+                        onIrACaptura = { navController.navigate(Rutas.CAPTURA) },
+                        onIrAAudio = { navController.navigate(Rutas.AUDIO) },
+                        onIrAArchivos = { navController.navigate(Rutas.ARCHIVOS) },
+                        onIrACierre = { navController.navigate(Rutas.CIERRE) },
+                        onIrAPendientes = { navController.navigate(Rutas.PENDIENTES) },
+                        onSolicitarCerrarSesion = viewModel::solicitarCerrarSesion,
+                        onCancelarCerrarSesion = viewModel::cancelarCerrarSesion,
+                        onConfirmarCerrarSesion = viewModel::confirmarCerrarSesion,
+                        onConsumirError = viewModel::consumirError,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                    )
+                }
+
+                composable(Rutas.CAPTURA) {
+                    val viewModel: CapturaViewModel =
+                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val estado by viewModel.uiState.collectAsState()
+                    CapturaEvidenciaScreen(
+                        estado = estado,
+                        onAtras = { navController.popBackStack() },
+                        onTomarFoto = viewModel::capturarFoto,
+                        onGuardarEtiqueta = { medioId, etiquetaId ->
+                            viewModel.guardarEtiqueta(medioId, etiquetaId)
+                        },
+                        onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
+                        onCerrarHoja = viewModel::descartarEtiquetado,
+                        onConsumirError = viewModel::consumirError,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                    )
+                }
+
+                composable(Rutas.AUDIO) {
+                    val viewModel: CapturaViewModel =
+                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val estado by viewModel.uiState.collectAsState()
+                    AudioScreen(
+                        estado = estado,
+                        onAtras = { navController.popBackStack() },
+                        onIniciarAudio = viewModel::iniciarGrabacionDeAudio,
+                        onDetenerAudio = viewModel::detenerGrabacionDeAudio,
+                        onDescartarAudio = viewModel::descartarAudio,
+                        onGuardarEtiqueta = { medioId, etiquetaId ->
+                            viewModel.guardarEtiqueta(medioId, etiquetaId)
+                        },
+                        onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
+                        onCerrarHoja = viewModel::descartarEtiquetado,
+                        onConsumirError = viewModel::consumirError,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                    )
+                }
+
+                composable(Rutas.ARCHIVOS) {
+                    val viewModel: CapturaViewModel =
+                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val estado by viewModel.uiState.collectAsState()
+                    ArchivosScreen(
+                        estado = estado,
+                        onAtras = { navController.popBackStack() },
+                        onBorrarPendiente = viewModel::borrarPendiente,
+                        onReintentar = viewModel::reintentar,
+                        onConsumirError = viewModel::consumirError,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                    )
+                }
+
+                composable(Rutas.CIERRE) {
+                    val viewModel: CapturaViewModel =
+                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val estado by viewModel.uiState.collectAsState()
+                    CierreScreen(
+                        estado = estado,
+                        onAtras = { navController.popBackStack() },
+                        onCerrarViaje = viewModel::cerrarViaje,
+                        onDescartarViaje = viewModel::descartarViaje,
+                        onConsumirError = viewModel::consumirError,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding(),
+                    )
+                }
+            }
+
+            composable(Rutas.PENDIENTES) {
+                PendientesScreen(
+                    pendientes = pendientes,
+                    error = pendientesError,
+                    onAtras = { navController.popBackStack() },
+                    onReintentar = pendientesViewModel::reintentar,
+                    onConsumirError = pendientesViewModel::consumirError,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding(),
+                )
+            }
+
+            composable(Rutas.HISTORIAL) {
+                HistorialRoute(
+                    onAtras = { navController.popBackStack() },
+                    onVerDetalle = { reporteId -> navController.navigate(Rutas.detalle(reporteId)) },
+                )
+            }
+
+            composable(
+                route = Rutas.DETALLE,
+                arguments = listOf(navArgument("reporteId") { type = NavType.StringType }),
+            ) {
+                DetalleReporteRoute(
+                    onAtras = { navController.popBackStack() },
+                )
+            }
+
+            composable(Rutas.AJUSTES) {
+                AjustesScreen(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding(),
+                )
+            }
         }
     }
 
     LaunchedEffect(estadoRoot.estado) {
         val rutaActual = navController.currentDestination?.route
         when (estadoRoot.estado) {
-            EstadoSesion.CON_SESION -> if (rutaActual != Rutas.INICIO) {
+            EstadoSesion.CON_SESION -> if (rutaActual == null || rutaActual == Rutas.LOGIN) {
                 navController.navigate(Rutas.INICIO) {
                     popUpTo(Rutas.LOGIN) { inclusive = true }
                 }
@@ -73,7 +263,7 @@ fun AppNavHost() {
 
             EstadoSesion.NO_SESION -> if (rutaActual != Rutas.LOGIN) {
                 navController.navigate(Rutas.LOGIN) {
-                    popUpTo(Rutas.INICIO) { inclusive = true }
+                    popUpTo(Rutas.VIAJE) { inclusive = true }
                 }
             }
 
@@ -86,6 +276,26 @@ fun AppNavHost() {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        }
+    }
+}
+
+private fun navegarADestino(
+    navController: NavHostController,
+    destino: DestinoInferior,
+    rutaActual: String?,
+) {
+    val ruta = when (destino) {
+        DestinoInferior.REPORTE -> Rutas.INICIO
+        DestinoInferior.HISTORIAL -> Rutas.HISTORIAL
+        DestinoInferior.AJUSTES -> Rutas.AJUSTES
+    }
+    if (rutaActual == ruta) return
+    when (destino) {
+        // Reporte es la raíz del flujo: se vuelve a la entrada del grafo de viaje.
+        DestinoInferior.REPORTE -> navController.popBackStack(Rutas.VIAJE, false)
+        else -> if (!navController.popBackStack(ruta, false)) {
+            navController.navigate(ruta)
         }
     }
 }
