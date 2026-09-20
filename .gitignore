@@ -108,6 +108,9 @@ lint-baseline.xml
 .cxx/
 obj/
 
+# --- Mockups de diseño (fuente en Stitch, no se versionan: ~8MB de PNG/HTML) ---
+mock-app-design-language/
+
 # --- macOS ---
 .DS_Store
 .AppleDouble

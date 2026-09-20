@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tema de plataforma: sólo gobierna el primer frame, antes de que Compose componga.
+
+  Es oscuro incluso en `values/` (no sólo en `values-night/`) porque el producto es
+  dark-first: la app se ve oscura aunque el sistema esté en claro, así que un fondo claro
+  aquí produciría un destello blanco al abrir. Antes heredaba de
+  `android:Theme.Material.Light.NoActionBar`, que causaba justamente eso.
+-->
 <resources>
 
-    <style name="Theme.AppCustodio" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.AppCustodio" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/nocturne_canvas</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

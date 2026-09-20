@@ -2,6 +2,53 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:20 09:40
+
+**Resumen:** Fase C1: se unificó el lenguaje visual sobre los tokens de Nocturne con Inter, sustituyendo la plantilla de Android Studio, y se dejaron de versionar los mockups.
+
+**Cambios:**
+- Se resolvieron las decisiones D1, D2 y D3 de la sección 11 del plan: el lenguaje canónico es Nocturne (los tokens de `pf-library-frontend-components`, los mismos del panel interno y del portal del cliente), la tipografía es Inter para los dos temas con una sola escala de formas de 4dp base, y ante la contradicción entre los PNG y los documentos de diseño manda el documento, así que no se usan formas de píldora salvo el botón de grabación y los contadores pequeños.
+- Se reescribió `Color.kt` con los dos juegos de tokens de Nocturne, oscuro y claro, tomados de `tokens.css`.
+- Se eliminó `dynamicColor` de `Theme.kt`. Era el defecto visual más grave del repo: en Android 12 o superior la app se pintaba con el fondo de pantalla del usuario y el diseño no se veía nunca. Ahora hay dos esquemas completos de Material 3, se pasan las formas al tema y el modo oscuro es el predeterminado sin seguir al sistema, porque el producto es dark-first.
+- Se creó `Shape.kt` con la escala de 2, 4, 8 y 12dp.
+- Se reescribió `Type.kt` con la escala completa de trece estilos en Inter, empaquetando la fuente variable en `res/font/inter_variable.ttf` en lugar de usar fuentes descargables, porque la app trabaja sin señal. Se agregó un estilo con cifras tabulares para contadores y cronómetro. La escala se subió entre dos y cuatro puntos respecto de Nocturne, que está calibrado para escritorio, porque esta app se lee con el brazo extendido y a pleno sol.
+- Se agregó `EstadoColores.kt` con los colores de los cuatro estados de subida, que Material 3 no cubre, expuestos por `CompositionLocal` con la receta de Nocturne de relleno al 12 por ciento, borde al 25 por ciento y contenido a color pleno.
+- Se corrigió `themes.xml`, que heredaba de un tema de plataforma claro y producía un destello blanco al abrir una app oscura.
+- Se conectó `ChipEstadoSubida` a los nuevos colores de estado y se le agregó borde; `ChipEstado` pasó a usar la escala de formas del tema en lugar de un radio suelto.
+- Se limpiaron los colores morados y turquesa de la plantilla en `colors.xml`.
+- Se agregó `mock-app-design-language/` al `.gitignore`: son unos 8MB de PNG y HTML generados en Stitch, material de referencia que no necesita versionarse.
+- Se agregó la licencia OFL de Inter en `assets/licenses/inter-OFL.txt`.
+
+**Archivos modificados:**
+- `.gitignore`
+- `CHANGELOG.md`
+- `docs/PLAN.md`
+- `app/src/main/java/com/ai27/app/custodio/ui/theme/Color.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/theme/Theme.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/theme/Type.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/theme/Shape.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/theme/EstadoColores.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/historial/HistorialScreen.kt`
+- `app/src/main/res/values/colors.xml`
+- `app/src/main/res/values/themes.xml`
+- `app/src/main/res/font/inter_variable.ttf`
+- `app/src/main/assets/licenses/inter-OFL.txt`
+
+## 2026:09:20 09:00
+
+**Resumen:** Se agregó al plan la sección 11, con los siguientes pasos para reproducir en Jetpack Compose los mockups finales de `mock-app-design-language/`.
+
+**Cambios:**
+- Se documentó el estado actual de la capa de presentación contra lo que exigen los mockups: el tema sigue siendo la plantilla de Android Studio con `dynamicColor = true`, no existe `Shape.kt`, no hay barra de navegación inferior, no hay componentes compartidos, no hay ningún `@Preview` y los textos están embebidos en el código.
+- Se registraron cuatro decisiones que bloquean la implementación: cuál de los dos lenguajes de diseño de los mockups es el canónico, que la tipografía y las formas no pueden depender del tema (claro usa Inter con radio 4px y oscuro usa Plus Jakarta Sans más Manrope con radio 8px), la contradicción entre los PNG y los documentos de diseño respecto de las formas de píldora, y las cinco pantallas `*_reparado` que quedaron fuera de la familia visual.
+- Se señaló que el acento periwinkle de Nocturne, el sistema que usan los frontends web, no aparece en ninguna pantalla final, por lo que la app de campo divergiría visualmente del panel interno y del portal del cliente.
+- Se planearon siete fases (C1 a C7): tokens y tema, biblioteca de componentes, navegación y descomposición de `CapturaScreen.kt`, pantallas una por una, estados de carga/error/sin conexión, strings y accesibilidad, y verificación.
+- Se incluyeron la tabla de mapeo de los 20 componentes base a composables, el orden sugerido de las 12 pantallas, las exclusiones de alcance que el mockup no revoca y el grafo de dependencias entre fases.
+
+**Archivos modificados:**
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
 ## 2026:09:19 17:10
 
 **Resumen:** B7: release y documentación. APK release firmado con keystore propio, Crashlytics integrado (plugin + SDK), WorkManagerInitializer fuera del manifest para desbloquear `lintVitalRelease`, y README de provisión de equipos y cuentas + App Distribution.

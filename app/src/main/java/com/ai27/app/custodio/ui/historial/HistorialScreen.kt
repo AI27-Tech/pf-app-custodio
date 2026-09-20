@@ -1,5 +1,6 @@
 package com.ai27.app.custodio.ui.historial
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
+import com.ai27.app.custodio.ui.theme.AppTheme
 
 @Composable
 fun HistorialRoute(
@@ -217,31 +218,19 @@ internal fun ChipCiclo(ciclo: Ciclo) {
 
 @Composable
 internal fun ChipEstadoSubida(estado: EstadoSubida) {
-    when (estado) {
-        EstadoSubida.COMPLETA -> ChipEstado(
-            texto = "Enviado ✓",
-            contenedor = MaterialTheme.colorScheme.secondaryContainer,
-            contenido = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-
-        EstadoSubida.EN_PROGRESO -> ChipEstado(
-            texto = "Subiendo",
-            contenedor = MaterialTheme.colorScheme.tertiaryContainer,
-            contenido = MaterialTheme.colorScheme.onTertiaryContainer,
-        )
-
-        EstadoSubida.PENDIENTE -> ChipEstado(
-            texto = "Pendiente",
-            contenedor = MaterialTheme.colorScheme.surfaceVariant,
-            contenido = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        EstadoSubida.FALLIDA -> ChipEstado(
-            texto = "Error",
-            contenedor = MaterialTheme.colorScheme.errorContainer,
-            contenido = MaterialTheme.colorScheme.onErrorContainer,
-        )
+    val colores = AppTheme.coloresEstado
+    val (texto, color) = when (estado) {
+        EstadoSubida.COMPLETA -> "Enviado ✓" to colores.enviado
+        EstadoSubida.EN_PROGRESO -> "Subiendo" to colores.subiendo
+        EstadoSubida.PENDIENTE -> "Pendiente" to colores.pendiente
+        EstadoSubida.FALLIDA -> "Error" to colores.fallida
     }
+    ChipEstado(
+        texto = texto,
+        contenedor = color.contenedor,
+        contenido = color.contenido,
+        borde = color.borde,
+    )
 }
 
 @Composable
@@ -249,16 +238,18 @@ internal fun ChipEstado(
     texto: String,
     contenedor: Color,
     contenido: Color,
+    borde: Color? = null,
 ) {
     Surface(
-        shape = RoundedCornerShape(6.dp),
+        shape = MaterialTheme.shapes.small,
         color = contenedor,
+        border = borde?.let { BorderStroke(width = 1.dp, color = it) },
     ) {
         Text(
             text = texto,
             style = MaterialTheme.typography.labelSmall,
             color = contenido,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
     }
 }
