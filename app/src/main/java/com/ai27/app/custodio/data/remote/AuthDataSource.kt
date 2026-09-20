@@ -52,8 +52,9 @@ class FirebaseAuthSesionRepositorio(
 internal suspend fun <T> Task<T>.esperar(): T = suspendCancellableCoroutine { cont ->
     addOnCompleteListener(com.google.android.gms.tasks.OnCompleteListener<T> { resultado ->
         val excepcion = resultado.exception
+        val valor = resultado.result
         when {
-            resultado.isSuccessful -> if (cont.isActive) cont.resume(resultado.result!!)
+            resultado.isSuccessful && valor != null -> if (cont.isActive) cont.resume(valor)
             excepcion != null -> if (cont.isActive) cont.resumeWithException(excepcion)
             else -> if (cont.isActive) {
                 cont.resumeWithException(IllegalStateException("Tarea Auth sin resultado ni error"))

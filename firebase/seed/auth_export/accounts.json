@@ -1,0 +1,24 @@
+{
+  "kind": "identitytoolkit#DownloadAccountResponse",
+  "users": [
+    {
+      "localId": "MOSnb8ajFqVBXhokKTq5JiHnJs92",
+      "email": "custodio.prueba@ai27.com",
+      "emailVerified": true,
+      "salt": "fakeSaltpSjBESl0IiFNhKMwokhw",
+      "passwordHash": "fakeHash:salt=fakeSaltpSjBESl0IiFNhKMwokhw:password=custodio123",
+      "passwordUpdatedAt": 1789838628109,
+      "validSince": "1789838628",
+      "createdAt": "1758970000000",
+      "lastLoginAt": "1758970000000",
+      "providerUserInfo": [
+        {
+          "providerId": "password",
+          "email": "custodio.prueba@ai27.com",
+          "federatedId": "custodio.prueba@ai27.com",
+          "rawId": "custodio.prueba@ai27.com"
+        }
+      ]
+    }
+  ]
+}

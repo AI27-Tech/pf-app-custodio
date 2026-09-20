@@ -42,3 +42,8 @@ GENERIC_RULES.md contains reusable working rules. This file adds the project's A
 - `org.gradle.configuration-cache=true` in `gradle.properties` — keep build-script edits configuration-cache compatible.
 - `local.properties` (machine-local `sdk.dir`) is gitignored; never commit it or hard-code SDK paths.
 - App name is "App Custodio" (`rootProject.name`, manifest label, theme `Theme.AppCustodio`).
+
+## Nota: quirk del Emulator Suite (Firestore)
+
+- Con la plantilla 13.29.0 del Firebase CLI, el emulador de Firestore evalúa las reglas de lectura de `list`/`runQuery` muestreando documentos que llegan **sin `custodioUid`**, y responde 403 `Property custodioUid is undefined on object. for 'list'` aunque el documento real tenga el campo. Verificado con el emulador corriendo como proyecto `custodio-906e7268`.
+- No afecta a la app: el pipeline solo usa `get` por llave, `set`/`update` y el `get()` cruzado de las reglas de Storage; el historial lee de Room y nunca lista Firestore. Para validar contra el emulador, consulta por llave (REST `GET .../documents/reportes/{id}`) en lugar de `list`. `npm test` (rules-unit-testing) usa su propio motor in-process y no se ve afectado.

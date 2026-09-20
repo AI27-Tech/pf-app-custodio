@@ -27,11 +27,23 @@ object PipelineModule {
 
     @Provides
     @Singleton
-    fun proveeFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+    fun proveeFirestore(@ApplicationContext context: Context): FirebaseFirestore {
+        val firestore = FirebaseFirestore.getInstance()
+        if (ModoEmulador.activo(context)) {
+            firestore.useEmulator(ModoEmulador.HOST, ModoEmulador.PUERTO_FIRESTORE)
+        }
+        return firestore
+    }
 
     @Provides
     @Singleton
-    fun proveeStorage(): FirebaseStorage = FirebaseStorage.getInstance()
+    fun proveeStorage(@ApplicationContext context: Context): FirebaseStorage {
+        val storage = FirebaseStorage.getInstance()
+        if (ModoEmulador.activo(context)) {
+            storage.useEmulator(ModoEmulador.HOST, ModoEmulador.PUERTO_STORAGE)
+        }
+        return storage
+    }
 
     @Provides
     @Singleton

@@ -27,7 +27,8 @@ service cloud.firestore {
 
     match /reportes/{reporteId} {
 
-      allow read: if autenticado() && esDuenoDe(resource);
+      allow read: if autenticado()
+        && (resource == null || esDuenoDe(resource));
 
       // Un reporte siempre nace ACTIVO; el cierre offline llega como ACTIVO->CERRADO
       // en dos pasos desde la app (PLAN §6.2).
@@ -51,7 +52,8 @@ service cloud.firestore {
 
     match /medios/{medioId} {
 
-      allow read: if autenticado() && esDuenoDe(resource);
+      allow read: if autenticado()
+        && (resource == null || esDuenoDe(resource));
 
       allow create: if autenticado()
         && esDuenoDe(request.resource)
