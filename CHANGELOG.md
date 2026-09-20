@@ -2,6 +2,31 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:20 09:53
+
+**Resumen:** Fase C2: biblioteca de componentes en `ui/components/`. Los 18 componentes base de los mockups portados a Compose con `@Preview` en claro y oscuro, iconografía de trazo propia en drawables, y deduplicación del chip de estado de subida.
+
+**Cambios:**
+- Se creó `ui/components/` con los 18 composables de la tabla de la fase C2: `BarraNavegacion` (tres destinos con testiga y badge de pendientes), `BarraSuperior` (flecha de regreso opcional y acciones), `BotonPrimario`/`BotonSecundario` (48dp, 4dp de radio), `BotonPendientes` (tarjeta con contador ámbar), `BotonGrabacion` (círculo de 96dp con micrófono/stop, única píldora grande del sistema), `ChipCategoria`, `ChipEstadoSubida`, `MiniaturaMedio`, `RenglonReporte`, `RenglonPendiente`, `RenglonResumen`, `RenglonSwitch`, `EncabezadoFecha`, `FranjaAviso`, `EstadoVacio`, `HojaInferior` y `CampoPlaca`.
+- Cada componente se muestra en dos previews, Oscuro y Claro, montados sobre el wrapper `Vitrina` que usa el lienzo del tema en lugar del gris del studio.
+- Iconografía: 12 drawables de trazo nuevos en `res/drawable/` copiados de los paths de los mockups (`ic_archivo`, `ic_reloj`, `ic_ajustes`, `ic_camara`, `ic_subir`, `ic_adjunto`, `ic_chevron`, `ic_carpeta`, `ic_placa`, `ic_alerta`, `ic_cheque`, `ic_reintento`). No entró `material-icons-extended`: con R8 apagado los íconos nuevos inflarían el APK y el trazo del sistema no vive en ese set.
+- `ChipEstadoSubida` se extrajo de `HistorialScreen.kt` a la biblioteca con icono real por estado (marcas de verificación, reintento, reloj, alerta) y los estados que antes decían "Error" ahora dicen "Fallido"; `HistorialScreen` y `DetalleReporteScreen` importan la versión del paquete.
+- `RenglonSwitch` dibuja un interruptor rectangular: el `Switch` de M3 es píldora y D3 lo prohíbe; el pulgar se desliza con `animateDpAsState`.
+- Los strings que estos componentes necesitan salieron a `values/strings.xml` y `values-es-rMX/strings.xml` (destinos, estados de subida, pendientes, placa, grabación, barra superior); los de las pantallas quedan para C6.
+- Geometría y colores consumen los tokens de C1 (`AppShapes`, `colorScheme`, `AppTheme.coloresEstado`); no hay radio suelto ni color literal dentro de los componentes, salvo los casos que el propio sistema define.
+
+**Archivos modificados:**
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+- `app/src/main/java/com/ai27/app/custodio/ui/components/` (nuevo: `Vitrina.kt`, `BarraNavegacion.kt`, `BarraSuperior.kt`, `Botones.kt`, `Chips.kt`, `MiniaturaMedio.kt`, `Renglones.kt`, `Avisos.kt`, `HojaInferior.kt`, `CampoPlaca.kt`)
+- `app/src/main/java/com/ai27/app/custodio/ui/historial/HistorialScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/historial/DetalleReporteScreen.kt`
+- `app/src/main/res/drawable/ic_archivo.xml`, `ic_reloj.xml`, `ic_ajustes.xml`, `ic_camara.xml`, `ic_subir.xml`, `ic_adjunto.xml`, `ic_chevron.xml`, `ic_carpeta.xml`, `ic_placa.xml`, `ic_alerta.xml`, `ic_cheque.xml`, `ic_reintento.xml` (nuevos)
+- `app/src/main/res/values/strings.xml`
+- `app/src/main/res/values-es-rMX/strings.xml`
+
+**Pendiente:** comparación visual de los `@Preview` contra los PNG de `mock-app-design-language/` en el studio, y verificar que Inter se dibuje de verdad (deuda heredada de C1).
+
 ## 2026:09:20 09:40
 
 **Resumen:** Fase C1: se unificó el lenguaje visual sobre los tokens de Nocturne con Inter, sustituyendo la plantilla de Android Studio, y se dejaron de versionar los mockups.

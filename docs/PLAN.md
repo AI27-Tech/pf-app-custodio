@@ -395,7 +395,7 @@ Reemplazar la plantilla por el sistema de diseño. Es la fase de la que dependen
 
 Verificado: `assembleDebug` compila, `testDebugUnitTest` pasa 66 pruebas y la fuente con su licencia quedan dentro del APK. **Sin verificar:** que Inter se dibuje de verdad en lugar de caer a Roboto; eso pide dispositivo o los `@Preview` de C2.
 
-### 11.4 Fase C2 — Biblioteca de componentes
+### 11.4 Fase C2 — Biblioteca de componentes ✅ hecha (2026-09-20)
 
 Hoy no existe `ui/components/` y los tres únicos composables compartidos viven dentro de `HistorialScreen.kt`. Crear el paquete y portar los 20 componentes base, cada uno con **`@Preview` en claro y oscuro** — no hay ni un preview en el repo, y sin ellos la única forma de comparar contra los PNG es instalar la app.
 
@@ -421,6 +421,15 @@ Hoy no existe `ui/components/` y los tres únicos composables compartidos viven 
 | `campo_de_placa_con_sugerencias_*` | `CampoPlaca` | El `OutlinedTextField` de `NuevoViaje`, sin sugerencias |
 
 La deduplicación es el beneficio real de esta fase: tres barras superiores, tres tratamientos de tarjeta y cuatro estados vacíos se vuelven uno de cada.
+
+**Ejecutado:**
+- Se creó `ui/components/` como estaba previsto, con los 18 composables de la tabla (la prosa habla de 20 pero la tabla mapea 18 y se implementaron exactamente esos). Cada uno con `@Preview` de Oscuro y Claro montados sobre un wrapper `Vitrina` que usa el lienzo del tema en lugar del gris del studio.
+- Iconografía: se trajeron los 12 vectores de los mockups como drawables de trazo en `res/drawable/` (`ic_archivo`, `ic_reloj`, `ic_ajustes`, `ic_camara`, `ic_subir`, `ic_adjunto`, `ic_chevron`, `ic_carpeta`, `ic_placa`, `ic_alerta`, `ic_cheque`, `ic_reintento`). No se añadió `material-icons-extended`: con R8 apagado inflaría el APK y el trazo de los mockups no vive en ese set.
+- `ChipEstadoSubida` salió de `HistorialScreen.kt` y pasa al catálogo con icono (antes el ✓ era un carácter, ahora `ic_cheque` real); las pantallas del historial importan el del paquete. `ChipEstado`/`ChipCiclo` se quedan en lugar por ahora, hasta C4.
+- El switch es rectangular (`RenglonSwitch`): Material 3 dibuja el `Switch` como píldora, y D3 lo prohíbe. Track 56x32 con pulgar deslizante animado.
+- Se separaron los strings que los componentes necesitan de los del C6 (destinos, estados, pendientes, placa, grabación).
+
+Verificado: `assembleDebug` compila y `testDebugUnitTest` pasa. La comparación visual contra los PNG de `mock-app-design-language/` queda pendiente hasta correr los `@Preview` en el studio.
 
 ### 11.5 Fase C3 — Navegación y descomposición de la pantalla gorda
 

@@ -38,6 +38,7 @@ import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.ui.components.ChipEstadoSubida
 
 @Composable
 fun DetalleReporteRoute(

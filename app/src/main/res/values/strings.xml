@@ -1,3 +1,31 @@
 <resources>
     <string name="app_name">App Custodio</string>
+
+    <!-- Biblioteca de componentes: navegación inferior -->
+    <string name="destino_reporte">Reporte</string>
+    <string name="destino_historial">Historial</string>
+    <string name="destino_ajustes">Ajustes</string>
+
+    <!-- Biblioteca de componentes: chip de estado de subida -->
+    <string name="estado_enviado">Enviado</string>
+    <string name="estado_subiendo">Subiendo</string>
+    <string name="estado_pendiente">Pendiente</string>
+    <string name="estado_fallido">Fallido</string>
+
+    <!-- Biblioteca de componentes: botón de pendientes -->
+    <string name="boton_pendientes_titulo">Subir pendientes</string>
+    <string name="boton_pendientes_detalle">En cola de sincronización</string>
+
+    <!-- Biblioteca de componentes: botón redondo de grabación -->
+    <string name="boton_grabacion_grabar">Grabar nota de voz</string>
+    <string name="boton_grabacion_detener">Detener grabación</string>
+
+    <!-- Biblioteca de componentes: barra superior -->
+    <string name="barra_superior_volver">Volver</string>
+
+    <!-- Biblioteca de componentes: campo de placa -->
+    <string name="campo_placa_rotulo">Placa de la unidad</string>
+    <string name="campo_placa_placeholder">INGRESE PLACA</string>
+    <string name="campo_placa_limpiar">Limpiar placa</string>
+    <string name="campo_placa_titulo">PLACAS RECIENTES EN RUTA</string>
 </resources>

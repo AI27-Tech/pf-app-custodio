@@ -36,9 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ai27.app.custodio.domain.model.Ciclo
-import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
-import com.ai27.app.custodio.ui.theme.AppTheme
+import com.ai27.app.custodio.ui.components.ChipEstadoSubida
 
 @Composable
 fun HistorialRoute(
@@ -214,23 +213,6 @@ internal fun ChipCiclo(ciclo: Ciclo) {
             contenido = MaterialTheme.colorScheme.onTertiaryContainer,
         )
     }
-}
-
-@Composable
-internal fun ChipEstadoSubida(estado: EstadoSubida) {
-    val colores = AppTheme.coloresEstado
-    val (texto, color) = when (estado) {
-        EstadoSubida.COMPLETA -> "Enviado ✓" to colores.enviado
-        EstadoSubida.EN_PROGRESO -> "Subiendo" to colores.subiendo
-        EstadoSubida.PENDIENTE -> "Pendiente" to colores.pendiente
-        EstadoSubida.FALLIDA -> "Error" to colores.fallida
-    }
-    ChipEstado(
-        texto = texto,
-        contenedor = color.contenedor,
-        contenido = color.contenido,
-        borde = color.borde,
-    )
 }
 
 @Composable
