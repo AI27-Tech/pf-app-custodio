@@ -2,6 +2,27 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 13:06
+
+**Resumen:** Las fotos tomadas por la app ahora también se guardan en la memoria del dispositivo, en la carpeta pública `Pictures/AppCustodio/` visible desde el administrador de archivos, además del almacenamiento interno (`filesDir/medios`) que ya alimenta la subida a Firebase.
+
+**Cambios:**
+
+- `FotosPublicas.kt` (nuevo): guarda una copia JPEG pública por foto capturada — vía MediaStore con `RELATIVE_PATH = Pictures/AppCustodio` e `IS_PENDING`/`update` en Android 10+ (sin permisos) y vía `getExternalStoragePublicDirectory` más `MediaScannerConnection.scanFile` en Android 8-9 (requiere `WRITE_EXTERNAL_STORAGE`).
+- `CapturaViewModel.kt`: se inyecta `FotosPublicas` y, tras guardar el medio con `capturarMedio`, se lanza `copiarAPublica(medioId, jpeg)`; la copia es accesoria — si falla se registra en LogCat (`Tag "CapturaViewModel"`) sin bloquear la captura ni marcar error al usuario.
+- `CapturaModule.kt`: `provéeFotosPublicas` (singleton con `@ApplicationContext`).
+- `AndroidManifest.xml`: permiso `WRITE_EXTERNAL_STORAGE` con `maxSdkVersion="28"` (Android 8-9), sin efecto en Android 10+.
+- `CapturaEvidenciaScreen.kt`: la solicitud de permisos (arranque y botón "Permitir cámara") incluye `WRITE_EXTERNAL_STORAGE` solo en Android 8-9 vía `permisosSolicitados()`.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/FotosPublicas.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/CapturaModule.kt`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 13:05
 
 **Resumen:** Se reestructuran las reglas de seguridad de Firestore y Storage para el modelo de dos roles: los custodios (la app) escriben y leen solo lo suyo, y los analistas (panel web, separado) leen TODO, incluida la evidencia en Storage, y no escriben. El analista se identifica ahora por CORREO en `config/analistas.correos` (antes por UIDs), y las escrituras de custodio dejaron de consultar ese documento: subir evidencia no debe depender de la lista de analistas ni romperse en un emulador recién iniciado (quirk que revienta un `get()` interno de reglas sobre documento inexistente). El panel gana lectura de Storage para visualizar los archivos.

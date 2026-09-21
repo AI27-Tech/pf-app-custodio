@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.di
 
 import android.content.Context
+import com.ai27.app.custodio.data.local.media.FotosPublicas
 import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.domain.repository.EtiquetaRepository
 import com.ai27.app.custodio.domain.repository.MedioRepository
@@ -60,4 +61,8 @@ object CapturaModule {
     @Provides
     @Singleton
     fun proveeGrabadora(@ApplicationContext context: Context): Grabadora = Grabadora(context)
+
+    @Provides
+    @Singleton
+    fun proveeFotosPublicas(@ApplicationContext context: Context): FotosPublicas = FotosPublicas(context)
 }

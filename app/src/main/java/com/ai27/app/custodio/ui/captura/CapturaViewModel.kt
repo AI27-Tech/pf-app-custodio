@@ -1,8 +1,10 @@
 package com.ai27.app.custodio.ui.captura
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.data.local.media.FotosPublicas
 import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
@@ -58,6 +60,7 @@ class CapturaViewModel @Inject constructor(
     private val reintentarSubida: ReintentarSubida,
     private val proveedorUbicacion: ProveedorUbicacion,
     private val grabadora: Grabadora,
+    private val fotosPublicas: FotosPublicas,
     private val programadorSubidas: SubidaScheduler,
     @Named("deviceId") private val deviceId: String,
 ) : ViewModel() {
@@ -164,11 +167,14 @@ class CapturaViewModel @Inject constructor(
             )
             interno.update {
                 when (resultado) {
-                    is Result.Success -> it.copy(
-                        capturando = false,
-                        ubicacionTextoEscrita = "",
-                        medioPendienteDeEtiquetar = resultado.value,
-                    )
+                    is Result.Success -> {
+                        copiarAPublica(resultado.value.id, jpeg)
+                        it.copy(
+                            capturando = false,
+                            ubicacionTextoEscrita = "",
+                            medioPendienteDeEtiquetar = resultado.value,
+                        )
+                    }
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
             }
@@ -350,8 +356,22 @@ class CapturaViewModel @Inject constructor(
         null
     }
 
+    private fun copiarAPublica(medioId: String, jpeg: ByteArray) {
+        viewModelScope.launch {
+            try {
+                fotosPublicas.guardar(medioId, jpeg)
+            } catch (error: Exception) {
+                // La copia pública es accesoria: la evidencia vive igual en la app y,
+                // una vez etiquetada, en Firebase. Se deja rastro en LogCat pero no se
+                // bloquea la captura ni se marca error de usuario.
+                Log.w(TAG, "No se pudo guardar la foto en Pictures/AppCustodio: ${error.message}")
+            }
+        }
+    }
+
     private companion object {
         const val CLIENTE_PROVISIONAL = "cliente-provisional"
         const val TIEMPO_OBTENER_UBICACION_MS = 8_000L
+        const val TAG = "CapturaViewModel"
     }
 }

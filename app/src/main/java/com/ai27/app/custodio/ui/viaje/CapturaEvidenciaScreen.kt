@@ -2,6 +2,7 @@ package com.ai27.app.custodio.ui.viaje
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.LifecycleCameraController
@@ -85,6 +86,19 @@ fun CapturaEvidenciaScreen(
             PackageManager.PERMISSION_GRANTED,
     )
 
+    fun permisosSolicitados(): Array<String> {
+        val base = arrayOf(
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        )
+        return if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            base + Manifest.permission.WRITE_EXTERNAL_STORAGE
+        } else {
+            base
+        }
+    }
+
     var permisos by remember {
         mutableStateOf(
             if (inspeccion) PermisosCamara(camara = true, mic = true) else permisosActuales(),
@@ -96,13 +110,7 @@ fun CapturaEvidenciaScreen(
 
     LaunchedEffect(Unit) {
         if (!inspeccion && (!permisos.camara || !permisos.mic)) {
-            lanzadorPermisos.launch(
-                arrayOf(
-                    Manifest.permission.CAMERA,
-                    Manifest.permission.RECORD_AUDIO,
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                ),
-            )
+            lanzadorPermisos.launch(permisosSolicitados())
         }
     }
 
@@ -142,13 +150,7 @@ fun CapturaEvidenciaScreen(
                     Spacer(Modifier.size(12.dp))
                     Button(
                         onClick = {
-                            lanzadorPermisos.launch(
-                                arrayOf(
-                                    Manifest.permission.CAMERA,
-                                    Manifest.permission.RECORD_AUDIO,
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                ),
-                            )
+                            lanzadorPermisos.launch(permisosSolicitados())
                         },
                     ) { Text(stringResource(R.string.captura_permitir_camara)) }
                 }
