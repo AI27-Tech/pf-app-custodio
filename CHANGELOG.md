@@ -2,6 +2,58 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 15:50
+
+**Resumen:** La app queda bloqueada en orientación Portrait todo el tiempo: la cámara, la grabadora y las hojas de etiquetado se diseñaron para lectura vertical, así que se fija `screenOrientation="portrait"` en la única Activity.
+
+**Cambios:**
+
+- `AndroidManifest.xml`: `MainActivity` gana `android:screenOrientation="portrait"`.
+
+**Archivos modificados:**
+
+- `app/src/main/AndroidManifest.xml`
+- `CHANGELOG.md`
+
+## 2026:09:21 15:44
+
+**Resumen:** El etiquetado ya no se puede descartar sin elegir al menos una etiqueta: la hoja bloquea el cierre por los tres caminos (botón X, toque fuera de la hoja, gesto de baja y botón atrás) mientras no haya un chip seleccionado, de modo que la foto y la nota de voz recién capturadas siempre quedan etiquetadas y pasan a la cola de subida.
+
+**Cambios:**
+
+- `HojaEtiqueta.kt`: el `confirmValueChange` del estado de la hoja devuelve `false` para el cambio a `Hidden` mientras `seleccionada == null` (frena el gesto de baja); `onDismissRequest` se ignora sin chip elegido (bloquea toque fuera de la hoja y back); y el `IconButton` de cerrar se deshabilita (`enabled = seleccionada != null`) igual que el botón de guardar. El descarte sigue disponible una vez elegida la etiqueta.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 15:37
+
+**Resumen:** Se corrige la hoja de etiquetado (foto y nota de voz) que abría parcialmente expandida y dejaba el botón de guardar fuera de pantalla, obligando a hacer scroll.
+
+**Cambios:**
+
+- `HojaEtiqueta.kt`: la `ModalBottomSheet` pasa a `rememberModalBottomSheetState(skipPartiallyExpanded = true)`, igual que la hoja canónica `HojaInferior`, con lo que se abre totalmente expandida y el botón de guardar queda siempre visible sin necesidad de desplazarse.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 15:31
+
+**Resumen:** Se corrige el desborde de la pantalla de evidencias capturadas (rejilla de Archivos) sobre los botones OS de navegación: el contenido no recibía el inset inferior porque la ruta no tiene barra inferior (`BarraNavegacion` solo se compone en las tres pestañas) y `contentWindowInsets = WindowInsets(0.dp)` deja el inset en cero.
+
+**Cambios:**
+
+- `AppNavHost.kt`: la ruta `archivos` ahora aplica `Modifier.navigationBarsPadding()` además del `statusBarsPadding()`, con lo que la última fila de la rejilla queda por encima de los botones OS / gesto de navegación del sistema.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 16:30
 
 **Resumen:** Se habilitó la prueba unitaria de `CapturaViewModel`: se extrajeron interfaces para los colaboradores atados a Android y se agregó `kotlinx-coroutines-test`, con tres pruebas que fijan el comportamiento del desacople de GPS.

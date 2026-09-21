@@ -223,7 +223,8 @@ fun AppNavHost() {
                         onConsumirError = viewModel::consumirError,
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding(),
+                            .statusBarsPadding()
+                            .navigationBarsPadding(),
                     )
                 }
 

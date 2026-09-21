@@ -22,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -52,8 +53,22 @@ fun HojaEtiqueta(
     onCerrar: () -> Unit,
 ) {
     val medio = estado.medioPendienteDeEtiquetar ?: return
-    val sheetState = rememberModalBottomSheetState()
     var seleccionada by remember(medio.id) { mutableStateOf<String?>(null) }
+    // La hoja se abre siempre totalmente expandida: con el aviso, las etiquetas y el
+    // campo de ubicación, la versión parcialmente expandida ocultaría el botón de guardar
+    // y obligaría a hacer scroll.
+    //
+    // El etiquetado es obligatorio: sin un chip elegido no se puede descartar la hoja. El
+    // estado de la hoja rechaza el cambio a Hidden (frena el gesto de baja) y onDismissRequest
+    // ignora el toque fuera de la hoja y el botón atrás; el botón de cerrar además se
+    // deshabilita. Así la foto y la nota de voz recién capturadas siempre quedan etiquetadas
+    // y pasan a la cola de subida.
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { valor ->
+            if (valor == SheetValue.Hidden) seleccionada != null else true
+        },
+    )
     var avisoVisible by remember { mutableStateOf(true) }
     val etiquetasActivas = estado.etiquetas.filter { it.activo }.sortedBy { it.orden }
 
@@ -65,7 +80,7 @@ fun HojaEtiqueta(
     }
 
     ModalBottomSheet(
-        onDismissRequest = onCerrar,
+        onDismissRequest = { if (seleccionada != null) onCerrar() },
         sheetState = sheetState,
     ) {
         Column(
@@ -98,7 +113,10 @@ fun HojaEtiqueta(
                     },
                     style = MaterialTheme.typography.titleLarge,
                 )
-                IconButton(onClick = onCerrar) {
+                IconButton(
+                    onClick = onCerrar,
+                    enabled = seleccionada != null,
+                ) {
                     Icon(
                         Icons.Filled.Close,
                         contentDescription = stringResource(R.string.hoja_descartar),
