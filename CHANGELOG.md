@@ -2,6 +2,19 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 12:24
+
+**Resumen:** Se corrige el botón de foto de la pantalla de captura de evidencia, que quedaba debajo de los botones OS de navegación: el disparador está anclado al borde inferior del área (`Alignment.BottomCenter`) y el `Scaffold` usa `contentWindowInsets = WindowInsets(0.dp)`, así que la app dibuja tras la barra de navegación del sistema y el botón se salía del área visible.
+
+**Cambios:**
+
+- `CapturaEvidenciaScreen.kt`: el `Surface` del disparador gana `Modifier.navigationBarsPadding()` entre el `align(BottomCenter)` y el `padding(bottom = 32.dp)`, de modo que el botón queda por encima de los botones OS manteniendo el margen de diseño.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 12:15
 
 **Resumen:** Se agrega la posibilidad de refrescar la pantalla de Pendientes para ver los cambios de la cola de subida al enviar una foto o nota de voz: gesto de tirar hacia abajo (pull-to-refresh) y re-tocar la pestaña Reporte de la barra inferior. Ambos disparan la reconciliación de la cola (`SubidaScheduler.reconciliar()`), que re-encola los trabajos de subida pendientes; el `Flow` reactivo de Room re-emite entonces los estados actualizados (PENDIENTE → EN_PROGRESO → COMPLETA/FALLIDA) y los medios recién enviados aparecen en la lista.
