@@ -113,6 +113,7 @@ fun AppNavHost() {
     val estadoRoot by rootViewModel.estado.collectAsState()
     val pendientes by pendientesViewModel.pendientes.collectAsState()
     val pendientesError by pendientesViewModel.error.collectAsState()
+    val pendientesRefrescando by pendientesViewModel.refrescando.collectAsState()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val rutaActual = backStackEntry?.destination?.route
     val destinoSeleccionado = destinoDe(rutaActual)
@@ -124,7 +125,14 @@ fun AppNavHost() {
             BarraNavegacion(
                 seleccionado = destino,
                 pendientesSinSubir = pendientes.size,
-                onSeleccionar = { navegarADestino(navController, it, rutaActual) },
+                onSeleccionar = { destino ->
+                    navegarADestino(
+                        navController = navController,
+                        destino = destino,
+                        rutaActual = rutaActual,
+                        alReTocar = { if (it == DestinoInferior.REPORTE) pendientesViewModel.recargar() },
+                    )
+                },
                 modifier = Modifier.navigationBarsPadding(),
             )
         },
@@ -240,6 +248,8 @@ fun AppNavHost() {
                 PendientesScreen(
                     pendientes = pendientes,
                     error = pendientesError,
+                    refrescando = pendientesRefrescando,
+                    onRecargar = pendientesViewModel::recargar,
                     onAtras = { navController.popBackStack() },
                     onReintentar = pendientesViewModel::reintentar,
                     onConsumirError = pendientesViewModel::consumirError,
@@ -313,13 +323,18 @@ private fun navegarADestino(
     navController: NavHostController,
     destino: DestinoInferior,
     rutaActual: String?,
+    alReTocar: (DestinoInferior) -> Unit = {},
 ) {
     val ruta = when (destino) {
         DestinoInferior.REPORTE -> Rutas.INICIO
         DestinoInferior.HISTORIAL -> Rutas.HISTORIAL
         DestinoInferior.AJUSTES -> Rutas.AJUSTES
     }
-    if (rutaActual == ruta) return
+    if (rutaActual == ruta) {
+        // Pestaña ya seleccionada: se refresca en vez de re-navegar (Reporte re-alimenta la cola).
+        alReTocar(destino)
+        return
+    }
     // Cada cambio de pestaña se expresa como un navigate atómico (con su popUpTo), no como un
     // popBackStack suelto: así no dependemos de que la ruta del grafo anidado esté presente en
     // la pila en un momento concreto de una transición en curso.

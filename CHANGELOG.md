@@ -2,6 +2,23 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 12:15
+
+**Resumen:** Se agrega la posibilidad de refrescar la pantalla de Pendientes para ver los cambios de la cola de subida al enviar una foto o nota de voz: gesto de tirar hacia abajo (pull-to-refresh) y re-tocar la pestaña Reporte de la barra inferior. Ambos disparan la reconciliación de la cola (`SubidaScheduler.reconciliar()`), que re-encola los trabajos de subida pendientes; el `Flow` reactivo de Room re-emite entonces los estados actualizados (PENDIENTE → EN_PROGRESO → COMPLETA/FALLIDA) y los medios recién enviados aparecen en la lista.
+
+**Cambios:**
+
+- `PendientesViewModel.kt`: nuevo `refrescando: StateFlow<Boolean>` y `recargar()` que marca el estado de refresco, ejecuta `programadorSubidas.reconciliar()` y lo libera con `finally`.
+- `PendientesScreen.kt`: el contenido (lista o estado vacío) se envuelve en `PullToRefreshBox` de Material3 (estable en material3 1.4.0); el estado vacío es scrollable con `verticalScroll` para que el gesto funcione también sin elementos. Nuevos parámetros `refrescando` y `onRecargar`, con los 4 `@Preview` actualizados.
+- `AppNavHost.kt`: se cablea `refrescando`/`onRecargar` a `PendientesScreen`; `navegarADestino` gana `alReTocar`, que en Reporte (pestaña ya seleccionada) ejecuta `PendientesViewModel.recargar()` en vez de no hacer nada.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/pendientes/PendientesViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/pendientes/PendientesScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 12:00
 
 **Resumen:** Se corrige el badge de pendientes de la barra de navegación inferior (`BarraNavegacion`): el número del contador sobre el icono de Reporte no se mostraba correctamente porque el badge artesanal se empujaba fuera de su contenedor (quedaba recortado/encimado con el borde de la barra) y el dígito iba en una ventana de 14dp con fuente por defecto, que se recortaba a escalas de fuente normales del dispositivo.

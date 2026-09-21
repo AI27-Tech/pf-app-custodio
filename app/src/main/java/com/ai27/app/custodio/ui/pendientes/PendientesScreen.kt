@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +44,8 @@ import java.time.format.DateTimeFormatter
 fun PendientesScreen(
     pendientes: List<Medio>,
     error: Int?,
+    refrescando: Boolean,
+    onRecargar: () -> Unit,
     onAtras: () -> Unit,
     onReintentar: (Medio) -> Unit,
     onConsumirError: () -> Unit,
@@ -52,39 +57,47 @@ fun PendientesScreen(
             onAtras = onAtras,
         )
 
-        if (pendientes.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                EstadoVacio(
-                    titulo = stringResource(R.string.pendientes_todo_sincronizado),
-                    descripcion = stringResource(R.string.pendientes_ninguno),
-                    modifier = Modifier.padding(32.dp),
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(pendientes, key = { it.id }) { medio ->
-                    RenglonPendiente(
-                        titulo = if (medio.tipo == TipoMedio.AUDIO) {
-                            stringResource(R.string.nota_de_voz)
-                        } else {
-                            stringResource(R.string.evidencia)
-                        },
-                        detalle = detalleDe(medio),
-                        hora = horaDe(medio.createdAtDevice),
-                        esAudio = medio.tipo == TipoMedio.AUDIO,
-                        onReintentar = if (medio.estadoSubida == EstadoSubida.FALLIDA) {
-                            { onReintentar(medio) }
-                        } else {
-                            null
-                        },
+        PullToRefreshBox(
+            isRefreshing = refrescando,
+            onRefresh = onRecargar,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (pendientes.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    EstadoVacio(
+                        titulo = stringResource(R.string.pendientes_todo_sincronizado),
+                        descripcion = stringResource(R.string.pendientes_ninguno),
+                        modifier = Modifier.padding(32.dp),
                     )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(pendientes, key = { it.id }) { medio ->
+                        RenglonPendiente(
+                            titulo = if (medio.tipo == TipoMedio.AUDIO) {
+                                stringResource(R.string.nota_de_voz)
+                            } else {
+                                stringResource(R.string.evidencia)
+                            },
+                            detalle = detalleDe(medio),
+                            hora = horaDe(medio.createdAtDevice),
+                            esAudio = medio.tipo == TipoMedio.AUDIO,
+                            onReintentar = if (medio.estadoSubida == EstadoSubida.FALLIDA) {
+                                { onReintentar(medio) }
+                            } else {
+                                null
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -115,6 +128,8 @@ private fun PendientesVistaClaro() {
         PendientesScreen(
             pendientes = DatosDemo.mediosPendientes,
             error = null,
+            refrescando = false,
+            onRecargar = {},
             onAtras = {},
             onReintentar = {},
             onConsumirError = {},
@@ -129,6 +144,8 @@ private fun PendientesVistaOscuro() {
         PendientesScreen(
             pendientes = DatosDemo.mediosPendientes,
             error = null,
+            refrescando = false,
+            onRecargar = {},
             onAtras = {},
             onReintentar = {},
             onConsumirError = {},
@@ -143,6 +160,8 @@ private fun PendientesVacioVistaClaro() {
         PendientesScreen(
             pendientes = emptyList(),
             error = null,
+            refrescando = false,
+            onRecargar = {},
             onAtras = {},
             onReintentar = {},
             onConsumirError = {},
@@ -157,6 +176,8 @@ private fun PendientesVacioVistaOscuro() {
         PendientesScreen(
             pendientes = emptyList(),
             error = null,
+            refrescando = false,
+            onRecargar = {},
             onAtras = {},
             onReintentar = {},
             onConsumirError = {},

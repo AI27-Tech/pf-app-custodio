@@ -29,6 +29,7 @@ class PendientesViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _error = MutableStateFlow<Int?>(null)
+    private val _refrescando = MutableStateFlow(false)
 
     val pendientes: StateFlow<List<Medio>> = sesionRepositorio.observarCustodio()
         .flatMapLatest { custodio ->
@@ -45,6 +46,19 @@ class PendientesViewModel @Inject constructor(
         )
 
     val error: StateFlow<Int?> = _error
+
+    val refrescando: StateFlow<Boolean> = _refrescando
+
+    fun recargar() {
+        viewModelScope.launch {
+            _refrescando.value = true
+            try {
+                programadorSubidas.reconciliar()
+            } finally {
+                _refrescando.value = false
+            }
+        }
+    }
 
     fun reintentar(medio: Medio) {
         viewModelScope.launch {
