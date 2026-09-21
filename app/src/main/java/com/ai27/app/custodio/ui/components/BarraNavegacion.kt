@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.ui.components
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,6 +101,7 @@ private fun ItemBarra(
     Column(
         modifier = modifier
             .height(56.dp)
+            .clickable { onSeleccionar() }
             .padding(top = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

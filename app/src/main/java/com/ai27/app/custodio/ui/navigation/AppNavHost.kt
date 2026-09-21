@@ -17,6 +17,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -81,6 +84,27 @@ private fun destinoDe(ruta: String?): DestinoInferior? = when (ruta) {
     else -> null
 }
 
+/**
+ * Resuelve la entrada del grafo [Rutas.VIAJE] desde el destino actual. Como todas las
+ * pantallas del flujo de viaje son hijas de ese grafo, cuando estamos dentro de él su
+ * entrada está siempre en la pila; si el sitio actual es otra pestaña, devuelve null.
+ *
+ * A diferencia de `getBackStackEntry(Rutas.VIAJE)` en crudo — que recorre la pila viva y
+ * revienta con `IllegalArgumentException` durante las transiciones de [NavHost] (destino
+ * actual null en recomposiciones de salida) — esta versión vuelve null y las pantallas
+ * simplemente no se componen ese frame.
+ */
+private fun NavController.entradaDelGrafoViaje(entradaActual: NavBackStackEntry?): NavBackStackEntry? {
+    val grafo = entradaActual?.destination?.hierarchy
+        ?.firstOrNull { it.route == Rutas.VIAJE }
+        ?: return null
+    return try {
+        getBackStackEntry(grafo.id)
+    } catch (e: IllegalArgumentException) {
+        null
+    }
+}
+
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
@@ -92,6 +116,7 @@ fun AppNavHost() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val rutaActual = backStackEntry?.destination?.route
     val destinoSeleccionado = destinoDe(rutaActual)
+    val entradaViaje = navController.entradaDelGrafoViaje(backStackEntry)
 
     Scaffold(
         bottomBar = {
@@ -116,8 +141,8 @@ fun AppNavHost() {
 
             navigation(startDestination = Rutas.INICIO, route = Rutas.VIAJE) {
                 composable(Rutas.INICIO) {
-                    val viewModel: CapturaViewModel =
-                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val viewModel: CapturaViewModel? = entradaViaje?.let { hiltViewModel(it) }
+                    if (viewModel == null) return@composable
                     val estado by viewModel.uiState.collectAsState()
                     ReporteScreen(
                         estado = estado,
@@ -137,8 +162,8 @@ fun AppNavHost() {
                 }
 
                 composable(Rutas.CAPTURA) {
-                    val viewModel: CapturaViewModel =
-                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val viewModel: CapturaViewModel? = entradaViaje?.let { hiltViewModel(it) }
+                    if (viewModel == null) return@composable
                     val estado by viewModel.uiState.collectAsState()
                     CapturaEvidenciaScreen(
                         estado = estado,
@@ -157,8 +182,8 @@ fun AppNavHost() {
                 }
 
                 composable(Rutas.AUDIO) {
-                    val viewModel: CapturaViewModel =
-                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val viewModel: CapturaViewModel? = entradaViaje?.let { hiltViewModel(it) }
+                    if (viewModel == null) return@composable
                     val estado by viewModel.uiState.collectAsState()
                     AudioScreen(
                         estado = estado,
@@ -179,8 +204,8 @@ fun AppNavHost() {
                 }
 
                 composable(Rutas.ARCHIVOS) {
-                    val viewModel: CapturaViewModel =
-                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val viewModel: CapturaViewModel? = entradaViaje?.let { hiltViewModel(it) }
+                    if (viewModel == null) return@composable
                     val estado by viewModel.uiState.collectAsState()
                     ArchivosScreen(
                         estado = estado,
@@ -195,8 +220,8 @@ fun AppNavHost() {
                 }
 
                 composable(Rutas.CIERRE) {
-                    val viewModel: CapturaViewModel =
-                        hiltViewModel(navController.getBackStackEntry(Rutas.VIAJE))
+                    val viewModel: CapturaViewModel? = entradaViaje?.let { hiltViewModel(it) }
+                    if (viewModel == null) return@composable
                     val estado by viewModel.uiState.collectAsState()
                     CierreScreen(
                         estado = estado,
@@ -289,11 +314,15 @@ private fun navegarADestino(
         DestinoInferior.AJUSTES -> Rutas.AJUSTES
     }
     if (rutaActual == ruta) return
-    when (destino) {
-        // Reporte es la raíz del flujo: se vuelve a la entrada del grafo de viaje.
-        DestinoInferior.REPORTE -> navController.popBackStack(Rutas.VIAJE, false)
-        else -> if (!navController.popBackStack(ruta, false)) {
-            navController.navigate(ruta)
+    // Cada cambio de pestaña se expresa como un navigate atómico (con su popUpTo), no como un
+    // popBackStack suelto: así no dependemos de que la ruta del grafo anidado esté presente en
+    // la pila en un momento concreto de una transición en curso.
+    navController.navigate(ruta) {
+        if (destino == DestinoInferior.REPORTE) {
+            // Reporte es la raíz del flujo: se vuelve a la entrada del grafo de viaje,
+            // descartando las pestañas apiladas encima y conservando el flujo abierto.
+            popUpTo(Rutas.VIAJE) { inclusive = false }
         }
+        launchSingleTop = true
     }
 }
