@@ -25,6 +25,7 @@ async function main() {
 
   const alicia = testEnv.authenticatedContext('uid-a', { email: 'alicia@custodio.cl' });
   const bruno = testEnv.authenticatedContext('uid-b', { email: 'bruno@custodio.cl' });
+  const analista = testEnv.authenticatedContext('uid-an', { email: 'ana@ai27.mx' });
   const anonimo = testEnv.unauthenticatedContext();
 
   // Nota: firestore()/storage() se obtienen UNA vez por contexto (repetir la llamada
@@ -32,6 +33,7 @@ async function main() {
   // "Firestore has already been started").
   const dbA = alicia.firestore();
   const dbB = bruno.firestore();
+  const dbAn = analista.firestore();
   const dbSinAuth = anonimo.firestore();
   const storageA = alicia.storage();
   const storageB = bruno.storage();
@@ -84,11 +86,15 @@ async function main() {
   }
 
   // ---- Datos de referencia sin reglas (el reporte de Alicia ya cerrado, por ejemplo) ----
-  const semilla = await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const dbBase = ctx.firestore();
     await dbBase.doc('reportes/r-b').set(reporteB);
     await dbBase.doc('reportes/r-a').set(reporteA);
     await dbBase.doc('catalogos/c1').set({ etiquetas: ['carga', 'descarga', 'novedad'] });
+    await dbBase.doc('medios/m-seed').set(medioA);
+    await dbBase.doc('usuarios/uid-a').set({ correo: 'alicia@custodio.cl', rol: 'custodio', activo: true });
+    // La lista que autoriza al analista. En producción se crea a mano en la consola.
+    await dbBase.doc('config/analistas').set({ uids: ['uid-an'] });
   });
 
   // ============ REGLAS FIRESTORE ============
@@ -129,6 +135,43 @@ async function main() {
   await comprobar('no se borra un medio', assertFails(dbA.doc('medios/m-1').delete()));
   await comprobar('dueño lee su medio', assertSucceeds(dbA.doc('medios/m-1').get()));
   await comprobar('ajeno no lee el medio', assertFails(dbB.doc('medios/m-1').get()));
+
+  // ============ EL ANALISTA DEL PANEL (PLAN §5.3) ============
+  // Lee todo, escribe nada. La autorización sale de config/analistas y no depende del
+  // documento consultado, que es lo que permite las consultas de lista.
+
+  // Lectura de documentos ajenos
+  await comprobar('analista lee el reporte de alicia', assertSucceeds(dbAn.doc('reportes/r-a').get()));
+  await comprobar('analista lee el reporte de bruno', assertSucceeds(dbAn.doc('reportes/r-b').get()));
+  await comprobar('analista lee un medio ajeno', assertSucceeds(dbAn.doc('medios/m-seed').get()));
+  await comprobar('analista lee catalogos', assertSucceeds(dbAn.doc('catalogos/c1').get()));
+  await comprobar('analista lee el directorio de usuarios', assertSucceeds(dbAn.doc('usuarios/uid-a').get()));
+
+  // Consultas de lista: es aquí donde una regla mal escrita rompe el panel entero.
+  // El analista consulta SIN filtro de custodio y debe pasar; el custodio no.
+  await comprobar('analista consulta la coleccion de reportes sin filtro', assertSucceeds(dbAn.collection('reportes').get()));
+  await comprobar('analista consulta la coleccion de medios sin filtro', assertSucceeds(dbAn.collection('medios').get()));
+  await comprobar('custodio no consulta reportes sin filtrar por el suyo', assertFails(dbA.collection('reportes').get()));
+  await comprobar('custodio si consulta reportes filtrando por el suyo', assertSucceeds(dbA.collection('reportes').where('custodioUid', '==', 'uid-a').get()));
+
+  // Escritura: negada en todo
+  await comprobar('analista no crea reporte', assertFails(dbAn.doc('reportes/r-an').set({ ...reporteA, custodioUid: 'uid-an' })));
+  await comprobar('analista no actualiza reporte', assertFails(dbAn.doc('reportes/r-a').update({ comentario: 'editado por el analista' })));
+  await comprobar('analista no borra reporte', assertFails(dbAn.doc('reportes/r-a').delete()));
+  await comprobar('analista no crea medio', assertFails(dbAn.doc('medios/m-an').set({ ...medioA, custodioUid: 'uid-an' })));
+  await comprobar('analista no actualiza medio', assertFails(dbAn.doc('medios/m-seed').update({ etiqueta: 'otra' })));
+  await comprobar('analista no borra medio', assertFails(dbAn.doc('medios/m-seed').delete()));
+  await comprobar('analista no escribe catalogos', assertFails(dbAn.doc('catalogos/c1').set({ etiquetas: [] })));
+
+  // La lista de autorización no la toca ningún cliente, ni el analista
+  await comprobar('analista no lee config/analistas', assertFails(dbAn.doc('config/analistas').get()));
+  await comprobar('analista no se agrega a config/analistas', assertFails(dbAn.doc('config/analistas').update({ uids: ['uid-an', 'uid-a'] })));
+  await comprobar('custodio no lee config/analistas', assertFails(dbA.doc('config/analistas').get()));
+  await comprobar('custodio no se agrega a config/analistas', assertFails(dbA.doc('config/analistas').set({ uids: ['uid-a'] })));
+
+  // Regresión: estar autenticado no basta. Un custodio que no está en la lista sigue
+  // sin ver lo ajeno aunque la regla del analista exista.
+  await comprobar('bruno no lee el medio de alicia por la puerta del analista', assertFails(dbB.doc('medios/m-seed').get()));
 
   // ============ REGLAS STORAGE ============
   const bytes = Buffer.from('foto-de-prueba');

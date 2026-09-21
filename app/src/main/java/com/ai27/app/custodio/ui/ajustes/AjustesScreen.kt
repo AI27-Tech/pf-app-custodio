@@ -14,9 +14,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.DialogoCerrarSesion
@@ -66,30 +69,30 @@ fun AjustesScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
-        BarraSuperior(titulo = "Ajustes")
+        BarraSuperior(titulo = stringResource(R.string.destino_ajustes))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TituloSeccion("Entorno y visualización")
+            TituloSeccion(stringResource(R.string.ajustes_entorno))
             RenglonSwitch(
-                titulo = "Modo nocturno",
-                descripcion = "Aspecto oscuro de alto contraste para la cabina",
+                titulo = stringResource(R.string.ajustes_modo_nocturno),
+                descripcion = stringResource(R.string.ajustes_modo_nocturno_descripcion),
                 marcado = oscuro,
                 onCambiar = onCambiarTema,
             )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            TituloSeccion("Cuenta y sincronización")
+            TituloSeccion(stringResource(R.string.ajustes_cuenta))
             RenglonResumen(
-                etiqueta = "Sesión de custodio activa",
+                etiqueta = stringResource(R.string.ajustes_sesion_activa),
                 valor = estado.custodio?.correo.orEmpty(),
             )
             RenglonResumen(
-                etiqueta = "Archivos pendientes de subida",
+                etiqueta = stringResource(R.string.ajustes_pendientes_subida),
                 valor = "${estado.pendientesSinSubir}",
             )
 
@@ -97,12 +100,18 @@ fun AjustesScreen(
 
             if (estado.pendientesSinSubir > 0) {
                 FranjaAviso(
-                    texto = "Cierre de sesión deshabilitado: hay " +
-                        "${estado.pendientesSinSubir} archivos pendientes de subida.",
+                    texto = stringResource(
+                        R.string.ajustes_cierre_deshabilitado,
+                        pluralStringResource(
+                            R.plurals.archivos_pendientes_de_subida,
+                            estado.pendientesSinSubir,
+                            estado.pendientesSinSubir,
+                        ),
+                    ),
                 )
             }
             BotonSecundario(
-                texto = "Cerrar sesión de custodio",
+                texto = stringResource(R.string.ajustes_cerrar_sesion_custodio),
                 onClick = onSolicitarCerrarSesion,
                 habilitado = estado.pendientesSinSubir == 0,
             )
@@ -116,8 +125,8 @@ fun AjustesScreen(
         onConfirmar = onConfirmarCerrarSesion,
         onCancelar = onCancelarCerrarSesion,
     )
-    estado.error?.let { mensaje ->
-        DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
+    estado.error?.let { codigo ->
+        DialogoError(mensaje = stringResource(codigo), onCerrar = onConsumirError)
     }
 }
 

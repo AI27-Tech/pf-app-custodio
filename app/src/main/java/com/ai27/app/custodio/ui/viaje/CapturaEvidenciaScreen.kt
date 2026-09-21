@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -111,7 +112,7 @@ fun CapturaEvidenciaScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        text = "Para capturar se necesita la cámara.",
+                        text = stringResource(R.string.captura_sin_camara),
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.size(12.dp))
@@ -125,17 +126,17 @@ fun CapturaEvidenciaScreen(
                                 ),
                             )
                         },
-                    ) { Text("Permitir cámara") }
+                    ) { Text(stringResource(R.string.captura_permitir_camara)) }
                 }
             }
         }
 
         BarraSuperior(
-            titulo = "Capturar evidencia",
+            titulo = stringResource(R.string.captura_titulo),
             onAtras = onAtras,
         ) {
             Text(
-                text = "${estado.medios.size} de 50",
+                text = stringResource(R.string.conteo_de_50, estado.medios.size),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(end = 12.dp),
@@ -161,7 +162,7 @@ fun CapturaEvidenciaScreen(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         painterResource(R.drawable.ic_foto),
-                        contentDescription = "Tomar foto",
+                        contentDescription = stringResource(R.string.captura_tomar_foto),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(32.dp),
                     )
@@ -178,7 +179,7 @@ fun CapturaEvidenciaScreen(
             onCerrar = onCerrarHoja,
         )
     }
-    estado.error?.let { mensaje ->
-        DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
+    estado.error?.let { error ->
+        DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
 }

@@ -5,6 +5,7 @@ rules_version = '2';
 //   y en CERRADO solo avanzar subida/mediosSubidos/completo. Nada se borra.
 // - medios: create-only del dueño y solo si el reporte es suyo.
 // - catalogos: lectura para cualquier custodio autenticado.
+// - analista: lectura de todo, escritura de nada (panel del analista).
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -14,6 +15,26 @@ service cloud.firestore {
 
     function esDuenoDe(recurso) {
       return recurso.data.custodioUid == request.auth.uid;
+    }
+
+    // El analista del panel de evidencia: lee todo, no escribe nada.
+    //
+    // La autorización sale de una lista de UID en `config/analistas`, no de un custom
+    // claim, porque un claim exige el Admin SDK y una cuenta de servicio, y aquí se
+    // trata de un usuario. La lista se administra a mano desde la consola.
+    //
+    // Clave: la condición NO depende del documento consultado. Las reglas de Firestore
+    // no filtran consultas —si la condición mira `resource`, una consulta de lista
+    // falla entera en lugar de devolver menos resultados—, así que el analista se
+    // autoriza por algo que el motor puede evaluar sin leer los documentos.
+    //
+    // `get()` devuelve null si el documento no existe, así que basta una lectura.
+    function esAnalista() {
+      let lista = get(/databases/$(database)/documents/config/analistas);
+      return autenticado()
+        && lista != null
+        && 'uids' in lista.data
+        && request.auth.uid in lista.data.uids;
     }
 
     // Solo puede cambiar las llaves permitidas entre dos versiones del documento.
@@ -27,14 +48,24 @@ service cloud.firestore {
 
     match /reportes/{reporteId} {
 
+      // `esAnalista()` va al final a propósito: `||` corta de izquierda a derecha, así
+      // que un custodio leyendo lo suyo nunca llega a evaluarlo y no paga la lectura
+      // extra de `config/analistas`. Sólo la paga quien falla la prueba de dueño.
       allow read: if autenticado()
-        && (resource == null || esDuenoDe(resource));
+        && (resource == null || esDuenoDe(resource) || esAnalista());
 
       // Un reporte siempre nace ACTIVO; el cierre offline llega como ACTIVO->CERRADO
       // en dos pasos desde la app (PLAN §6.2).
+      //
+      // `!esAnalista()` hace estructural la garantía de que el panel es de sólo lectura.
+      // Sin esto, una cuenta de analista pasa la prueba de dueño escribiendo su propio
+      // UID en `custodioUid` y puede inyectar reportes basura en el expediente. Va al
+      // final del `&&` para que sólo se evalúe —y sólo cueste una lectura— cuando el
+      // resto de la condición ya pasó.
       allow create: if autenticado()
         && esDuenoDe(request.resource)
-        && request.resource.data.ciclo == 'ACTIVO';
+        && request.resource.data.ciclo == 'ACTIVO'
+        && !esAnalista();
 
       function transicionValida() {
         let previo = resource.data;
@@ -46,18 +77,19 @@ service cloud.firestore {
           || (previo.ciclo == 'CERRADO' && nuevo.ciclo == 'CERRADO' && soloContadores);
       }
 
-      allow update: if autenticado() && esDuenoDe(resource) && transicionValida();
+      allow update: if autenticado() && esDuenoDe(resource) && transicionValida() && !esAnalista();
       allow delete: if false;
     }
 
     match /medios/{medioId} {
 
       allow read: if autenticado()
-        && (resource == null || esDuenoDe(resource));
+        && (resource == null || esDuenoDe(resource) || esAnalista());
 
       allow create: if autenticado()
         && esDuenoDe(request.resource)
-        && reportePerteneceA(request.resource.data.reporteId);
+        && reportePerteneceA(request.resource.data.reporteId)
+        && !esAnalista();
 
       allow update, delete: if false;
     }
@@ -67,7 +99,16 @@ service cloud.firestore {
     }
 
     match /usuarios/{uid} {
-      allow read, create: if autenticado() && request.auth.uid == uid;
+      // El analista lee el directorio para poblar el filtro de custodio del panel.
+      allow read: if autenticado() && (request.auth.uid == uid || esAnalista());
+      allow create: if autenticado() && request.auth.uid == uid;
+    }
+
+    // La lista de analistas se administra desde la consola y ningún cliente la toca.
+    // Las reglas sí la leen: `get()` dentro de una regla corre con acceso total y no
+    // se evalúa a sí misma, así que negar aquí no rompe `esAnalista()`.
+    match /config/{documento} {
+      allow read, write: if false;
     }
   }
 }

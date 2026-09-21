@@ -25,7 +25,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.TipoMedio
 
@@ -60,18 +62,21 @@ fun HojaEtiqueta(
             ) {
                 Text(
                     text = when (medio.tipo) {
-                        TipoMedio.FOTO -> "Foto capturada"
-                        TipoMedio.AUDIO -> "Nota de voz"
+                        TipoMedio.FOTO -> stringResource(R.string.hoja_foto_capturada)
+                        TipoMedio.AUDIO -> stringResource(R.string.nota_de_voz)
                     },
                     style = MaterialTheme.typography.titleLarge,
                 )
                 IconButton(onClick = onCerrar) {
-                    Icon(Icons.Filled.Close, contentDescription = "Descartar")
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.hoja_descartar),
+                    )
                 }
             }
 
             Text(
-                text = "Etiqueta obligatoria:",
+                text = stringResource(R.string.hoja_etiqueta_obligatoria),
                 style = MaterialTheme.typography.labelLarge,
             )
 
@@ -93,7 +98,7 @@ fun HojaEtiqueta(
                     value = estado.ubicacionTextoEscrita,
                     onValueChange = onUbicacionTextoCambio,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Ubicación (sin GPS)") },
+                    label = { Text(stringResource(R.string.hoja_ubicacion_sin_gps)) },
                     singleLine = true,
                 )
             }
@@ -103,7 +108,13 @@ fun HojaEtiqueta(
                 enabled = seleccionada != null,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (seleccionada == null) "Selecciona una etiqueta" else "Guardar")
+                Text(
+                    if (seleccionada == null) {
+                        stringResource(R.string.hoja_selecciona_etiqueta)
+                    } else {
+                        stringResource(R.string.hoja_guardar)
+                    },
+                )
             }
         }
     }

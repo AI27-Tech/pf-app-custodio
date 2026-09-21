@@ -22,6 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
@@ -77,8 +79,8 @@ fun ReporteScreen(
         }
     }
 
-    estado.error?.let { mensaje ->
-        DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
+    estado.error?.let { error ->
+        DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
 }
 
@@ -97,18 +99,18 @@ private fun SinReporte(
     ) {
         Spacer(Modifier.weight(1f))
         EstadoVacio(
-            titulo = "Sin reporte activo",
-            descripcion = "Inicia un nuevo reporte de viaje para registrar evidencias y trayecto.",
+            titulo = stringResource(R.string.reporte_sin_activo),
+            descripcion = stringResource(R.string.reporte_sin_activo_descripcion),
         )
         Spacer(Modifier.weight(1f))
         BotonPrimario(
-            texto = "Iniciar nuevo reporte",
+            texto = stringResource(R.string.reporte_iniciar_nuevo),
             onClick = { mostrarHoja = true },
             habilitado = !estado.creandoViaje,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Protocolo AI27 Custodio",
+            text = stringResource(R.string.reporte_protocolo),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -117,7 +119,7 @@ private fun SinReporte(
     HojaInferior(
         visible = mostrarHoja,
         onOcultar = { mostrarHoja = false },
-        titulo = "Nuevo viaje",
+        titulo = stringResource(R.string.reporte_nuevo_viaje),
     ) {
         Column(
             modifier = Modifier
@@ -130,7 +132,11 @@ private fun SinReporte(
                 onValorCambia = onPlacaCambio,
             )
             BotonPrimario(
-                texto = if (estado.creandoViaje) "Creando viaje…" else "Comenzar viaje",
+                texto = if (estado.creandoViaje) {
+                    stringResource(R.string.reporte_creando_viaje)
+                } else {
+                    stringResource(R.string.reporte_comenzar_viaje)
+                },
                 onClick = {
                     onIniciarViaje()
                     mostrarHoja = false
@@ -158,7 +164,7 @@ private fun ReporteAbierto(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         if (!conectado) {
-            FranjaAviso(texto = "Sin conexión: las capturas se guardan localmente en el dispositivo.")
+            FranjaAviso(texto = stringResource(R.string.reporte_sin_conexion))
         }
         BloqueUnidad(
             placas = estado.reporte?.placasCapturadas.orEmpty(),
@@ -167,29 +173,29 @@ private fun ReporteAbierto(
         )
 
         if (estado.limiteAlcanzado) {
-            FranjaAviso(texto = "Alcanzaste el límite de 50 medios por viaje.")
+            FranjaAviso(texto = stringResource(R.string.reporte_limite_alcanzado))
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CeldaDato(
-                titulo = "Evidencias",
+                titulo = stringResource(R.string.reporte_evidencias),
                 valor = "${estado.medios.size}",
                 modifier = Modifier.weight(1f),
             )
             CeldaDato(
-                titulo = "Pendientes",
+                titulo = stringResource(R.string.reporte_pendientes),
                 valor = "${estado.pendientesSinSubir}",
                 modifier = Modifier.weight(1f),
             )
         }
 
         BotonPrimario(
-            texto = "Capturar evidencia",
+            texto = stringResource(R.string.captura_titulo),
             onClick = onIrACaptura,
             habilitado = !estado.limiteAlcanzado,
         )
         BotonSecundario(
-            texto = "Nota de voz",
+            texto = stringResource(R.string.nota_de_voz),
             onClick = onIrAAudio,
             habilitado = !estado.limiteAlcanzado,
         )
@@ -221,7 +227,7 @@ private fun BloqueUnidad(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "UNIDAD ESCOLTADA",
+                    text = stringResource(R.string.reporte_unidad_escoltada),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -233,7 +239,7 @@ private fun BloqueUnidad(
                 )
             }
             Text(
-                text = "$contador de 50",
+                text = stringResource(R.string.conteo_de_50, contador),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(end = 8.dp),
@@ -251,7 +257,7 @@ private fun ChipEnCurso() {
         color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
         Text(
-            text = "EN CURSO",
+            text = stringResource(R.string.reporte_en_curso),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
@@ -268,7 +274,7 @@ private fun BotonCerrarReporte(onClick: () -> Unit) {
         color = MaterialTheme.colorScheme.errorContainer,
     ) {
         Text(
-            text = "Cerrar viaje",
+            text = stringResource(R.string.cerrar_viaje),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onErrorContainer,
             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
@@ -327,7 +333,11 @@ private fun FilaArchivos(
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = "$cantidad evidencias capturadas",
+                text = pluralStringResource(
+                    R.plurals.evidencias_capturadas,
+                    cantidad,
+                    cantidad,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )

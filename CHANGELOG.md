@@ -2,6 +2,44 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 C6
+
+**Resumen:** Fase C6: todos los strings de la UI salen a `values/strings.xml` (incluidos los `contentDescription`), los errores de dominio pasan de `String?` a recursos `@StringRes` en los UiState, y se corrigen los tres puntos de accesibilidad detectados en la auditoría (mínimos táctiles, chips de ciclo sólo-color y estados de grabación sin descripción).
+
+**Cambios:**
+
+- `values/strings.xml` reescrito completo: strings por feature (login, errores de dominio y de validación, diálogos, viaje, captura, audio, archivos, cierre, hoja de etiquetado, historial, detalle, pendientes, ajustes), comunes (`comun_cancelar`, `comun_reintentar`, `comun_aviso`, `comun_entendido`, `comun_miniatura`, `foto`, `nota_de_voz`, `evidencia`, `archivos_con_conteo`, `conteo_de_50`, `cerrar_viaje`) y 4 plurals (`archivos_sin_subir`, `archivos_pendientes_de_subida`, `evidencias_capturadas`, `cantidad_archivos`). Se corrige el typo `reporte_penculadas` → `reporte_pendientes`.
+- Nuevo `ui/error/DominioErrorRecurso.kt`: `DominioError.aRecurso(): Int` (`@StringRes`) y los UiState pasan `error: String?` → `error: Int?`; las pantallas resuelven con `stringResource(error)`. Se elimina `domain/error/DominioErrorMensaje.kt` (`aMensajeUsuario`) sin quedar referencias. `PlacaVacia` se mapea al mensaje estático `error_placa_vacia_sin_valor`.
+- Migradas a `stringResource`/`pluralStringResource` todas las pantallas y sus ViewModels: `LoginScreen`, `ReporteScreen`, `CapturaEvidenciaScreen` (contentDescription «Tomar foto»), `AudioScreen`, `ArchivosScreen`, `CierreScreen`, `HojaEtiqueta`, `HistorialScreen`, `DetalleReporteScreen`, `PendientesScreen`, `AjustesScreen`, `Dialogos.kt`, `CajasEstado.kt` y los ViewModels de login, captura, historial, detalle, pendientes y ajustes.
+- Accesibilidad: se quita la pinza `Modifier.size(28.dp)` de los `IconButton`/`FilledIconButton` de Archivos y la `size(40.dp)` de CampoPlaca, que encogían el área interactiva por debajo del mínimo táctil de 48dp. `ChipCiclo` deja de ser un estado sólo-color: gana icono (cheque/alerta/reloj) como `ChipEstadoSubida`. `BotonGrabacion` anuncia con TalkBack "Grabar nota de voz" en reposo y "Detener grabación" mientras graba (el string `boton_grabacion_detener` ya no queda huérfano).
+- `docs/PLAN.md` §11.8 marcada como hecha; queda pendiente manual de C7 la escala de texto 130%/200% y el contraste en dispositivo real.
+
+**Archivos modificados:**
+
+- `app/src/main/res/values/strings.xml`
+- `app/src/main/java/com/ai27/app/custodio/ui/error/DominioErrorRecurso.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioErrorMensaje.kt` (eliminado)
+- `app/src/main/java/com/ai27/app/custodio/ui/{login,viaje,historial,pendientes,ajustes}/` y `ui/components/{Dialogos,CajasEstado,Botones,CampoPlaca}.kt`
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 23:40
+
+**Resumen:** Se documentó la resolución de captura como decisión abierta y se corrigieron las cifras de volumen del plan, que estaban basadas en un presupuesto de imagen que el código nunca implementó.
+
+**Cambios:**
+
+- Se agregó la sección 3.4 al plan: la resolución de captura queda como decisión pendiente de Producto. El código captura 1920×1080 en 16:9 con calidad 88, es decir unos 2 megapíxeles, y el original no se reescala. Al levantar el propósito del panel del analista quedó claro que la evidencia que el cliente necesita no es la foto como objeto sino su contenido, un número de candado o un folio, así que la compresión dejó de ser un asunto de datos celulares y pasó a ser el asunto del producto. A esa resolución un candado fotografiado a dos metros no se lee, y el formato 16:9 desperdicia la mitad del encuadre en documentos verticales.
+- No se cambió ninguna constante: la premisa de las decisiones D3 y R11 cambió, pero la decisión es de Producto. Se documentó que es un cambio de dos constantes y el riesgo de no tomarlo, que es entregar un sistema que captura evidencia ilegible y descubrirlo cuando alguien intente usarla con un cliente.
+- Se corrigieron las cifras que el plan traía de una versión anterior: decía fotos de aproximadamente un megapíxel a calidad 75, que el código nunca implementó. Con los valores reales, el peso por reporte sube de 11 a 26 megabytes, el consumo diario de 400 a 960 megabytes y el mensual de 12 a 29 gigabytes.
+- Se actualizó la proyección de almacenamiento anual de 145 a 350 gigabytes, con la nota de que se duplicaría si se adopta la resolución propuesta. Es la cifra que va a forzar la conversación de retención, que sigue pendiente.
+- Se ajustaron las menciones a la resolución en la tabla de decisiones bloqueadas, en el resumen de cambios respecto de la versión anterior y en la tabla de trazabilidad.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
 ## 2026:09:20 10:37
 
 **Resumen:** Fase C3: navegación con barra inferior y descomposición de `CapturaScreen.kt` (777 líneas) en cinco pantallas del flujo de viaje. Rutas de 4 a 10 + grafo anidado, `Scaffold` único en el host, rejilla a 3 columnas, pantalla de pendientes con reintento y diálogos a la biblioteca.

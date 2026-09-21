@@ -13,7 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.TipoMedio
@@ -35,7 +37,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun PendientesScreen(
     pendientes: List<Medio>,
-    error: String?,
+    error: Int?,
     onAtras: () -> Unit,
     onReintentar: (Medio) -> Unit,
     onConsumirError: () -> Unit,
@@ -43,7 +45,7 @@ fun PendientesScreen(
 ) {
     Column(modifier.fillMaxSize()) {
         BarraSuperior(
-            titulo = "Subir pendientes",
+            titulo = stringResource(R.string.boton_pendientes_titulo),
             onAtras = onAtras,
         )
 
@@ -53,8 +55,8 @@ fun PendientesScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 EstadoVacio(
-                    titulo = "Todo sincronizado",
-                    descripcion = "No hay archivos pendientes\nen esta sesión.",
+                    titulo = stringResource(R.string.pendientes_todo_sincronizado),
+                    descripcion = stringResource(R.string.pendientes_ninguno),
                     modifier = Modifier.padding(32.dp),
                 )
             }
@@ -66,7 +68,11 @@ fun PendientesScreen(
             ) {
                 items(pendientes, key = { it.id }) { medio ->
                     RenglonPendiente(
-                        titulo = if (medio.tipo == TipoMedio.AUDIO) "Nota de voz" else "Evidencia",
+                        titulo = if (medio.tipo == TipoMedio.AUDIO) {
+                            stringResource(R.string.nota_de_voz)
+                        } else {
+                            stringResource(R.string.evidencia)
+                        },
                         detalle = detalleDe(medio),
                         hora = horaDe(medio.createdAtDevice),
                         esAudio = medio.tipo == TipoMedio.AUDIO,
@@ -81,16 +87,17 @@ fun PendientesScreen(
         }
     }
 
-    error?.let { mensaje ->
-        DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
+    error?.let { codigo ->
+        DialogoError(mensaje = stringResource(codigo), onCerrar = onConsumirError)
     }
 }
 
+@Composable
 private fun detalleDe(medio: Medio): String =
     medio.etiqueta ?: when (medio.estadoSubida) {
-        EstadoSubida.FALLIDA -> "Subida fallida"
-        EstadoSubida.EN_PROGRESO -> "Enviando…"
-        else -> "En cola"
+        EstadoSubida.FALLIDA -> stringResource(R.string.pendientes_subida_fallida)
+        EstadoSubida.EN_PROGRESO -> stringResource(R.string.pendientes_enviando)
+        else -> stringResource(R.string.pendientes_en_cola)
     }
 
 private val formateadorHora: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

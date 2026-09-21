@@ -12,8 +12,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.components.BarraSuperior
@@ -44,7 +46,7 @@ fun AudioScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
-        BarraSuperior(titulo = "Nota de voz", onAtras = onAtras)
+        BarraSuperior(titulo = stringResource(R.string.nota_de_voz), onAtras = onAtras)
 
         Column(
             modifier = Modifier
@@ -53,7 +55,7 @@ fun AudioScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            FranjaAviso(texto = "Máximo 5:00 por nota. Habla claro y cerca del micrófono.")
+            FranjaAviso(texto = stringResource(R.string.audio_aviso))
             Spacer(Modifier.height(32.dp))
 
             if (estado.grabandoAudio) {
@@ -67,20 +69,20 @@ fun AudioScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "GRABANDO",
+                    text = stringResource(R.string.audio_grabando),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.SemiBold,
                 )
             } else if (estado.capturando) {
                 Text(
-                    text = "Guardando nota…",
+                    text = stringResource(R.string.audio_guardando),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Text(
-                    text = "Toca el botón para iniciar",
+                    text = stringResource(R.string.audio_toca_para_iniciar),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -96,7 +98,7 @@ fun AudioScreen(
             if (estado.grabandoAudio) {
                 Spacer(Modifier.height(24.dp))
                 BotonSecundario(
-                    texto = "Cancelar",
+                    texto = stringResource(R.string.comun_cancelar),
                     onClick = onDescartarAudio,
                 )
             } else {
@@ -114,8 +116,8 @@ fun AudioScreen(
             onCerrar = onCerrarHoja,
         )
     }
-    estado.error?.let { mensaje ->
-        DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
+    estado.error?.let { error ->
+        DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
 }
 

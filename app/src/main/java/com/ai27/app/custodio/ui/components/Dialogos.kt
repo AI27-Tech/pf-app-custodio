@@ -11,7 +11,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai27.app.custodio.R
 
 /**
  * Diálogo de confirmación de una decisión destructiva o de cierre.
@@ -47,7 +50,7 @@ fun DialogoConfirmacion(
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancelar) { Text("Cancelar") }
+            TextButton(onClick = onCancelar) { Text(stringResource(R.string.comun_cancelar)) }
         },
         modifier = modifier,
     )
@@ -69,19 +72,16 @@ fun DialogoDescarte(
     if (!visible) return
     AlertDialog(
         onDismissRequest = onCancelar,
-        title = { Text("¿Descartar el viaje?") },
+        title = { Text(stringResource(R.string.descarte_titulo)) },
         text = {
             Column {
-                Text(
-                    "Esto marca el viaje como descartado. Lo que ya se subió " +
-                        "no se borra; se excluye de los reportes del analista.",
-                )
+                Text(stringResource(R.string.descarte_texto))
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = motivo,
                     onValueChange = onMotivoCambio,
-                    label = { Text("Motivo del descarte") },
-                    placeholder = { Text("Obligatorio") },
+                    label = { Text(stringResource(R.string.descarte_motivo_rotulo)) },
+                    placeholder = { Text(stringResource(R.string.descarte_motivo_placeholder)) },
                     minLines = 2,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -92,11 +92,17 @@ fun DialogoDescarte(
                 onClick = { onConfirmar(motivo) },
                 enabled = motivo.isNotBlank() && !descartando,
             ) {
-                Text(if (descartando) "Descartando…" else "Descartar")
+                Text(
+                    if (descartando) {
+                        stringResource(R.string.descarte_descartando)
+                    } else {
+                        stringResource(R.string.descarte_confirmar)
+                    },
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancelar) { Text("Cancelar") }
+            TextButton(onClick = onCancelar) { Text(stringResource(R.string.comun_cancelar)) }
         },
         modifier = modifier,
     )
@@ -115,17 +121,21 @@ fun DialogoCerrarSesion(
     modifier: Modifier = Modifier,
 ) {
     if (!visible) return
+    val archivosSinSubir = pluralStringResource(
+        R.plurals.archivos_sin_subir,
+        pendientesSinSubir,
+        pendientesSinSubir,
+    )
     AlertDialog(
         onDismissRequest = onCancelar,
-        title = { Text("¿Cerrar sesión?") },
+        title = { Text(stringResource(R.string.cierre_sesion_titulo)) },
         text = {
             Column {
-                Text("Sesión de $correo")
+                Text(stringResource(R.string.cierre_sesion_correo, correo))
                 if (pendientesSinSubir > 0) {
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Tienes $pendientesSinSubir archivos sin subir. " +
-                            "Si cierras sesión, esa evidencia perderá su cola de subida.",
+                        stringResource(R.string.cierre_sesion_pendientes, archivosSinSubir),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -133,11 +143,17 @@ fun DialogoCerrarSesion(
         },
         confirmButton = {
             TextButton(onClick = onConfirmar) {
-                Text(if (pendientesSinSubir > 0) "Salir de todos modos" else "Salir")
+                Text(
+                    if (pendientesSinSubir > 0) {
+                        stringResource(R.string.cierre_sesion_salir_de_todos_modos)
+                    } else {
+                        stringResource(R.string.cierre_sesion_salir)
+                    },
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancelar) { Text("Cancelar") }
+            TextButton(onClick = onCancelar) { Text(stringResource(R.string.comun_cancelar)) }
         },
         modifier = modifier,
     )
@@ -154,10 +170,10 @@ fun DialogoError(
 ) {
     AlertDialog(
         onDismissRequest = onCerrar,
-        title = { Text("Aviso") },
+        title = { Text(stringResource(R.string.comun_aviso)) },
         text = { Text(mensaje) },
         confirmButton = {
-            TextButton(onClick = onCerrar) { Text("Entendido") }
+            TextButton(onClick = onCerrar) { Text(stringResource(R.string.comun_entendido)) }
         },
         modifier = modifier,
     )

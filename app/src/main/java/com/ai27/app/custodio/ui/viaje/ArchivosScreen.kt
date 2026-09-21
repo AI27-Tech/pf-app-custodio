@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.ai27.app.custodio.R
@@ -65,7 +66,7 @@ fun ArchivosScreen(
 
     Column(modifier.fillMaxSize()) {
         BarraSuperior(
-            titulo = "Archivos (${estado.medios.size})",
+            titulo = stringResource(R.string.archivos_con_conteo, estado.medios.size),
             onAtras = onAtras,
         )
 
@@ -75,8 +76,8 @@ fun ArchivosScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 EstadoVacio(
-                    titulo = "Sin evidencias",
-                    descripcion = "Captura fotos o notas de voz\ndesde la pestaña Reporte.",
+                    titulo = stringResource(R.string.archivos_sin_evidencias),
+                    descripcion = stringResource(R.string.archivos_vacio_descripcion),
                     modifier = Modifier.padding(32.dp),
                 )
             }
@@ -102,9 +103,9 @@ fun ArchivosScreen(
     medioABorrar?.let { medio ->
         DialogoConfirmacion(
             visible = true,
-            titulo = "¿Borrar este archivo?",
-            texto = "El archivo aún no se ha subido. No podrás recuperarlo.",
-            textoConfirmar = "Borrar",
+            titulo = stringResource(R.string.archivos_borrar_titulo),
+            texto = stringResource(R.string.archivos_borrar_texto),
+            textoConfirmar = stringResource(R.string.archivos_borrar),
             onConfirmar = {
                 onBorrarPendiente(medio.id)
                 medioABorrar = null
@@ -112,8 +113,8 @@ fun ArchivosScreen(
             onCancelar = { medioABorrar = null },
         )
     }
-    estado.error?.let { mensaje ->
-        DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
+    estado.error?.let { error ->
+        DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
 }
 
@@ -136,7 +137,7 @@ private fun CeldaArchivo(
             if (medio.tipo == TipoMedio.FOTO) {
                 AsyncImage(
                     model = medio.thumbnailPath?.let { File(it) },
-                    contentDescription = "Miniatura",
+                    contentDescription = stringResource(R.string.comun_miniatura),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                 )
@@ -144,7 +145,7 @@ private fun CeldaArchivo(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         painterResource(R.drawable.ic_mic),
-                        contentDescription = "Nota",
+                        contentDescription = stringResource(R.string.archivos_nota),
                         tint = MaterialTheme.colorScheme.outline,
                     )
                 }
@@ -154,13 +155,11 @@ private fun CeldaArchivo(
         if (medio.estadoSubida == EstadoSubida.PENDIENTE) {
             IconButton(
                 onClick = onConfirmarBorrar,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(28.dp),
+                modifier = Modifier.align(Alignment.TopEnd),
             ) {
                 Icon(
                     Icons.Filled.Delete,
-                    contentDescription = "Borrar captura",
+                    contentDescription = stringResource(R.string.archivos_borrar_captura),
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.size(18.dp),
                 )
@@ -176,7 +175,7 @@ private fun CeldaArchivo(
                 color = MaterialTheme.colorScheme.errorContainer,
             ) {
                 Text(
-                    text = "FALLIDA",
+                    text = stringResource(R.string.archivos_fallida),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -184,16 +183,14 @@ private fun CeldaArchivo(
             }
             FilledIconButton(
                 onClick = onReintentar,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(28.dp),
+                modifier = Modifier.align(Alignment.TopEnd),
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                 ),
             ) {
                 Icon(
                     Icons.Filled.Refresh,
-                    contentDescription = "Reintentar subida",
+                    contentDescription = stringResource(R.string.archivos_reintentar_subida),
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.size(18.dp),
                 )

@@ -104,7 +104,6 @@ fun CampoPlaca(
                 if (valor.isNotEmpty()) {
                     IconButton(
                         onClick = { onValorCambia("") },
-                        modifier = Modifier.size(40.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,

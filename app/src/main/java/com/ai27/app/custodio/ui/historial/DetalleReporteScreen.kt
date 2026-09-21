@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
@@ -59,17 +60,17 @@ fun DetalleReporteScreen(
     onReintentar: () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        BarraSuperior(titulo = "Detalle del viaje", onAtras = onAtras)
+        BarraSuperior(titulo = stringResource(R.string.detalle_titulo), onAtras = onAtras)
 
         if (estado.cargando) {
-            CajaCargaReportes(titulo = "Cargando detalle…")
+            CajaCargaReportes(titulo = stringResource(R.string.caja_cargando_detalle))
             return
         }
 
         val error = estado.error
         if (error != null) {
             CajaErrorHistorial(
-                mensaje = error,
+                mensaje = stringResource(error),
                 onReintentar = onReintentar,
             )
             return
@@ -82,7 +83,7 @@ fun DetalleReporteScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "No se encontró el viaje.",
+                    text = stringResource(R.string.detalle_no_encontrado),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -96,7 +97,7 @@ fun DetalleReporteScreen(
                 item(key = "cabeza") { CabezaDetalle(reporte) }
                 item(key = "titulo-medios") {
                     Text(
-                        text = "Archivos (${estado.medios.size})",
+                        text = stringResource(R.string.archivos_con_conteo, estado.medios.size),
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(top = 8.dp),
                     )
@@ -104,7 +105,7 @@ fun DetalleReporteScreen(
                 if (estado.medios.isEmpty()) {
                     item(key = "sin-medios") {
                         Text(
-                            text = "Sin archivos en este viaje.",
+                            text = stringResource(R.string.detalle_sin_archivos),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.outline,
                         )
@@ -136,7 +137,7 @@ private fun CabezaDetalle(reporte: Reporte) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Viaje del ${reporte.fechaLocal}",
+                text = stringResource(R.string.detalle_viaje_de_fecha, reporte.fechaLocal),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.outline,
             )
@@ -148,20 +149,20 @@ private fun CabezaDetalle(reporte: Reporte) {
             }
             Spacer(Modifier.height(8.dp))
             RenglonResumen(
-                etiqueta = "Archivos enviados",
+                etiqueta = stringResource(R.string.detalle_archivos_enviados),
                 valor = "${reporte.mediosSubidos} de ${reporte.mediosEsperados ?: 0}",
             )
             reporte.comentario?.let { comentario ->
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Comentario: $comentario",
+                    text = stringResource(R.string.detalle_comentario, comentario),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
             reporte.motivoDescarte?.let { motivo ->
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Motivo del descarte: $motivo",
+                    text = stringResource(R.string.detalle_motivo_descarte, motivo),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -187,7 +188,7 @@ private fun FilaMedio(
             if (medio.tipo == TipoMedio.FOTO && medio.thumbnailPath != null) {
                 AsyncImage(
                     model = medio.thumbnailPath,
-                    contentDescription = "Miniatura",
+                    contentDescription = stringResource(R.string.comun_miniatura),
                     modifier = Modifier.size(56.dp),
                     contentScale = ContentScale.Crop,
                 )
@@ -206,11 +207,15 @@ private fun FilaMedio(
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = nombreEtiqueta ?: medio.etiqueta ?: "Sin etiqueta",
+                    text = nombreEtiqueta ?: medio.etiqueta ?: stringResource(R.string.detalle_sin_etiqueta),
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
-                    text = if (medio.tipo == TipoMedio.FOTO) "Foto" else "Nota de voz",
+                    text = if (medio.tipo == TipoMedio.FOTO) {
+                        stringResource(R.string.foto)
+                    } else {
+                        stringResource(R.string.nota_de_voz)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                 )

@@ -2,9 +2,10 @@ package com.ai27.app.custodio.ui.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.Result
-import com.ai27.app.custodio.domain.error.aMensajeUsuario
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
+import com.ai27.app.custodio.ui.error.aRecurso
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,11 +35,11 @@ class LoginViewModel @Inject constructor(
         val correo = _uiState.value.correoEscrito.trim()
         val contrasena = _uiState.value.contrasenaEscrita
         if (correo.isEmpty()) {
-            _uiState.update { it.copy(error = "Escribe tu correo.") }
+            _uiState.update { it.copy(error = R.string.login_error_correo) }
             return
         }
         if (contrasena.isEmpty()) {
-            _uiState.update { it.copy(error = "Escribe tu contraseña.") }
+            _uiState.update { it.copy(error = R.string.login_error_contrasena) }
             return
         }
         viewModelScope.launch {
@@ -46,7 +47,7 @@ class LoginViewModel @Inject constructor(
             when (val resultado = sesionRepositorio.iniciarSesion(correo, contrasena)) {
                 is Result.Success -> _uiState.update { it.copy(iniciando = false) }
                 is Result.Failure -> _uiState.update {
-                    it.copy(iniciando = false, error = resultado.error.aMensajeUsuario())
+                    it.copy(iniciando = false, error = resultado.error.aRecurso())
                 }
             }
         }

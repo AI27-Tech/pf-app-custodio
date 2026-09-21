@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -222,11 +224,18 @@ fun BotonGrabacion(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val descripcion = if (grabando) {
+        stringResource(R.string.boton_grabacion_detener)
+    } else {
+        stringResource(R.string.boton_grabacion_grabar)
+    }
     Surface(
         onClick = onClick,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.error,
-        modifier = modifier.size(96.dp),
+        modifier = modifier
+            .size(96.dp)
+            .semantics { contentDescription = descripcion },
     ) {
         Box(contentAlignment = Alignment.Center) {
             if (grabando) {
@@ -241,7 +250,7 @@ fun BotonGrabacion(
             } else {
                 Icon(
                     painter = painterResource(R.drawable.ic_mic),
-                    contentDescription = stringResource(R.string.boton_grabacion_grabar),
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onError,
                     modifier = Modifier.size(44.dp),
                 )

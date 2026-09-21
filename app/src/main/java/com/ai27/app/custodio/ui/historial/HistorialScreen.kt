@@ -5,9 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -23,8 +27,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.ui.components.BarraSuperior
@@ -61,12 +68,12 @@ fun HistorialScreen(
     onReintentar: () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        BarraSuperior(titulo = "Historial", onAtras = onAtras)
+        BarraSuperior(titulo = stringResource(R.string.destino_historial), onAtras = onAtras)
 
         OutlinedTextField(
             value = estado.filtroPlaca,
             onValueChange = onFiltroCambio,
-            label = { Text("Buscar por placa") },
+            label = { Text(stringResource(R.string.historial_buscar_placa)) },
             leadingIcon = {
                 Icon(Icons.Filled.Search, contentDescription = null)
             },
@@ -82,7 +89,7 @@ fun HistorialScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Sin viajes en los últimos 30 días.",
+                    text = stringResource(R.string.historial_vacio),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -93,7 +100,7 @@ fun HistorialScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Ningún viaje coincide con «${estado.filtroPlaca}».",
+                    text = stringResource(R.string.historial_sin_coincidencias, estado.filtroPlaca),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -102,7 +109,7 @@ fun HistorialScreen(
             estado.cargando -> CajaCargaReportes()
 
             estado.error != null -> CajaErrorHistorial(
-                mensaje = estado.error,
+                mensaje = stringResource(estado.error),
                 onReintentar = onReintentar,
             )
 
@@ -125,29 +132,33 @@ fun HistorialScreen(
     }
 }
 
+@Composable
 private fun detalleDe(reporte: Reporte): String =
-    "Viaje del ${reporte.fechaLocal} · ${reporte.mediosSubidos} de ${reporte.mediosEsperados ?: 0} enviados" +
-        (reporte.motivoDescarte?.let { " · $it" }.orEmpty())
+    stringResource(R.string.historial_detalle_viaje, reporte.fechaLocal, reporte.mediosSubidos, reporte.mediosEsperados ?: 0) +
+        (reporte.motivoDescarte?.let { stringResource(R.string.historial_detalle_motivo, it) }.orEmpty())
 
 @Composable
 internal fun ChipCiclo(ciclo: Ciclo) {
     when (ciclo) {
         Ciclo.CERRADO -> ChipEstado(
-            texto = "Cerrado",
+            texto = stringResource(R.string.historial_estado_cerrado),
             contenedor = MaterialTheme.colorScheme.secondaryContainer,
             contenido = MaterialTheme.colorScheme.onSecondaryContainer,
+            icono = R.drawable.ic_cheque,
         )
 
         Ciclo.DESCARTADO -> ChipEstado(
-            texto = "Descartado",
+            texto = stringResource(R.string.historial_estado_descartado),
             contenedor = MaterialTheme.colorScheme.errorContainer,
             contenido = MaterialTheme.colorScheme.onErrorContainer,
+            icono = R.drawable.ic_alerta,
         )
 
         Ciclo.ACTIVO -> ChipEstado(
-            texto = "Activo",
+            texto = stringResource(R.string.historial_estado_activo),
             contenedor = MaterialTheme.colorScheme.tertiaryContainer,
             contenido = MaterialTheme.colorScheme.onTertiaryContainer,
+            icono = R.drawable.ic_reloj,
         )
     }
 }
@@ -158,17 +169,31 @@ internal fun ChipEstado(
     contenedor: Color,
     contenido: Color,
     borde: Color? = null,
+    icono: Int? = null,
 ) {
     Surface(
         shape = MaterialTheme.shapes.small,
         color = contenedor,
         border = borde?.let { BorderStroke(width = 1.dp, color = it) },
     ) {
-        Text(
-            text = texto,
-            style = MaterialTheme.typography.labelSmall,
-            color = contenido,
+        Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icono != null) {
+                Icon(
+                    painter = painterResource(icono),
+                    contentDescription = null,
+                    tint = contenido,
+                    modifier = Modifier.size(12.dp),
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                text = texto,
+                style = MaterialTheme.typography.labelSmall,
+                color = contenido,
+            )
+        }
     }
 }

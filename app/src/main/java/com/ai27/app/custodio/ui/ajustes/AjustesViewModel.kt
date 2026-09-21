@@ -3,10 +3,10 @@ package com.ai27.app.custodio.ui.ajustes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.domain.Result
-import com.ai27.app.custodio.domain.error.aMensajeUsuario
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
+import com.ai27.app.custodio.ui.error.aRecurso
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +25,7 @@ data class AjustesUiState(
     val pendientesSinSubir: Int = 0,
     val confirmacionCerrarSesion: Boolean = false,
     val cerrandoSesion: Boolean = false,
-    val error: String? = null,
+    val error: Int? = null,
 )
 
 @HiltViewModel
@@ -74,7 +74,7 @@ class AjustesViewModel @Inject constructor(
             when (val resultado = sesionRepositorio.cerrarSesion()) {
                 is Result.Success -> interno.update { it.copy(cerrandoSesion = false) }
                 is Result.Failure -> interno.update {
-                    it.copy(cerrandoSesion = false, error = resultado.error.aMensajeUsuario())
+                    it.copy(cerrandoSesion = false, error = resultado.error.aRecurso())
                 }
             }
         }

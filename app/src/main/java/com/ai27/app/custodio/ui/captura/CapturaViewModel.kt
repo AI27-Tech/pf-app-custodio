@@ -2,11 +2,11 @@ package com.ai27.app.custodio.ui.captura
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
-import com.ai27.app.custodio.domain.error.aMensajeUsuario
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Etiqueta
@@ -26,6 +26,7 @@ import com.ai27.app.custodio.domain.usecase.DescartarReporte
 import com.ai27.app.custodio.domain.usecase.EtiquetarMedio
 import com.ai27.app.custodio.domain.usecase.ObtenerEtiquetas
 import com.ai27.app.custodio.domain.usecase.ReintentarSubida
+import com.ai27.app.custodio.ui.error.aRecurso
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import javax.inject.Named
@@ -121,7 +122,7 @@ class CapturaViewModel @Inject constructor(
         val custodio = uiState.value.custodio ?: return
         val placa = interno.value.placaEscrita
         if (placa.isBlank()) {
-            interno.update { it.copy(error = "Escribe la placa para iniciar el viaje.") }
+            interno.update { it.copy(error = R.string.error_escribe_placa) }
             return
         }
         viewModelScope.launch {
@@ -137,7 +138,7 @@ class CapturaViewModel @Inject constructor(
                     programadorSubidas.sincronizarReporte(resultado.value.id)
                 }
                 is Result.Failure -> interno.update {
-                    it.copy(creandoViaje = false, error = resultado.error.aMensajeUsuario())
+                    it.copy(creandoViaje = false, error = resultado.error.aRecurso())
                 }
             }
         }
@@ -168,7 +169,7 @@ class CapturaViewModel @Inject constructor(
                         ubicacionTextoEscrita = "",
                         medioPendienteDeEtiquetar = resultado.value,
                     )
-                    is Result.Failure -> it.copy(capturando = false, error = resultado.error.aMensajeUsuario())
+                    is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
             }
         }
@@ -178,7 +179,7 @@ class CapturaViewModel @Inject constructor(
         if (interno.value.grabandoAudio || interno.value.capturando) return
         if (uiState.value.reporte == null) return
         if (!grabadora.iniciar()) {
-            interno.update { it.copy(error = "No se pudo iniciar la grabación.") }
+            interno.update { it.copy(error = R.string.error_grabacion_no_inicio) }
             return
         }
         interno.update { it.copy(grabandoAudio = true, segundosAudio = 0L) }
@@ -227,7 +228,7 @@ class CapturaViewModel @Inject constructor(
                         ubicacionTextoEscrita = "",
                         medioPendienteDeEtiquetar = resultado.value,
                     )
-                    is Result.Failure -> it.copy(capturando = false, error = resultado.error.aMensajeUsuario())
+                    is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
             }
         }
@@ -242,7 +243,7 @@ class CapturaViewModel @Inject constructor(
 
     fun guardarEtiqueta(medioId: String, etiquetaId: String) {
         if (etiquetaId.isBlank()) {
-            interno.update { it.copy(error = "La etiqueta es obligatoria.") }
+            interno.update { it.copy(error = R.string.error_etiqueta_obligatoria) }
             return
         }
         viewModelScope.launch {
@@ -257,7 +258,7 @@ class CapturaViewModel @Inject constructor(
                         programadorSubidas.encolarSubidaMedio(resultado.value.reporteId, medioId)
                         it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "")
                     }
-                    is Result.Failure -> it.copy(error = resultado.error.aMensajeUsuario())
+                    is Result.Failure -> it.copy(error = resultado.error.aRecurso())
                 }
             }
         }
@@ -277,7 +278,7 @@ class CapturaViewModel @Inject constructor(
         viewModelScope.launch {
             val resultado = medioRepository.borrarPendiente(medioId)
             if (resultado is Result.Failure) {
-                interno.update { it.copy(error = resultado.error.aMensajeUsuario()) }
+                interno.update { it.copy(error = resultado.error.aRecurso()) }
             }
         }
     }
@@ -290,7 +291,7 @@ class CapturaViewModel @Inject constructor(
             val resultado = reintentarSubida(medioId)
             when (resultado) {
                 is Result.Success -> programadorSubidas.encolarSubidaMedio(medio.reporteId, medioId)
-                is Result.Failure -> interno.update { it.copy(error = resultado.error.aMensajeUsuario()) }
+                is Result.Failure -> interno.update { it.copy(error = resultado.error.aRecurso()) }
             }
         }
     }
@@ -311,7 +312,7 @@ class CapturaViewModel @Inject constructor(
                         programadorSubidas.sincronizarReporte(resultado.value.id)
                         it.copy(cerrandoViaje = false)
                     }
-                    is Result.Failure -> it.copy(cerrandoViaje = false, error = resultado.error.aMensajeUsuario())
+                    is Result.Failure -> it.copy(cerrandoViaje = false, error = resultado.error.aRecurso())
                 }
             }
         }
@@ -329,7 +330,7 @@ class CapturaViewModel @Inject constructor(
                         programadorSubidas.sincronizarReporte(resultado.value.id)
                         it.copy(descartandoViaje = false)
                     }
-                    is Result.Failure -> it.copy(descartandoViaje = false, error = resultado.error.aMensajeUsuario())
+                    is Result.Failure -> it.copy(descartandoViaje = false, error = resultado.error.aRecurso())
                 }
             }
         }

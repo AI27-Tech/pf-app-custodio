@@ -14,8 +14,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.ai27.app.custodio.R
 
 /**
  * Caja de carga para el historial y el detalle: indicador circular centrado con un título
@@ -24,7 +26,7 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun CajaCargaReportes(
-    titulo: String = "Cargando historial…",
+    titulo: String = stringResource(R.string.caja_cargando_historial),
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -68,7 +70,7 @@ fun CajaErrorHistorial(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onReintentar) {
-            Text("Reintentar")
+            Text(stringResource(R.string.comun_reintentar))
         }
     }
 }

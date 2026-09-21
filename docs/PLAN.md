@@ -31,7 +31,7 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 | Metadatos por archivo | Fecha/hora, GPS al momento de capturar (con precisión y antigüedad del fix), autor, dispositivo, SHA-256 |
 | Subida | **Progresiva: cada archivo sube en cuanto se captura**, no al cerrar el reporte |
 | Offline | Cola en Room + WorkManager; reintento con backoff y botón manual |
-| Media | Hasta 50 fotos por reporte a ~1MP calidad 75, más miniatura de 320px; audio hasta 5 min |
+| Media | Hasta 50 fotos por reporte a 1920×1080 calidad 88, más miniatura de 320px; audio hasta 5 min. **La resolución está en revisión, ver §3.4** |
 | Inmutabilidad | Un reporte cerrado no se edita ni se borra. Descartar es un estado, no un borrado |
 | Distribución | APK release por sideload y App Distribution; textos en español (México) |
 
@@ -42,7 +42,7 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 - **La subida dejó de dispararse al cerrar** (R7). Antes la evidencia de un viaje entero no salía del dispositivo hasta medio día después, en una sola subida de 20MB. WhatsApp entrega cada foto al instante; esto era una regresión funcional contra la herramienta que venimos a reemplazar.
 - **Se quitó el selector de galería** (R6). Pediste GPS y hora por archivo; una foto sacada de la galería puede ser de otro día y otro lugar, y vacía justamente el dato que da valor.
 - **Se desnormalizan campos del reporte en cada documento de media** (B2). Firestore no hace joins: sin esto, "todos los audios de la placa XYZ la semana pasada" es imposible.
-- **Las fotos subieron de 10 a 50** y bajaron a ~1MP (D3, R11).
+- **Las fotos subieron de 10 a 50** (D3, R11). La resolución quedó en 1920×1080 calidad 88, y está en revisión porque el propósito real —leer el contenido de la foto— pide más (§3.4).
 
 ---
 
@@ -63,6 +63,30 @@ Sin regla de ciclo de vida en V1 (D6). Las rutas de Storage quedan agrupadas por
 ### 3.3 Búsqueda de texto libre
 
 No la hay (B1). Firestore no busca texto. El dashboard filtra por campos: placa, fecha, custodio, etiqueta, novedad. Si después hace falta buscar dentro de los comentarios, se agrega un índice externo sin tocar el modelo.
+
+### 3.4 Resolución de captura — decisión abierta, y trabaja contra el propósito
+
+**Lo que hace el código hoy, verificado:** `VistaCamara.kt` fija `OutputSize(1920, 1080)` y `Miniaturas.kt` guarda el original en **JPEG calidad 88 sin reescalar** (`CALIDAD_ORIGINAL = 88`; `escalar` sólo se aplica a la miniatura de 320px). Es decir: **~2 megapíxeles en 16:9**.
+
+**Por qué importa, y por qué no se había visto.** Al definir el presupuesto de fotos (D3, R11) el criterio era el costo de datos celulares. Pero al levantar el propósito del dashboard quedó claro que la evidencia que el cliente necesita **no es la foto como objeto, es su contenido**: un número de candado, un folio, un documento, una placa. El analista abre las fotos para *leer*. Con ese propósito, la compresión deja de ser un tema de ancho de banda y se vuelve el tema del producto.
+
+Y con ese criterio, lo que hay hoy juega en contra:
+
+- **2 MP son marginales para texto pequeño.** Un candado fotografiado a dos metros ocupa del orden de 80 píxeles de ancho: no se lee ni con zoom. Ningún visor arregla información que no se capturó.
+- **16:9 es la peor proporción para documentos.** Un folio en vertical pierde la mitad del encuadre, y los píxeles se gastan en el piso y el techo en lugar del papel.
+
+**Opciones:**
+
+| | Resolución | Por foto (est.) | Por reporte de 50 | Al mes (37/día, est.) |
+| --- | --- | --- | --- | --- |
+| **Hoy** | 1920×1080, 16:9, q88 | ~500 KB | ~26 MB | ~29 GB |
+| **Propuesta** | 2560×1920, 4:3, q88 | ~1 MB | ~50 MB | ~55 GB |
+
+Con plan de datos empresarial (R11a) el costo de transmisión es asumible, y el de almacenamiento sigue siendo de unos pocos dólares al mes. Lo que se duplica es lo que se puede leer.
+
+**Estado: PENDIENTE de decisión de Producto.** No se cambia por iniciativa propia porque contradice el presupuesto que D3/R11 fijaron a conciencia; la premisa de esa decisión cambió, no la decisión. Es un cambio de **dos constantes** (`OutputSize` en `VistaCamara.kt` y, si se quiere desacoplar, un tope de dimensión en `Miniaturas.kt`), así que sigue estando a tiempo.
+
+**Riesgo de no decidir:** se entrega un sistema que captura evidencia que el analista no puede leer, y el defecto sólo se descubre cuando alguien intente usarla con un cliente. Es el tipo de falla que no aparece en ninguna prueba automatizada.
 
 ---
 
@@ -247,15 +271,15 @@ El estándar contra el que se mide todo: **abrir la app y tener una foto etiquet
 
 | Magnitud | Cálculo |
 |---|---|
-| Por reporte, peor caso | 50 archivos × ~215KB (1MP q75 + miniatura) ≈ **11MB** |
-| Por día | ≈ 400MB · ~1,850 documentos en `medios` |
-| Por mes | ≈ **12GB** · ~55k documentos |
+| Por reporte, peor caso | 50 archivos × ~520KB (1920×1080 q88 + miniatura) ≈ **26MB** |
+| Por día | ≈ 960MB · ~1,850 documentos en `medios` |
+| Por mes | ≈ **29GB** · ~55k documentos |
 | Escrituras Firestore/día | ~3,700 — muy por debajo de cualquier límite relevante |
-| Datos celulares | ~11MB por viaje por dispositivo, sobre plan empresarial |
+| Datos celulares | ~26MB por viaje por dispositivo, sobre plan empresarial |
 
 El volumen es chico. No hacen falta agregados ni rollups: las consultas con `count()` sobre `medios` filtrando por `fechaLocal` alcanzan de sobra para los conteos diarios, semanales y mensuales. Tampoco hace falta exportar a BigQuery: el dashboard consulta Firestore directo.
 
-El almacenamiento crece sin techo mientras no haya regla de retención (§3.2): unos 145GB al año, algo así como 4 USD al mes de almacenamiento después del primer año. Las miniaturas son lo que mantiene barato el costo de lectura del dashboard.
+El almacenamiento crece sin techo mientras no haya regla de retención (§3.2): unos **350GB al año**, algo así como 9 USD al mes de almacenamiento después del primer año. Si se adopta la resolución que propone §3.4, esa cifra se duplica a unos 660GB y ~17 USD al mes. Sigue siendo barato en términos absolutos, pero es el número que va a forzar la conversación de retención. Las miniaturas son lo que mantiene barato el costo de lectura del dashboard.
 
 ---
 
@@ -312,7 +336,7 @@ Cada decisión de este plan sale de una respuesta del cuestionario `to-questionn
 | Sin vigilancia en vivo | R8 |
 | Sin BigQuery; habrá dashboard | R9 |
 | Reportes diario/semanal/mensual con conteo y evidencia | R10 → `fechaLocal`, miniaturas, agrupación por reporte en Storage |
-| 50 fotos a ~1MP; plan de datos empresarial | D3, R11 |
+| 50 fotos, plan de datos empresarial; resolución en revisión | D3, R11, §3.4 |
 | Placa del tracto como llave, sin folio | A6, C1–C4, R12 |
 | `clienteId` fijo | A7, R13 |
 | Audio 5 min | R14 |
@@ -477,7 +501,7 @@ Del checklist de `docs/MOBILE_GUIDELINES.md`, esto es lo que falta y el mockup y
 
 
 - **C5 completado:** `CajaCargaReportes`/`CajaErrorHistorial` viven una sola vez en `ui/components/CajasEstado.kt` (canónico, con previews); podadas de `Avisos.kt` junto con sus imports duplicados; `HistorialScreen`/`DetalleReporteScreen` las importan y cablean `titulo`/`mensaje`/`onReintentar`. `HistorialViewModel` con `map`/`onStart`/`catch`; interface `ConectividadMonitor` en `data/conectividad/` con `Flow`. `FakeConectividadMonitor` en tests importa la interface canónica. Compile (`assembleDebug`) y `testDebugUnitTest` verdes.
-### 11.8 Fase C6 — Strings y accesibilidad
+### 11.8 Fase C6 — Strings y accesibilidad ✅ hecha (2026-09-21)
 
 `strings.xml` tiene una sola entrada y todo el texto de UI está embebido como literales Kotlin, incluidos los `contentDescription`. Antes de dar por terminado el rediseño:
 
@@ -485,6 +509,9 @@ Del checklist de `docs/MOBILE_GUIDELINES.md`, esto es lo que falta y el mockup y
 - Verificar el mínimo táctil de 48dp que los dos `DESIGN.md` exigen, y los 56dp que fija §7 de este plan.
 - Probar con el texto del sistema al 130% y al 200%: la tipografía nueva es más grande y los layouts densos se rompen ahí primero.
 - Contraste en los dos temas, y que ningún estado se comunique **sólo** por color — los chips de subida necesitan icono además del color.
+
+- **C6 completado:** `values/strings.xml` reescrito de punta a punta (strings por feature, comunes y 4 plurals), `ui/error/DominioErrorRecurso.kt` (mapeo `DominioError` → `@StringRes`, sustituye a `DominioErrorMensaje.kt`, borrado) y `error: String?` → `error: Int?` `@StringRes` en los UiState. Todas las pantallas y ViewModels migran a `stringResource`/`pluralStringResource` (login, reporte, captura, audio, archivos, cierre, hoja de etiquetado, historial, detalle, pendientes, ajustes, diálogos y cajas de estado). Accesibilidad: se quita la pinza `size(28.dp)`/`size(40.dp)` que encogía el área interactiva de los `IconButton` de Archivos y CampoPlaca por debajo de 48dp; `ChipCiclo` ya no es sólo color (icono cheque/alerta/reloj); `BotonGrabacion` publica `contentDescription` distinto al grabar (`boton_grabacion_detener`), que ya no queda huérfano. Compile (`assembleDebug`) y `testDebugUnitTest` verdes.
+- **Pendiente manual (C7):** escala de texto del sistema al 130%/200% y contraste a pleno sol y de noche en dispositivo real.
 
 ### 11.9 Fase C7 — Verificación
 

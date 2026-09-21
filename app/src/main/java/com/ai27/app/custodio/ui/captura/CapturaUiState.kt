@@ -1,5 +1,6 @@
 package com.ai27.app.custodio.ui.captura
 
+import androidx.annotation.StringRes
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
@@ -20,7 +21,7 @@ data class CapturaUiState(
     val segundosAudio: Long = 0L,
     val medioPendienteDeEtiquetar: Medio? = null,
     val ubicacionTextoEscrita: String = "",
-    val error: String? = null,
+    @StringRes val error: Int? = null,
 ) {
     val limiteAlcanzado: Boolean
         get() = medios.size >= LIMITE_MEDIOS_REJILLA

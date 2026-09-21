@@ -2,6 +2,7 @@ package com.ai27.app.custodio.ui.historial
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
 import com.ai27.app.custodio.domain.usecase.ObtenerHistorial
@@ -43,8 +44,8 @@ class HistorialViewModel @Inject constructor(
         historial
             .map { reportes -> HistorialConEstado(reportes = reportes) }
             .onStart { emit(HistorialConEstado(cargando = true)) }
-            .catch { e ->
-                emit(HistorialConEstado(error = e.message ?: "No se pudo cargar el historial."))
+            .catch {
+                emit(HistorialConEstado(error = R.string.historial_error_carga))
             }
     }
 
@@ -77,5 +78,5 @@ class HistorialViewModel @Inject constructor(
 private data class HistorialConEstado(
     val reportes: List<Reporte> = emptyList(),
     val cargando: Boolean = false,
-    val error: String? = null,
+    val error: Int? = null,
 )

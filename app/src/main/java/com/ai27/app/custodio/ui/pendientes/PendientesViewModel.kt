@@ -4,11 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
-import com.ai27.app.custodio.domain.error.aMensajeUsuario
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
 import com.ai27.app.custodio.domain.usecase.ReintentarSubida
+import com.ai27.app.custodio.ui.error.aRecurso
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +28,7 @@ class PendientesViewModel @Inject constructor(
     private val programadorSubidas: SubidaScheduler,
 ) : ViewModel() {
 
-    private val _error = MutableStateFlow<String?>(null)
+    private val _error = MutableStateFlow<Int?>(null)
 
     val pendientes: StateFlow<List<Medio>> = sesionRepositorio.observarCustodio()
         .flatMapLatest { custodio ->
@@ -44,13 +44,13 @@ class PendientesViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
-    val error: StateFlow<String?> = _error
+    val error: StateFlow<Int?> = _error
 
     fun reintentar(medio: Medio) {
         viewModelScope.launch {
             when (val resultado = reintentarSubida(medio.id)) {
                 is Result.Success -> programadorSubidas.encolarSubidaMedio(medio.reporteId, medio.id)
-                is Result.Failure -> _error.update { resultado.error.aMensajeUsuario() }
+                is Result.Failure -> _error.update { resultado.error.aRecurso() }
             }
         }
     }

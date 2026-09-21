@@ -28,4 +28,189 @@
     <string name="campo_placa_placeholder">INGRESE PLACA</string>
     <string name="campo_placa_limpiar">Limpiar placa</string>
     <string name="campo_placa_titulo">PLACAS RECIENTES EN RUTA</string>
+
+    <!-- Texto común entre pantallas -->
+    <string name="comun_cancelar">Cancelar</string>
+    <string name="comun_reintentar">Reintentar</string>
+    <string name="comun_aviso">Aviso</string>
+    <string name="comun_entendido">Entendido</string>
+    <string name="comun_miniatura">Miniatura</string>
+    <string name="nota_de_voz">Nota de voz</string>
+    <string name="evidencia">Evidencia</string>
+    <string name="foto">Foto</string>
+    <string name="archivos_con_conteo">Archivos (%1$d)</string>
+    <string name="conteo_de_50">%1$d de 50</string>
+    <string name="cerrar_viaje">Cerrar viaje</string>
+
+    <!-- Cantidades en plural -->
+    <plurals name="archivos_sin_subir">
+        <item quantity="one">%1$d archivo sin subir</item>
+        <item quantity="other">%1$d archivos sin subir</item>
+    </plurals>
+    <plurals name="archivos_pendientes_de_subida">
+        <item quantity="one">%1$d archivo pendiente de subida</item>
+        <item quantity="other">%1$d archivos pendientes de subida</item>
+    </plurals>
+    <plurals name="evidencias_capturadas">
+        <item quantity="one">%1$d evidencia capturada</item>
+        <item quantity="other">%1$d evidencias capturadas</item>
+    </plurals>
+    <plurals name="cantidad_archivos">
+        <item quantity="one">%1$d archivo</item>
+        <item quantity="other">%1$d archivos</item>
+    </plurals>
+
+    <!-- Login -->
+    <string name="login_subtitulo">Escribe el correo y la contraseña que te entregó el administrador.</string>
+    <string name="login_correo">Correo</string>
+    <string name="login_contrasena">Contraseña</string>
+    <string name="login_entrar">Entrar</string>
+    <string name="login_error_correo">Escribe tu correo.</string>
+    <string name="login_error_contrasena">Escribe tu contraseña.</string>
+
+    <!-- Mensajes de error del dominio -->
+    <string name="error_placa_vacia_sin_valor">La placa no es válida: escribe un número de placa.</string>
+    <string name="error_ya_existe_activo">Ya hay un viaje en curso en este teléfono.</string>
+    <string name="error_no_hay_activo">No hay un viaje en curso.</string>
+    <string name="error_no_encontrado">No se encontró el viaje.</string>
+    <string name="error_cerrado_inmutable">El viaje ya está cerrado.</string>
+    <string name="error_ya_descartado">El viaje ya fue descartado.</string>
+    <string name="error_sin_medios">El viaje debe tener al menos un archivo capturado.</string>
+    <string name="error_motivo_descarte_vacio">Escribe el motivo del descarte.</string>
+    <string name="error_limite_medios">Límite alcanzado: 50 archivos por viaje.</string>
+    <string name="error_sin_contenido">El archivo capturado está vacío.</string>
+    <string name="error_audio_excede_max">La nota de voz no puede exceder 5 minutos.</string>
+    <string name="error_etiqueta_invalida">La etiqueta seleccionada no es válida.</string>
+    <string name="error_medio_no_encontrado">El archivo ya no existe.</string>
+    <string name="error_medio_en_subida">El archivo ya está en subida y no puede borrarse.</string>
+    <string name="error_medio_ya_subido">El archivo ya fue subido.</string>
+    <string name="error_credenciales">Correo o contraseña incorrectos.</string>
+    <string name="error_sin_conexion">Sin conexión. Revisa tu red e inténtalo de nuevo.</string>
+    <string name="error_inesperado">Algo salió mal. Intenta de nuevo.</string>
+
+    <!-- Errores de validación de las pantallas -->
+    <string name="error_escribe_placa">Escribe la placa para iniciar el viaje.</string>
+    <string name="error_grabacion_no_inicio">No se pudo iniciar la grabación.</string>
+    <string name="error_etiqueta_obligatoria">La etiqueta es obligatoria.</string>
+
+    <!-- DialogoDescarte -->
+    <string name="descarte_titulo">¿Descartar el viaje?</string>
+    <string name="descarte_texto">Esto marca el viaje como descartado. Lo que ya se subió no se borra; se excluye de los reportes del analista.</string>
+    <string name="descarte_motivo_rotulo">Motivo del descarte</string>
+    <string name="descarte_motivo_placeholder">Obligatorio</string>
+    <string name="descarte_descartando">Descartando…</string>
+    <string name="descarte_confirmar">Descartar</string>
+
+    <!-- DialogoCerrarSesion -->
+    <string name="cierre_sesion_titulo">¿Cerrar sesión?</string>
+    <string name="cierre_sesion_correo">Sesión de %1$s</string>
+    <string name="cierre_sesion_pendientes">Tienes %1$s. Si cierras sesión, esa evidencia perderá su cola de subida.</string>
+    <string name="cierre_sesion_salir">Salir</string>
+    <string name="cierre_sesion_salir_de_todos_modos">Salir de todos modos</string>
+
+    <!-- Estados de carga / error -->
+    <string name="caja_cargando_historial">Cargando historial…</string>
+    <string name="caja_cargando_detalle">Cargando detalle…</string>
+    <string name="historial_error_carga">No se pudo cargar el historial.</string>
+    <string name="detalle_error_carga">No se pudo cargar el detalle.</string>
+
+    <!-- Viaje: Reporte -->
+    <string name="reporte_sin_activo">Sin reporte activo</string>
+    <string name="reporte_sin_activo_descripcion">Inicia un nuevo reporte de viaje para registrar evidencias y trayecto.</string>
+    <string name="reporte_iniciar_nuevo">Iniciar nuevo reporte</string>
+    <string name="reporte_protocolo">Protocolo AI27 Custodio</string>
+    <string name="reporte_nuevo_viaje">Nuevo viaje</string>
+    <string name="reporte_creando_viaje">Creando viaje…</string>
+    <string name="reporte_comenzar_viaje">Comenzar viaje</string>
+    <string name="reporte_sin_conexion">Sin conexión: las capturas se guardan localmente en el dispositivo.</string>
+    <string name="reporte_limite_alcanzado">Alcanzaste el límite de 50 medios por viaje.</string>
+    <string name="reporte_evidencias">Evidencias</string>
+    <string name="reporte_pendientes">Pendientes</string>
+    <string name="reporte_unidad_escoltada">UNIDAD ESCOLTADA</string>
+    <string name="reporte_en_curso">EN CURSO</string>
+    <string name="reporte_cerrar_viaje">Cerrar viaje</string>
+
+    <!-- Viaje: Captura de evidencia -->
+    <string name="captura_sin_camara">Para capturar se necesita la cámara.</string>
+    <string name="captura_permitir_camara">Permitir cámara</string>
+    <string name="captura_titulo">Capturar evidencia</string>
+    <string name="captura_tomar_foto">Tomar foto</string>
+
+    <!-- Viaje: Audio -->
+    <string name="audio_aviso">Máximo 5:00 por nota. Habla claro y cerca del micrófono.</string>
+    <string name="audio_grabando">GRABANDO</string>
+    <string name="audio_guardando">Guardando nota…</string>
+    <string name="audio_toca_para_iniciar">Toca el botón para iniciar</string>
+
+    <!-- Viaje: Archivos -->
+    <string name="archivos_sin_evidencias">Sin evidencias</string>
+    <string name="archivos_vacio_descripcion">Captura fotos o notas de voz\ndesde la pestaña Reporte.</string>
+    <string name="archivos_borrar_titulo">¿Borrar este archivo?</string>
+    <string name="archivos_borrar_texto">El archivo aún no se ha subido. No podrás recuperarlo.</string>
+    <string name="archivos_borrar">Borrar</string>
+    <string name="archivos_nota">Nota</string>
+    <string name="archivos_borrar_captura">Borrar captura</string>
+    <string name="archivos_reintentar_subida">Reintentar subida</string>
+    <string name="archivos_fallida">FALLIDA</string>
+
+    <!-- Viaje: Cierre -->
+    <string name="cierre_resumen">Resumen del viaje</string>
+    <string name="cierre_fotografias">Fotografías</string>
+    <string name="cierre_notas_voz">Notas de voz</string>
+    <string name="cierre_audio_total">Audio total</string>
+    <string name="cierre_minutos">min</string>
+    <string name="cierre_novedad">Novedad</string>
+    <string name="cierre_novedad_descripcion">Marca si en el viaje hubo alguna incidencia</string>
+    <string name="cierre_comentario">Comentario (opcional)</string>
+    <string name="cierre_pendientes">Quedan %1$s. La sincronización continúa en segundo plano.</string>
+    <string name="cierre_cerrando">Cerrando…</string>
+    <string name="cierre_descartar_viaje">Descartar viaje</string>
+    <string name="cierre_confirmar_titulo">¿Cerrar el viaje?</string>
+    <string name="cierre_confirmar_texto">El viaje quedará cerrado con %1$s.</string>
+    <string name="cierre_confirmar">Cerrar</string>
+
+    <!-- Hoja de etiquetado -->
+    <string name="hoja_foto_capturada">Foto capturada</string>
+    <string name="hoja_descartar">Descartar</string>
+    <string name="hoja_etiqueta_obligatoria">Etiqueta obligatoria:</string>
+    <string name="hoja_ubicacion_sin_gps">Ubicación (sin GPS)</string>
+    <string name="hoja_selecciona_etiqueta">Selecciona una etiqueta</string>
+    <string name="hoja_guardar">Guardar</string>
+
+    <!-- Historial -->
+    <string name="historial_buscar_placa">Buscar por placa</string>
+    <string name="historial_vacio">Sin viajes en los últimos 30 días.</string>
+    <string name="historial_sin_coincidencias">Ningún viaje coincide con «%1$s».</string>
+    <string name="historial_detalle_viaje">Viaje del %1$s · %2$d de %3$d enviados</string>
+    <string name="historial_detalle_motivo"> · %1$s</string>
+    <string name="historial_estado_activo">Activo</string>
+    <string name="historial_estado_cerrado">Cerrado</string>
+    <string name="historial_estado_descartado">Descartado</string>
+
+    <!-- Detalle de reporte -->
+    <string name="detalle_titulo">Detalle del viaje</string>
+    <string name="detalle_no_encontrado">No se encontró el viaje.</string>
+    <string name="detalle_sin_archivos">Sin archivos en este viaje.</string>
+    <string name="detalle_viaje_de_fecha">Viaje del %1$s</string>
+    <string name="detalle_archivos_enviados">Archivos enviados</string>
+    <string name="detalle_comentario">Comentario: %1$s</string>
+    <string name="detalle_motivo_descarte">Motivo del descarte: %1$s</string>
+    <string name="detalle_sin_etiqueta">Sin etiqueta</string>
+
+    <!-- Pendientes -->
+    <string name="pendientes_todo_sincronizado">Todo sincronizado</string>
+    <string name="pendientes_ninguno">No hay archivos pendientes\nen esta sesión.</string>
+    <string name="pendientes_subida_fallida">Subida fallida</string>
+    <string name="pendientes_enviando">Enviando…</string>
+    <string name="pendientes_en_cola">En cola</string>
+
+    <!-- Ajustes -->
+    <string name="ajustes_entorno">Entorno y visualización</string>
+    <string name="ajustes_modo_nocturno">Modo nocturno</string>
+    <string name="ajustes_modo_nocturno_descripcion">Aspecto oscuro de alto contraste para la cabina</string>
+    <string name="ajustes_cuenta">Cuenta y sincronización</string>
+    <string name="ajustes_sesion_activa">Sesión de custodio activa</string>
+    <string name="ajustes_pendientes_subida">Archivos pendientes de subida</string>
+    <string name="ajustes_cierre_deshabilitado">Cierre de sesión deshabilitado: hay %1$s.</string>
+    <string name="ajustes_cerrar_sesion_custodio">Cerrar sesión de custodio</string>
 </resources>

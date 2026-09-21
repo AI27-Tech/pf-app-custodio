@@ -1,5 +1,6 @@
 package com.ai27.app.custodio.ui.historial
 
+import androidx.annotation.StringRes
 import com.ai27.app.custodio.domain.model.Reporte
 
 data class HistorialUiState(
@@ -7,7 +8,7 @@ data class HistorialUiState(
     val reportesTotales: Int = 0,
     val filtroPlaca: String = "",
     val cargando: Boolean = false,
-    val error: String? = null,
+    @StringRes val error: Int? = null,
 )
 
 fun filtrarPorPlaca(reportes: List<Reporte>, consulta: String): List<Reporte> {

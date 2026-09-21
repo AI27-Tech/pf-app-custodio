@@ -3,6 +3,7 @@ package com.ai27.app.custodio.ui.historial
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.Reporte
@@ -57,10 +58,10 @@ class DetalleReporteViewModel @Inject constructor(
                 etiquetas = etiquetas,
                 cargando = false,
             )
-        }.catch { e ->
+        }.catch {
             emit(
                 DetalleReporteUiState(
-                    error = e.message ?: "No se pudo cargar el detalle.",
+                    error = R.string.detalle_error_carga,
                 ),
             )
         }

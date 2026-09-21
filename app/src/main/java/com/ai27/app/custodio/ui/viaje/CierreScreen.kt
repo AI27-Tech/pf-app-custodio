@@ -18,7 +18,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonPrimario
@@ -64,7 +67,7 @@ fun CierreScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        BarraSuperior(titulo = "Cerrar viaje", onAtras = onAtras)
+        BarraSuperior(titulo = stringResource(R.string.cerrar_viaje), onAtras = onAtras)
 
         Column(
             modifier = Modifier
@@ -73,27 +76,33 @@ fun CierreScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Resumen del viaje",
+                text = stringResource(R.string.cierre_resumen),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
             )
-            RenglonResumen(etiqueta = "Fotografías", valor = "${resumen?.fotos ?: 0}")
-            RenglonResumen(etiqueta = "Notas de voz", valor = "${resumen?.audios ?: 0}")
+            RenglonResumen(
+                etiqueta = stringResource(R.string.cierre_fotografias),
+                valor = "${resumen?.fotos ?: 0}",
+            )
+            RenglonResumen(
+                etiqueta = stringResource(R.string.cierre_notas_voz),
+                valor = "${resumen?.audios ?: 0}",
+            )
             if ((resumen?.durationMsTotal ?: 0L) > 0L) {
                 val duracionMin =
                     (resumen?.durationMsTotal?.plus(999L) ?: 0L) / 1_000L
                 RenglonResumen(
-                    etiqueta = "Audio total",
+                    etiqueta = stringResource(R.string.cierre_audio_total),
                     valor = formatearCierre(duracionMin),
-                    unidad = "min",
+                    unidad = stringResource(R.string.cierre_minutos),
                 )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             RenglonSwitch(
-                titulo = "Novedad",
-                descripcion = "Marca si en el viaje hubo alguna incidencia",
+                titulo = stringResource(R.string.cierre_novedad),
+                descripcion = stringResource(R.string.cierre_novedad_descripcion),
                 marcado = novedad,
                 onCambiar = { novedad = it },
             )
@@ -101,37 +110,58 @@ fun CierreScreen(
             OutlinedTextField(
                 value = comentario,
                 onValueChange = { comentario = it },
-                label = { Text("Comentario (opcional)") },
+                label = { Text(stringResource(R.string.cierre_comentario)) },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),
             )
 
             if (estado.pendientesSinSubir > 0) {
+                val pendientes = pluralStringResource(
+                    R.plurals.archivos_sin_subir,
+                    estado.pendientesSinSubir,
+                    estado.pendientesSinSubir,
+                )
                 FranjaAviso(
-                    texto = "Quedan ${estado.pendientesSinSubir} archivos sin subir. " +
-                        "La sincronización continúa en segundo plano.",
+                    texto = stringResource(R.string.cierre_pendientes, pendientes),
                 )
             }
 
             BotonPrimario(
-                texto = if (estado.cerrandoViaje) "Cerrando…" else "Cerrar viaje",
+                texto = if (estado.cerrandoViaje) {
+                    stringResource(R.string.cierre_cerrando)
+                } else {
+                    stringResource(R.string.cerrar_viaje)
+                },
                 onClick = { mostrarConfirmacionCierre = true },
                 habilitado = !estado.cerrandoViaje && !estado.descartandoViaje,
             )
             BotonSecundario(
-                texto = if (estado.descartandoViaje) "Descartando…" else "Descartar viaje",
+                texto = if (estado.descartandoViaje) {
+                    stringResource(R.string.descarte_descartando)
+                } else {
+                    stringResource(R.string.cierre_descartar_viaje)
+                },
                 onClick = { mostrarDescarte = true },
                 habilitado = !estado.cerrandoViaje && !estado.descartandoViaje,
             )
         }
     }
 
+    val archivosAlCerrar = pluralStringResource(
+        R.plurals.cantidad_archivos,
+        estado.medios.size,
+        estado.medios.size,
+    )
     DialogoConfirmacion(
         visible = mostrarConfirmacionCierre,
-        titulo = "¿Cerrar el viaje?",
-        texto = "El viaje quedará cerrado con ${estado.medios.size} archivos.",
-        textoConfirmar = "Cerrar",
-        textoConfirmarProcesando = if (estado.cerrandoViaje) "Cerrando…" else null,
+        titulo = stringResource(R.string.cierre_confirmar_titulo),
+        texto = stringResource(R.string.cierre_confirmar_texto, archivosAlCerrar),
+        textoConfirmar = stringResource(R.string.cierre_confirmar),
+        textoConfirmarProcesando = if (estado.cerrandoViaje) {
+            stringResource(R.string.cierre_cerrando)
+        } else {
+            null
+        },
         confirmarHabilitado = !estado.cerrandoViaje,
         onConfirmar = {
             onCerrarViaje(comentario.trim().ifEmpty { null }, novedad)
@@ -156,8 +186,8 @@ fun CierreScreen(
         },
     )
 
-    estado.error?.let { mensaje ->
-        DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
+    estado.error?.let { error ->
+        DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
 }
 
