@@ -37,6 +37,7 @@ async function main() {
   const dbSinAuth = anonimo.firestore();
   const storageA = alicia.storage();
   const storageB = bruno.storage();
+  const storageAn = analista.storage();
   const storageSinAuth = anonimo.storage();
 
   const reporteA = {
@@ -93,8 +94,9 @@ async function main() {
     await dbBase.doc('catalogos/c1').set({ etiquetas: ['carga', 'descarga', 'novedad'] });
     await dbBase.doc('medios/m-seed').set(medioA);
     await dbBase.doc('usuarios/uid-a').set({ correo: 'alicia@custodio.cl', rol: 'custodio', activo: true });
-    // La lista que autoriza al analista. En producción se crea a mano en la consola.
-    await dbBase.doc('config/analistas').set({ uids: ['uid-an'] });
+    // La lista que autoriza al analista, ahora por CORREOS. En producción se crea a
+    // mano en la consola (ver firestore.rules, match /config).
+    await dbBase.doc('config/analistas').set({ correos: ['ana@ai27.mx'] });
   });
 
   // ============ REGLAS FIRESTORE ============
@@ -137,8 +139,10 @@ async function main() {
   await comprobar('ajeno no lee el medio', assertFails(dbB.doc('medios/m-1').get()));
 
   // ============ EL ANALISTA DEL PANEL (PLAN §5.3) ============
-  // Lee todo, escribe nada. La autorización sale de config/analistas y no depende del
-  // documento consultado, que es lo que permite las consultas de lista.
+  // Lee todo, escribe nada. La autorización sale de config/analistas.correos y no
+  // depende del documento consultado, que es lo que permite las consultas de lista.
+  // Las escrituras de custodio no consultan esta lista (subir evidencia no depende
+  // de la lista); el analista queda igualmente sin escribir por dueño/nada-borra.
 
   // Lectura de documentos ajenos
   await comprobar('analista lee el reporte de alicia', assertSucceeds(dbAn.doc('reportes/r-a').get()));
@@ -154,8 +158,8 @@ async function main() {
   await comprobar('custodio no consulta reportes sin filtrar por el suyo', assertFails(dbA.collection('reportes').get()));
   await comprobar('custodio si consulta reportes filtrando por el suyo', assertSucceeds(dbA.collection('reportes').where('custodioUid', '==', 'uid-a').get()));
 
-  // Escritura: negada en todo
-  await comprobar('analista no crea reporte', assertFails(dbAn.doc('reportes/r-an').set({ ...reporteA, custodioUid: 'uid-an' })));
+  // Escritura: negada en todo (por dueño en lo escrito, por `delete: if false`)
+  await comprobar('analista no inyecta un reporte de otra persona', assertFails(dbAn.doc('reportes/r-inyectado').set(reporteA)));
   await comprobar('analista no actualiza reporte', assertFails(dbAn.doc('reportes/r-a').update({ comentario: 'editado por el analista' })));
   await comprobar('analista no borra reporte', assertFails(dbAn.doc('reportes/r-a').delete()));
   await comprobar('analista no crea medio', assertFails(dbAn.doc('medios/m-an').set({ ...medioA, custodioUid: 'uid-an' })));
@@ -182,6 +186,10 @@ async function main() {
   await comprobar('sin auth no sube', assertFails(storageSinAuth.ref('medios/r-a').child('m-4.jpg').put(bytes, { contentType: 'image/jpeg' })));
   await comprobar('dueño no borra', assertFails(storageA.ref('medios/r-a').child('m-2.jpg').delete()));
   await comprobar('ajeno no lee', assertFails(storageB.ref('medios/r-a').child('m-2.jpg').getDownloadURL()));
+
+  // El panel del analista visualiza la evidencia: lee, no escribe.
+  await comprobar('analista lee el archivo del reporte de alicia', assertSucceeds(storageAn.ref('medios/r-a').child('m-2.jpg').getDownloadURL()));
+  await comprobar('analista no sube a storage', assertFails(storageAn.ref('medios/r-a').child('m-x.jpg').put(bytes, { contentType: 'image/jpeg' })));
 
   await testEnv.clearFirestore();
   await testEnv.clearStorage();

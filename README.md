@@ -41,6 +41,21 @@ Las altas/bajas son manuales por diseño (37 personas; `docs/PLAN.md` §2, E5).
 - **Baja:** Firestore → `usuarios/{uid}` → `activo: false` y revocar acceso en Authentication. Los documentos ya subidos no se tocan (inmutabilidad, `docs/PLAN.md` §6.1).
 - El correo de la cuenta es el autor de cada archivo (`custodioUid`/`custodioCorreo`); debe ser el mismo correo que el custodio usa para iniciar sesión.
 
+### Alta de analistas (panel web, solo lectura)
+
+El analista es quien tiene su **correo** en `config/analistas.correos` (Firestore). No hay custom claims: agregar un analista es añadir su correo a esa lista. El panel (otra app, separada) lee todo de Firestore y Storage; no escribe nada.
+
+- **Producción:** Consola Firebase → Firestore → documento `config/analistas` → editar el arreglo `correos` y añadir el correo exacto (los correos se guardan en minúsculas). Aplica de inmediato, sin redesplegar reglas.
+- **Emulador:** en la Emulator UI (`http://127.0.0.1:4000/firestore`) sobre `config/analistas.correos`, o por REST con el token de dueño:
+
+  ```bash
+  curl -X PATCH "http://127.0.0.1:8080/v1/projects/custodio-906e7268/databases/(default)/documents/config/analistas?updateMask.fieldPaths=correos" \
+       -H "Authorization: Bearer owner" \
+       -d '{"fields":{"correos":{"arrayValue":{"values":[{"stringValue":"ana@ai27.mx"}]}}}}'
+  ```
+
+- La cuenta del analista debe existir en Authentication con ESE correo (en producción se crea igual que un custodio). Si el correo no está en la lista, el panel no ve nada.
+
 ### Instalación en equipos (sideload)
 
 1. Construir el APK firmado de release:

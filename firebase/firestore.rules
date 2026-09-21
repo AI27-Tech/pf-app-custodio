@@ -1,11 +1,18 @@
 rules_version = '2';
 
-// Reglas de Firestore del PLAN §5.3:
-// - reportes: el custodio dueño crea (solo ACTIVO), transiciona ACTIVO->CERRADO/DESCARTADO,
-//   y en CERRADO solo avanzar subida/mediosSubidos/completo. Nada se borra.
-// - medios: create-only del dueño y solo si el reporte es suyo.
-// - catalogos: lectura para cualquier custodio autenticado.
-// - analista: lectura de todo, escritura de nada (panel del analista).
+// Reglas de Firestore del PLAN §5.3 (revisadas para el modelo de dos roles):
+// - Custodios (la app Android): escriben y leen SOLO lo suyo. Un reporte nace ACTIVO,
+//   transiciona ACTIVO->CERRADO/DESCARTADO y en CERRADO solo avanzan contadores.
+//   Los medios son create-only de su reporte. Nada se borra.
+// - Analistas (el panel web, otra app): leen TODO, no escriben (garantía operativa:
+//   el panel no expone escrituras y las cuentas de analista se provisionan a mano).
+//
+// Decisión de diseño: las ESCRITURAS de custodio NO consultan `config/analistas`.
+// Un custodio sube aunque el documento de analistas no exista —es justo lo que hace
+// la app en un emulador recién iniciado— y evita el quirk del emulador que revienta
+// una regla cuando un `get()` interno apunta a un documento inexistente. La prueba de
+// analista solo se paga en lectura y solo cuando el documento consultado NO es del
+// autor (`||` corta de izquierda a derecha).
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -19,12 +26,12 @@ service cloud.firestore {
 
     // El analista del panel de evidencia: lee todo, no escribe nada.
     //
-    // La autorización sale de una lista de UID en `config/analistas`, no de un custom
-    // claim, porque un claim exige el Admin SDK y una cuenta de servicio, y aquí se
-    // trata de un usuario. La lista se administra a mano desde la consola.
+    // La autorización sale de la lista de CORREOS en `config/analistas` (no de un
+    // custom claim, que exigiría Admin SDK): un analista ES quien tiene su correo en
+    // esa lista. Por eso agregar un analista es "añadir su correo a la lista".
     //
     // Clave: la condición NO depende del documento consultado. Las reglas de Firestore
-    // no filtran consultas —si la condición mira `resource`, una consulta de lista
+    // no filtran consultas —si la condición mirara `resource`, una consulta de lista
     // falla entera en lugar de devolver menos resultados—, así que el analista se
     // autoriza por algo que el motor puede evaluar sin leer los documentos.
     //
@@ -33,8 +40,9 @@ service cloud.firestore {
       let lista = get(/databases/$(database)/documents/config/analistas);
       return autenticado()
         && lista != null
-        && 'uids' in lista.data
-        && request.auth.uid in lista.data.uids;
+        && 'correos' in lista.data
+        && 'email' in request.auth.token
+        && request.auth.token.email in lista.data.correos;
     }
 
     // Solo puede cambiar las llaves permitidas entre dos versiones del documento.
@@ -56,16 +64,9 @@ service cloud.firestore {
 
       // Un reporte siempre nace ACTIVO; el cierre offline llega como ACTIVO->CERRADO
       // en dos pasos desde la app (PLAN §6.2).
-      //
-      // `!esAnalista()` hace estructural la garantía de que el panel es de sólo lectura.
-      // Sin esto, una cuenta de analista pasa la prueba de dueño escribiendo su propio
-      // UID en `custodioUid` y puede inyectar reportes basura en el expediente. Va al
-      // final del `&&` para que sólo se evalúe —y sólo cueste una lectura— cuando el
-      // resto de la condición ya pasó.
       allow create: if autenticado()
         && esDuenoDe(request.resource)
-        && request.resource.data.ciclo == 'ACTIVO'
-        && !esAnalista();
+        && request.resource.data.ciclo == 'ACTIVO';
 
       function transicionValida() {
         let previo = resource.data;
@@ -77,7 +78,7 @@ service cloud.firestore {
           || (previo.ciclo == 'CERRADO' && nuevo.ciclo == 'CERRADO' && soloContadores);
       }
 
-      allow update: if autenticado() && esDuenoDe(resource) && transicionValida() && !esAnalista();
+      allow update: if autenticado() && esDuenoDe(resource) && transicionValida();
       allow delete: if false;
     }
 
@@ -88,8 +89,7 @@ service cloud.firestore {
 
       allow create: if autenticado()
         && esDuenoDe(request.resource)
-        && reportePerteneceA(request.resource.data.reporteId)
-        && !esAnalista();
+        && reportePerteneceA(request.resource.data.reporteId);
 
       allow update, delete: if false;
     }
@@ -104,9 +104,20 @@ service cloud.firestore {
       allow create: if autenticado() && request.auth.uid == uid;
     }
 
-    // La lista de analistas se administra desde la consola y ningún cliente la toca.
-    // Las reglas sí la leen: `get()` dentro de una regla corre con acceso total y no
-    // se evalúa a sí misma, así que negar aquí no rompe `esAnalista()`.
+    // La lista de analistas se administra desde la consola o el emulador y ningún
+    // cliente la toca. Las reglas sí la leen: `get()` dentro de una regla corre con
+    // acceso total y no se evalúa a sí misma, así que negar aquí no rompe `esAnalista()`.
+    //
+    // Cómo agregar un analista (un correo a la vez):
+    //   - Producción: Consola Firebase -> Firestore -> documento `config/analistas`
+    //     -> editar el arreglo `correos` y añadir el correo EXACTO del usuario. Los
+    //     correos se guardan en minúsculas (Firebase Auth los normaliza). No hace
+    //     falta re-desplegar estas reglas.
+    //   - Emulador: Emulator UI (http://127.0.0.1:4000/firestore) sobre la misma
+    //     llave `config/analistas.correos`, o por REST con el token de dueño:
+    //       curl -X POST http://127.0.0.1:8080/v1/projects/<PROYECTO>/databases/(default)/documents/config?documentId=analistas \
+    //            -H "Authorization: Bearer owner" \
+    //            -d '{"fields":{"correos":{"arrayValue":{"values":[{"stringValue":"ana@ai27.mx"}]}}}}'
     match /config/{documento} {
       allow read, write: if false;
     }

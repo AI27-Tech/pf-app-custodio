@@ -2,6 +2,27 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 13:05
+
+**Resumen:** Se reestructuran las reglas de seguridad de Firestore y Storage para el modelo de dos roles: los custodios (la app) escriben y leen solo lo suyo, y los analistas (panel web, separado) leen TODO, incluida la evidencia en Storage, y no escriben. El analista se identifica ahora por CORREO en `config/analistas.correos` (antes por UIDs), y las escrituras de custodio dejaron de consultar ese documento: subir evidencia no debe depender de la lista de analistas ni romperse en un emulador recién iniciado (quirk que revienta un `get()` interno de reglas sobre documento inexistente). El panel gana lectura de Storage para visualizar los archivos.
+
+**Cambios:**
+
+- `firestore.rules`: `esAnalista()` lee `config/analistas.correos` y compara con `request.auth.token.email`; se elimina `!esAnalista()` de las escrituras de `reportes`/`medios` (basta dueño + ciclo/transiciones válidas; ver nota de diseño); se documenta en `match /config` la provisión de analistas por consola/REST.
+- `storage.rules`: `read` autoriza al analista (por correo) además del dueño del reporte; `create`/`update` siguen siendo solo del dueño; `delete` negado.
+- `firebase/test/reglas.test.js`: `config/analistas` se siembra con `correos`; contexto de Storage del analista; nuevos chequeos "el analista lee el archivo del reporte de alicia" y "el analista no sube a storage"; la aserción del analista escribiendo se reescribe como "no inyecta un reporte de otra persona". Todas las verificaciones pasan con `cd firebase && npm test`.
+- `README.md`: nueva sección "Alta de analistas (panel web, solo lectura)" con los pasos de consola y del emulador.
+- `AGENTS.md`: se amplía la nota del quirk del Emulator Suite con el `get()` interno de reglas sobre documento inexistente y la lista de analistas por correo.
+
+**Archivos modificados:**
+
+- `firebase/firestore.rules`
+- `firebase/storage.rules`
+- `firebase/test/reglas.test.js`
+- `README.md`
+- `AGENTS.md`
+- `CHANGELOG.md`
+
 ## 2026:09:21 12:30
 
 **Resumen:** Se corrige la flecha de regreso de `BarraSuperior`: apuntaba a la derecha (`ic_chevron`) cuando la acción es volver, así que ahora usa un chevron izquierdo nuevo (`ic_chevron_atras`). Los chevrones hacia la derecha que indican navegación hacia adentro (filas de Historial, pendientes y la celda de evidencias de Reporte) se conservan intactos.

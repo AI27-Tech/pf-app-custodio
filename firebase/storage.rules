@@ -2,8 +2,16 @@ rules_version = '2';
 
 // Reglas de Storage del PLAN §5.3: los archivos viven en medios/{reporteId}/...,
 // el custodio dueño del reporte puede escribirlos (create/update, para reintentos
-// idempotentes); nada se borra y el read es solo del dueño.
+// idempotentes); el analista del panel los puede LEER (es quien visualiza la
+// evidencia); nada se borra.
+//
+// Nota: para el custodio las ESCRITURAS solo consultan el reporte en Firestore (get()
+// sobre un documento que ya existe), nunca la lista de analistas: subir evidencia no
+// debe depender de `config/analistas` (ver quirk del emulador en firestore.rules).
+// Un custodio además lee lo suyo vía `duenoDelReporte`; `esAnalista()` solo se
+// evalúa cuando el `||` llega hasta ella (lector que no es dueño).
 service firebase.storage {
+
   function autenticado() {
     return request.auth != null;
   }
@@ -12,9 +20,21 @@ service firebase.storage {
     return firestore.get(/databases/(default)/documents/reportes/$(reporteId)).data.custodioUid == request.auth.uid;
   }
 
+  // Misma noción que en firestore.rules: es analista quien tiene su correo en
+  // `config/analistas.correos`.
+  function esAnalista() {
+    let lista = firestore.get(/databases/(default)/documents/config/analistas);
+    return autenticado()
+      && lista != null
+      && 'correos' in lista.data
+      && 'email' in request.auth.token
+      && request.auth.token.email in lista.data.correos;
+  }
+
   match /b/{bucket}/o {
     match /medios/{reporteId}/{fileName} {
-      allow read, create, update: if autenticado() && duenoDelReporte(reporteId);
+      allow read: if autenticado() && (duenoDelReporte(reporteId) || esAnalista());
+      allow create, update: if autenticado() && duenoDelReporte(reporteId);
       allow delete: if false;
     }
   }
