@@ -47,12 +47,14 @@ import com.ai27.app.custodio.ui.previews.DatosDemo
 @Composable
 fun DetalleReporteRoute(
     onAtras: () -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: DetalleReporteViewModel = hiltViewModel(),
 ) {
     val estado by viewModel.uiState.collectAsState()
     DetalleReporteScreen(
         estado = estado,
         onAtras = onAtras,
+        modifier = modifier,
     )
 }
 
@@ -61,8 +63,9 @@ fun DetalleReporteScreen(
     estado: DetalleReporteUiState,
     onAtras: () -> Unit,
     onReintentar: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize()) {
         BarraSuperior(titulo = stringResource(R.string.detalle_titulo), onAtras = onAtras)
 
         if (estado.cargando) {

@@ -46,6 +46,7 @@ import com.ai27.app.custodio.ui.previews.DatosDemo
 fun HistorialRoute(
     onAtras: () -> Unit,
     onVerDetalle: (String) -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: HistorialViewModel = hiltViewModel(),
 ) {
     val estado by viewModel.uiState.collectAsState()
@@ -54,6 +55,7 @@ fun HistorialRoute(
         onAtras = onAtras,
         onFiltroCambio = viewModel::onFiltroCambio,
         onVerDetalle = onVerDetalle,
+        modifier = modifier,
     )
 }
 
@@ -69,8 +71,9 @@ fun HistorialScreen(
     onFiltroCambio: (String) -> Unit,
     onVerDetalle: (String) -> Unit,
     onReintentar: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize()) {
         BarraSuperior(titulo = stringResource(R.string.destino_historial), onAtras = onAtras)
 
         OutlinedTextField(

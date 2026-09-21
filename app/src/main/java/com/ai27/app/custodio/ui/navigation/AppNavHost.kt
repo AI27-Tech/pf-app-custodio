@@ -253,6 +253,9 @@ fun AppNavHost() {
                 HistorialRoute(
                     onAtras = { navController.popBackStack() },
                     onVerDetalle = { reporteId -> navController.navigate(Rutas.detalle(reporteId)) },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding(),
                 )
             }
 
@@ -262,6 +265,9 @@ fun AppNavHost() {
             ) {
                 DetalleReporteRoute(
                     onAtras = { navController.popBackStack() },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding(),
                 )
             }
 

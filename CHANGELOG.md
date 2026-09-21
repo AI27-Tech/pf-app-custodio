@@ -2,6 +2,22 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 11:50
+
+**Resumen:** Se corrige la barra superior de Historial (y Detalle) que se solapaba con la barra de notificaciones del teléfono al estar activo `enableEdgeToEdge()`: las rutas `historial` y `detalle` eran las únicas autenticadas sin `statusBarsPadding()` en `AppNavHost`.
+
+**Cambios:**
+
+- `AppNavHost.kt`: las rutas `historial` y `detalle` ahora aplican `Modifier.fillMaxSize().statusBarsPadding()`, igual que las demás pantallas autenticadas.
+- `HistorialRoute`/`HistorialScreen` y `DetalleReporteRoute`/`DetalleReporteScreen`: nuevas `modifier: Modifier = Modifier` que se aplican al `Column` raíz, siguiendo el patrón de `AjustesScreen`/`PendientesScreen`.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/historial/HistorialScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/historial/DetalleReporteScreen.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 D4
 
 **Resumen:** Se resuelve la decisión D4 del plan: las cinco pantallas fuera de familia de la ronda anterior (`*_reparado`) quedan confirmadas como pantallas/estados Nocturne adaptados en C4, y las dos variantes que no tenían preview ganan una en claro y oscuro. Se cierra la última decisión pendiente de §11.2.
