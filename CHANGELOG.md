@@ -2,6 +2,20 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 12:00
+
+**Resumen:** Se corrige el badge de pendientes de la barra de navegación inferior (`BarraNavegacion`): el número del contador sobre el icono de Reporte no se mostraba correctamente porque el badge artesanal se empujaba fuera de su contenedor (quedaba recortado/encimado con el borde de la barra) y el dígito iba en una ventana de 14dp con fuente por defecto, que se recortaba a escalas de fuente normales del dispositivo.
+
+**Cambios:**
+
+- `BarraNavegacion.kt`: el badge de pendientes del icono de Reporte reutiliza el componente canónico `BadgePendientes` (`Botones.kt`, con `TabularNumberStyle` + `labelSmall`) en lugar del `Text` artesanal de 10sp, y se coloca **dentro** del contenedor del icono en `Alignment.TopEnd` con `padding(top = 3.dp, end = 4.dp)` — sin `offset` negativo hacia el borde de la barra, igual que hace `BotonPendientes` — para que el número se vea completo.
+- Se eliminan los imports huérfanos (`offset`, `CircleShape`, `TextAlign`, `sp`).
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/components/BarraNavegacion.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 11:50
 
 **Resumen:** Se corrige la barra superior de Historial (y Detalle) que se solapaba con la barra de notificaciones del teléfono al estar activo `enableEdgeToEdge()`: las rutas `historial` y `detalle` eran las únicas autenticadas sin `statusBarsPadding()` en `AppNavHost`.

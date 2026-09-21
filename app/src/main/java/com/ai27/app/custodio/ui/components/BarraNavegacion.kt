@@ -8,12 +8,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,10 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ai27.app.custodio.R
 
 /**
@@ -55,9 +51,10 @@ enum class DestinoInferior(
  * `barra_de_navegaci_n_base_3_items_slate_oscuro`. El resto de destinos se pinta en
  * `onSurfaceVariant`.
  *
- * El badge de pendientes (ámbar, `CircleShape`) es una de las dos excepciones
- * circulares que el sistema de diseño concede — D3 las reserva para contadores
- * pequeños — y recae sobre el icono de Reporte.
+ * El badge de pendientes (ámbar, `CircleShape`, reutiliza [BadgePendientes] de
+ * `Botones.kt` — la misma fuente que la pantalla de Pendientes) es una de las dos
+ * excepciones circulares que el sistema de diseño concede — D3 las reserva para
+ * contadores pequeños — y recae sobre el icono de Reporte.
  */
 @Composable
 fun BarraNavegacion(
@@ -149,18 +146,11 @@ private fun ItemBarra(
                 modifier = Modifier.size(24.dp),
             )
             if (pendientes > 0) {
-                Text(
-                    text = pendientes.toString(),
-                    color = MaterialTheme.colorScheme.onTertiary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
+                BadgePendientes(
+                    conteo = pendientes,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = 4.dp, y = (-6).dp)
-                        .size(width = 18.dp, height = 18.dp)
-                        .background(MaterialTheme.colorScheme.tertiary, CircleShape)
-                        .padding(top = 2.dp, bottom = 2.dp),
+                        .padding(top = 3.dp, end = 4.dp),
                 )
             }
         }

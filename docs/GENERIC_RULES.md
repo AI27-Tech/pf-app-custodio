@@ -98,3 +98,7 @@ instructions remain authoritative.
 - In the final report, state what changed, what was verified, and what remains
   incomplete or uncertain. Include relevant file paths and actionable next steps
   only when needed.
+
+## Add your changes into the changelog.md
+
+- Use the .kiro/steering changelog rule to always edit the changelog after every code or document changed.
