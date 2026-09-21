@@ -2,6 +2,21 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 12:30
+
+**Resumen:** Se corrige la flecha de regreso de `BarraSuperior`: apuntaba a la derecha (`ic_chevron`) cuando la acción es volver, así que ahora usa un chevron izquierdo nuevo (`ic_chevron_atras`). Los chevrones hacia la derecha que indican navegación hacia adentro (filas de Historial, pendientes y la celda de evidencias de Reporte) se conservan intactos.
+
+**Cambios:**
+
+- `res/drawable/ic_chevron_atras.xml` (nuevo): chevron de trazo que apunta a la izquierda (path `M15,18l-6,-6l6,-6`), mismo peso/tamaño que `ic_chevron`.
+- `BarraSuperior.kt`: el botón de regreso usa `ic_chevron_atras` en lugar de `ic_chevron`.
+
+**Archivos modificados:**
+
+- `app/src/main/res/drawable/ic_chevron_atras.xml` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/components/BarraSuperior.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 12:24
 
 **Resumen:** Se corrige el botón de foto de la pantalla de captura de evidencia, que quedaba debajo de los botones OS de navegación: el disparador está anclado al borde inferior del área (`Alignment.BottomCenter`) y el `Scaffold` usa `contentWindowInsets = WindowInsets(0.dp)`, así que la app dibuja tras la barra de navegación del sistema y el botón se salía del área visible.

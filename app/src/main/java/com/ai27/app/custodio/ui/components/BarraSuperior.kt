@@ -50,7 +50,7 @@ fun BarraSuperior(
             if (onAtras != null) {
                 IconButton(onClick = onAtras) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_chevron),
+                        painter = painterResource(R.drawable.ic_chevron_atras),
                         contentDescription = stringResource(R.string.barra_superior_volver),
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
