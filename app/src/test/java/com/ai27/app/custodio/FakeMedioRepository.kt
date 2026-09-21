@@ -69,6 +69,25 @@ class FakeMedioRepository(
         return Result.Success(actualizado)
     }
 
+    override suspend fun actualizarGps(
+        medioId: String,
+        gps: com.ai27.app.custodio.domain.model.Gps,
+    ): Result<Medio> {
+        val indice = medios.indexOfFirst { it.id == medioId }
+        if (indice == -1) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
+        }
+        val anterior = medios[indice]
+        // Refleja la query real: solo adjunta mientras sigue PENDIENTE.
+        val actualizado = if (anterior.estadoSubida == EstadoSubida.PENDIENTE) {
+            anterior.copy(gps = gps)
+        } else {
+            anterior
+        }
+        medios[indice] = actualizado
+        return Result.Success(actualizado)
+    }
+
     override suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio> {
         val indice = medios.indexOfFirst { it.id == medioId }
         if (indice == -1) {

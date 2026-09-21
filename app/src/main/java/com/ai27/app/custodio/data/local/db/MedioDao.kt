@@ -32,6 +32,15 @@ interface MedioDao {
     @Query("UPDATE medios SET etiqueta = :etiqueta, ubicacionTexto = COALESCE(:ubicacionTexto, ubicacionTexto) WHERE id = :id")
     suspend fun etiquetar(id: String, etiqueta: String, ubicacionTexto: String?): Int
 
+    @Query(
+        """
+        UPDATE medios
+        SET gpsLat = :lat, gpsLng = :lng, gpsAccuracyM = :accuracyM, gpsAgeMs = :ageMs
+        WHERE id = :id AND estadoSubida = 'PENDIENTE'
+        """,
+    )
+    suspend fun actualizarGps(id: String, lat: Double, lng: Double, accuracyM: Double, ageMs: Long?): Int
+
     @Query("UPDATE medios SET estadoSubida = :estado WHERE id = :id")
     suspend fun actualizarEstadoSubida(id: String, estado: String): Int
 

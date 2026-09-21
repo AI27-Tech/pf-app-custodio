@@ -6,6 +6,7 @@ import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
 import com.ai27.app.custodio.domain.model.TipoMedio
@@ -100,5 +101,66 @@ class RoomMedioRepositoryTest {
         assertTrue(sinUbicacion is Result.Success)
         assertEquals("inspeccion", (sinUbicacion as Result.Success).value.etiqueta)
         assertEquals("Entrada 3", sinUbicacion.value.ubicacionTexto)
+    }
+
+    @Test
+    fun `actualizarGps adjunta la ubicacion a un medio pendiente`() = runBlocking {
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (
+            crear(
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                deviceId = "d1",
+                clienteId = "c1",
+                placasCapturadas = "ABC-1234",
+            ) as Result.Success
+            ).value
+        // Se captura sin GPS, como hace ahora la ViewModel (la ubicación llega después).
+        val guardado = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
+        assertEquals(null, guardado.gps)
+
+        val gps = Gps(lat = 19.43, lng = -99.13, accuracyM = 4.5, ageMs = 250L)
+        val resultado = repoMedios.actualizarGps(guardado.id, gps)
+
+        assertTrue(resultado is Result.Success)
+        val actualizado = (resultado as Result.Success).value
+        val ubicacion = actualizado.gps!!
+        assertEquals(19.43, ubicacion.lat, 0.0001)
+        assertEquals(-99.13, ubicacion.lng, 0.0001)
+        assertEquals(4.5, ubicacion.accuracyM, 0.0001)
+        assertEquals(250L, ubicacion.ageMs)
+        // Persistió en la fila, no solo en el objeto devuelto.
+        assertEquals(19.43, repoMedios.obtenerPorId(guardado.id)!!.gps!!.lat, 0.0001)
+    }
+
+    @Test
+    fun `actualizarGps no muta el medio una vez que dejo de estar pendiente`() = runBlocking {
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (
+            crear(
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                deviceId = "d1",
+                clienteId = "c1",
+                placasCapturadas = "ABC-1234",
+            ) as Result.Success
+            ).value
+        val guardado = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
+
+        // Simula que la subida ya arrancó: el documento remoto ya se creó, la ubicación
+        // tardía NO debe pisarlo.
+        repoMedios.actualizarEstadoSubida(guardado.id, EstadoSubida.EN_PROGRESO)
+
+        val resultado = repoMedios.actualizarGps(
+            guardado.id,
+            Gps(lat = 19.43, lng = -99.13, accuracyM = 4.5, ageMs = 250L),
+        )
+
+        assertTrue(resultado is Result.Success)
+        // Devuelve el medio tal cual (sin GPS) porque la query se restringe a PENDIENTE.
+        assertEquals(null, (resultado as Result.Success).value.gps)
+        assertEquals(null, repoMedios.obtenerPorId(guardado.id)!!.gps)
     }
 }

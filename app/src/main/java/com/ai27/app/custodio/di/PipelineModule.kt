@@ -10,6 +10,7 @@ import com.ai27.app.custodio.data.remote.MedioRemoto
 import com.ai27.app.custodio.data.remote.ReporteRemoto
 import com.ai27.app.custodio.data.worker.CustodioWorkerFactory
 import com.ai27.app.custodio.data.worker.SubidaScheduler
+import com.ai27.app.custodio.data.worker.WorkManagerSubidaScheduler
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.repository.ReporteRepository
 import com.google.firebase.firestore.FirebaseFirestore
@@ -84,7 +85,7 @@ object PipelineModule {
         @ApplicationContext context: Context,
         reporteRepository: ReporteRepository,
         medioRepository: MedioRepository,
-    ): SubidaScheduler = SubidaScheduler(context, reporteRepository, medioRepository)
+    ): SubidaScheduler = WorkManagerSubidaScheduler(context, reporteRepository, medioRepository)
 
     @Provides
     @Singleton

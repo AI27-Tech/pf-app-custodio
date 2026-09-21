@@ -24,6 +24,8 @@ googleServices = "4.5.0"
 crashlyticsPlugin = "3.0.8"
 # B3: ubicación por archivo
 playServicesLocation = "21.4.0"
+# Pruebas de coroutines (JVM): alineado con el coroutines-core resuelto (1.10.2)
+coroutinesTest = "1.10.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -64,6 +66,9 @@ firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashly
 
 # B3: ubicación por archivo
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+
+# Pruebas de coroutines (JVM)
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -7,6 +7,7 @@ import com.ai27.app.custodio.data.mapper.aEntidad
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import kotlinx.coroutines.flow.Flow
@@ -59,6 +60,16 @@ class RoomMedioRepository(
         } else {
             Result.Failure(DominioError.MedioNoEncontrado)
         }
+    }
+
+    override suspend fun actualizarGps(medioId: String, gps: Gps): Result<Medio> {
+        // Solo se adjunta la ubicación mientras el medio sigue PENDIENTE (la query lo
+        // restringe): una vez EN_PROGRESO/COMPLETA el documento remoto ya se creó y no
+        // debe mutar. Si el medio se borró o ya salió, se devuelve MedioNoEncontrado.
+        dao.actualizarGps(medioId, gps.lat, gps.lng, gps.accuracyM, gps.ageMs)
+        val actualizado = dao.obtenerPorId(medioId)
+            ?: return Result.Failure(DominioError.MedioNoEncontrado)
+        return Result.Success(actualizado.aDominio())
     }
 
     override suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio> {

@@ -2,6 +2,7 @@ package com.ai27.app.custodio.domain.repository
 
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
 import kotlinx.coroutines.flow.Flow
 
@@ -13,6 +14,7 @@ interface MedioRepository {
     fun observarPendientes(custodioUid: String): Flow<Int>
     fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>>
     suspend fun etiquetar(medioId: String, etiquetaId: String, ubicacionTexto: String? = null): Result<Medio>
+    suspend fun actualizarGps(medioId: String, gps: Gps): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
     suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>
     suspend fun borrarPendiente(medioId: String): Result<Medio>

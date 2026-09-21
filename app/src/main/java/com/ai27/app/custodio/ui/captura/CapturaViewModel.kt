@@ -109,6 +109,11 @@ class CapturaViewModel @Inject constructor(
 
     private var jobTimerAudio: Job? = null
 
+    // Trabajos en vuelo que resuelven el GPS de un medio recién capturado, por medioId.
+    // guardarEtiqueta los espera antes de encolar la subida; se limpian al etiquetar o
+    // descartar el etiquetado.
+    private val trabajosGps = mutableMapOf<String, Job>()
+
     init {
         viewModelScope.launch {
             interno.update { it.copy(etiquetas = obtenerEtiquetas()) }
@@ -155,7 +160,9 @@ class CapturaViewModel @Inject constructor(
         if (jpeg.isEmpty()) return
         viewModelScope.launch {
             interno.update { it.copy(capturando = true) }
-            val gps = obtenerGpsLinear()
+            // La foto se persiste de inmediato SIN esperar el arreglo de GPS: así la hoja
+            // de etiquetado aparece al instante. La ubicación se adjunta en segundo plano
+            // (ver adjuntarGpsEnSegundoPlano) y guardarEtiqueta la espera antes de encolar.
             val resultado = capturarMedio(
                 custodioUid = custodio.uid,
                 reporteId = reporte.id,
@@ -163,7 +170,7 @@ class CapturaViewModel @Inject constructor(
                 origen = OrigenMedio.CAMARA,
                 contenido = jpeg,
                 miniatura = miniatura,
-                gps = gps,
+                gps = null,
             )
             interno.update {
                 when (resultado) {
@@ -177,6 +184,9 @@ class CapturaViewModel @Inject constructor(
                     }
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
+            }
+            if (resultado is Result.Success) {
+                adjuntarGpsEnSegundoPlano(resultado.value.id)
             }
         }
     }
@@ -217,7 +227,8 @@ class CapturaViewModel @Inject constructor(
             val grabacion = grabadora.detener()
             if (grabacion == null) return@launch
             interno.update { it.copy(capturando = true) }
-            val gps = obtenerGpsLinear()
+            // Igual que la foto: se persiste sin esperar el GPS y la ubicación se adjunta
+            // en segundo plano; guardarEtiqueta la espera antes de encolar la subida.
             val resultado = capturarMedio(
                 custodioUid = custodio.uid,
                 reporteId = reporte.id,
@@ -225,7 +236,7 @@ class CapturaViewModel @Inject constructor(
                 origen = OrigenMedio.GRABADORA,
                 contenido = grabacion.bytes,
                 durationMs = grabacion.durationMs,
-                gps = gps,
+                gps = null,
             )
             interno.update {
                 when (resultado) {
@@ -236,6 +247,9 @@ class CapturaViewModel @Inject constructor(
                     )
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
+            }
+            if (resultado is Result.Success) {
+                adjuntarGpsEnSegundoPlano(resultado.value.id)
             }
         }
     }
@@ -261,7 +275,6 @@ class CapturaViewModel @Inject constructor(
             interno.update {
                 when (resultado) {
                     is Result.Success -> {
-                        programadorSubidas.encolarSubidaMedio(resultado.value.reporteId, medioId)
                         it.copy(
                             medioPendienteDeEtiquetar = null,
                             ubicacionTextoEscrita = "",
@@ -271,10 +284,22 @@ class CapturaViewModel @Inject constructor(
                     is Result.Failure -> it.copy(error = resultado.error.aRecurso())
                 }
             }
+            if (resultado is Result.Success) {
+                // La UI ya se actualizó (hoja cerrada + aviso). Antes de encolar la subida
+                // se espera a que termine de adjuntarse el GPS en segundo plano (tiene su
+                // propio timeout, así que no cuelga) para que el documento remoto conserve
+                // la ubicación, como cuando la captura la esperaba en línea.
+                trabajosGps.remove(medioId)?.join()
+                programadorSubidas.encolarSubidaMedio(resultado.value.reporteId, medioId)
+            }
         }
     }
 
     fun descartarEtiquetado() {
+        // El medio queda persistido y pendiente aunque se descarte el etiquetado; el
+        // trabajo de GPS puede seguir y adjuntar la ubicación. Solo se suelta la referencia
+        // del mapa para que no crezca sin límite.
+        interno.value.medioPendienteDeEtiquetar?.let { trabajosGps.remove(it.id) }
         interno.update { it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "") }
     }
 
@@ -358,6 +383,16 @@ class CapturaViewModel @Inject constructor(
         null
     } catch (_: Exception) {
         null
+    }
+
+    // Resuelve el GPS del medio en segundo plano y lo adjunta a la fila de Room. No
+    // bloquea la captura: la hoja de etiquetado ya se mostró. actualizarGps solo pega la
+    // ubicación mientras el medio sigue PENDIENTE, así que llegar tarde es inofensivo.
+    private fun adjuntarGpsEnSegundoPlano(medioId: String) {
+        trabajosGps[medioId] = viewModelScope.launch {
+            val gps = obtenerGpsLinear() ?: return@launch
+            medioRepository.actualizarGps(medioId, gps)
+        }
     }
 
     private fun copiarAPublica(medioId: String, jpeg: ByteArray) {

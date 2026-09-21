@@ -2,6 +2,90 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 16:30
+
+**Resumen:** Se habilitó la prueba unitaria de `CapturaViewModel`: se extrajeron interfaces para los colaboradores atados a Android y se agregó `kotlinx-coroutines-test`, con tres pruebas que fijan el comportamiento del desacople de GPS.
+
+**Cambios:**
+
+- Se extrajeron interfaces para poder falsear los colaboradores en pruebas de JVM: `SubidaScheduler` (interfaz + impl `WorkManagerSubidaScheduler`, conservando las constantes del companion que usan los workers), `Grabadora` (interfaz + impl `GrabadoraMediaRecorder`) y `FotosPublicas` (interfaz + impl `FotosPublicasMediaStore`). Los proveedores de Hilt (`CapturaModule`, `PipelineModule`) ahora construyen las implementaciones y devuelven las interfaces; `CapturaViewModel`/`PendientesViewModel` no cambiaron (mismos nombres y paquetes).
+- `CapturaViewModelTest` (nuevo): la captura de foto abre la hoja de etiquetado sin esperar el GPS; la subida se encola **solo** después de que el GPS se adjunta al medio (verifica el `join` previo a `encolarSubidaMedio`); y la nota de voz tampoco bloquea la captura por el GPS.
+- Andamiaje de pruebas: `MainDispatcherRule` (fija `Dispatchers.Main` con un `StandardTestDispatcher`) y `CapturaFakes` (`FakeSesionRepositorio`, `FakeProveedorUbicacion` con compuerta `CompletableDeferred`, `FakeFotosPublicas`, `FakeGrabadora`, `FakeSubidaScheduler` que registra los encolados).
+- `gradle/libs.versions.toml` y `app/build.gradle.kts`: se agregó `kotlinx-coroutines-test` (1.10.2, alineado con el coroutines-core resuelto) como `testImplementation`.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/worker/SubidaScheduler.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/worker/WorkManagerSubidaScheduler.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/Grabadora.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/GrabadoraMediaRecorder.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/FotosPublicas.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/FotosPublicasMediaStore.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/CapturaModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/PipelineModule.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/MainDispatcherRule.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `gradle/libs.versions.toml`
+- `app/build.gradle.kts`
+
+## 2026:09:21 15:40
+
+**Resumen:** Se agregaron pruebas de `RoomMedioRepository.actualizarGps` que cubren el corazón del cambio de captura: adjuntar la ubicación tardía a un medio pendiente y no mutarla una vez que la subida arrancó.
+
+**Cambios:**
+
+- `RoomMedioRepositoryTest`: nueva prueba que verifica que `actualizarGps` pega lat/lng/accuracy/age a un medio `PENDIENTE` (y persiste en la fila), y otra que verifica que, con el medio en `EN_PROGRESO`, `actualizarGps` no sobrescribe la ubicación (respeta la restricción a `PENDIENTE` de la query).
+
+**Archivos modificados:**
+
+- `app/src/test/java/com/ai27/app/custodio/RoomMedioRepositoryTest.kt`
+
+## 2026:09:21 15:10
+
+**Resumen:** La captura ya no se bloquea esperando el arreglo de GPS: foto y nota de voz se guardan al instante y la hoja de etiquetado aparece de inmediato; la ubicación se adjunta en segundo plano y se espera solo antes de encolar la subida, de modo que el documento remoto sigue llevando GPS.
+
+**Cambios:**
+
+- `CapturaViewModel`: `capturarFoto` y `detenerGrabacionDeAudio` persisten el medio con `gps = null` y lanzan `adjuntarGpsEnSegundoPlano(medioId)`, que resuelve el GPS (con su timeout de 8s) y lo pega a Room sin bloquear la UI. `guardarEtiqueta` espera (`trabajosGps.remove(medioId)?.join()`) a que ese trabajo termine antes de `encolarSubidaMedio`, para que la subida remota conserve la ubicación. `descartarEtiquetado` suelta la referencia del trabajo de GPS.
+- `MedioDao.actualizarGps`: nuevo `UPDATE` de las columnas `gps*` restringido a medios `PENDIENTE` (una vez `EN_PROGRESO`/`COMPLETA` el documento remoto ya existe y no debe mutar).
+- `MedioRepository`/`RoomMedioRepository`: nuevo método `actualizarGps(medioId, gps)`.
+- `FakeMedioRepository` (test): implementación de `actualizarGps` que refleja la restricción a `PENDIENTE`.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+
+## 2026:09:21 14:32
+
+**Resumen:** El "flash" del obturador ahora se dispara cuando la captura tiene éxito (dentro del callback de `tomarFoto`) en lugar de al tocar el botón, para confirmar la foto real.
+
+**Cambios:**
+
+- Se movió el lanzamiento del velo negro desde el `onClick` del disparador al callback de éxito de `tomarFoto`, de modo que el flash aparece cuando el JPEG ya está listo.
+- Se actualizó el comentario de la animación del flash para reflejar el nuevo punto de disparo.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+
+## 2026:09:21 14:20
+
+**Resumen:** La captura de foto se siente más rápida y da retroalimentación visible: el procesamiento de la imagen sale del hilo principal y al disparar aparece un "flash" negro que se desvanece.
+
+**Cambios:**
+
+- Se movió la rotación y compresión JPEG (original + miniatura) fuera del hilo principal: `tomarFoto` ahora recibe un ejecutor respaldado por `Dispatchers.Default` en lugar de `context.mainExecutor`, evitando que el visor se congele en el momento del disparo.
+- Se agregó un velo negro a pantalla completa (`Animatable` con `tween` de 280ms) que se pinta al tomar la foto, para que sea evidente que la captura ocurrió aunque el guardado y la ubicación tarden un instante más.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+
 ## 2026:09:21 13:54
 
 **Resumen:** El aviso flotante de subida aterriza 20dp más abajo: el despegue desde la barra superior pasa de 80dp a 100dp en captura y audio.

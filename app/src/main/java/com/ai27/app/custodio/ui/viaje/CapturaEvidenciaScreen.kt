@@ -6,6 +6,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.LifecycleCameraController
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +51,9 @@ import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.previews.DatosDemo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
+import kotlinx.coroutines.launch
 
 private data class PermisosCamara(
     val camara: Boolean,
@@ -74,6 +80,18 @@ fun CapturaEvidenciaScreen(
 ) {
     val context = LocalContext.current
     var controllerCamara by remember { mutableStateOf<LifecycleCameraController?>(null) }
+
+    // El procesamiento de la foto (rotación + compresión JPEG del original y la
+    // miniatura) es costoso y NO debe correr en el hilo principal: se ejecuta en el
+    // pool por defecto para que el visor no se congele en el momento del disparo.
+    val ejecutorImagen = remember { Dispatchers.Default.asExecutor() }
+
+    // "Flash" del obturador: cuando la captura tiene éxito (dentro del callback de
+    // `tomarFoto`, ya con el JPEG listo) se pinta un velo negro a pantalla completa
+    // que se desvanece, para confirmar que la foto realmente se tomó aunque el
+    // guardado y la ubicación tarden un instante más.
+    val scope = rememberCoroutineScope()
+    val flash = remember { Animatable(0f) }
 
     // En la vista previa (@Preview) no hay cámara ni diálogo de permisos que lanzar;
     // se simula el visor negro de la pantalla para que el HUD se pueda comparar contra
@@ -174,7 +192,11 @@ fun CapturaEvidenciaScreen(
             Surface(
                 onClick = {
                     val camara = controllerCamara ?: return@Surface
-                    tomarFoto(camara, context.mainExecutor) { jpeg, miniatura ->
+                    tomarFoto(camara, ejecutorImagen) { jpeg, miniatura ->
+                        scope.launch {
+                            flash.snapTo(1f)
+                            flash.animateTo(0f, animationSpec = tween(durationMillis = 280))
+                        }
                         onTomarFoto(jpeg, miniatura)
                     }
                 },
@@ -206,6 +228,14 @@ fun CapturaEvidenciaScreen(
                 .padding(horizontal = 24.dp)
                 .padding(top = 100.dp),
         )
+
+        if (flash.value > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = flash.value)),
+            )
+        }
     }
 
     estado.medioPendienteDeEtiquetar?.let {
