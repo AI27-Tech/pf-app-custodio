@@ -2,6 +2,21 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 Saneo del plan
+
+**Resumen:** Se cierra el bloque de reproducción del diseño en `docs/PLAN.md`: las fases C4 y C5 pasan a marcarse como hechas (ya estaban completadas en los commits de C3-C5) y el diagrama de orden de §11.11 queda con las siete fases C ✅.
+
+**Cambios:**
+
+- §11.6 Fase C4 marcada como ✅ hecha (2026-09-20) con nota de cierre: Ajustes (tema nocturno persistente y cierre de sesión bloqueado con pendientes), sesión fuera de Reporte, novedad/comentario sincronizados hasta Room/Firestore, Historial/Detalle sin `Scaffold` anidado.
+- §11.7 Fase C5 marcada como ✅ hecha (2026-09-20); su nota de cierre ya existía junto a la lista de estados pendientes.
+- §11.11 diagrama de orden actualizado con ✅ en las siete fases C.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
 ## 2026:09:21 C7
 
 **Resumen:** Fase C7 (verificación): todas las pantallas ganan `@Preview` en claro y oscuro sobre el lienzo `Vitrina`, con datos de demostración aislados en `ui/previews/`. Cierra el bloque de reproducción del diseño (C1-C7): componentes, pantallas, strings y accesibilidad.

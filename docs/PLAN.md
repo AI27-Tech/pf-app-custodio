@@ -472,7 +472,7 @@ Verificado: `assembleDebug` compila y `testDebugUnitTest` pasa. La comparación 
 
 Verificado: `assembleDebug` compila y `testDebugUnitTest` pasa. Pendiente visual: comparar los `@Preview` y las nuevas pantallas contra los PNG de `mock-app-design-language/` en el studio.
 
-### 11.6 Fase C4 — Pantallas, una por una
+### 11.6 Fase C4 — Pantallas, una por una ✅ hecha (2026-09-20)
 
 Orden sugerido, de la que fija el lenguaje a la que menos riesgo tiene:
 
@@ -489,7 +489,9 @@ Orden sugerido, de la que fija el lenguaje a la que menos riesgo tiene:
 11. `ajustes_*` → pantalla nueva: toggle de tema, correo, pendientes y cierre de sesión con su variante deshabilitada.
 12. `iniciar_sesi_n_*` → aplicar el lenguaje al login, que hoy es un `Column` sin identidad.
 
-### 11.7 Fase C5 — Estados que el diseño exige y el código no tiene
+- **C4 completado:** Ajustes con tema nocturno persistente, sesión del custodio y cierre de sesión (bloqueado mientras haya archivos sin subir); la sesión sale de la pestaña Reporte (`SinReporte` con `EstadoVacio` + `HojaInferior` para placa y crear viaje). La novedad y el comentario del cierre se sincronizan hasta Room/Firestore (`hayNovedad` en `Reporte`/DAO/`CerrarReporte`). `HistorialScreen`/`DetalleReporteScreen` quedan sin `Scaffold` anidado, usando `BarraSuperior` (el badge del encabezado se retira; el conteo de pendientes vive en la barra inferior y el badge de la pestaña Reporte) con `RenglonReporte`/`RenglonResumen`/`ChipCiclo`. LOGIN aplica el lenguaje con `CampoPlaca` heredado y tema del sistema.
+
+### 11.7 Fase C5 — Estados que el diseño exige y el código no tiene ✅ hecha (2026-09-20)
 
 Del checklist de `docs/MOBILE_GUIDELINES.md`, esto es lo que falta y el mockup ya dibuja:
 
@@ -535,13 +537,13 @@ Las dos carpetas `point_of_view_realistic_smartphone_camera_shot_*` y las de len
 D1, D2, D3, D4  (decisiones, bloquean todo)
       │
       ▼
-C1 tokens y tema ──► C2 componentes ──► C3 navegación y descomposición
-                                              │
-                                              ▼
-                                        C4 pantallas ──► C5 estados
-                                              │
-                                              ▼
-                                     C6 strings y accesibilidad ──► C7 verificación
+C1 tokens y tema ✅ ──► C2 componentes ✅ ──► C3 navegación ✅
+                                          │
+                                          ▼
+                                    C4 pantallas ✅ ──► C5 estados ✅
+                                          │
+                                          ▼
+                          C6 strings y accesibilidad ✅ ──► C7 verificación ✅
 ```
 
 C2 puede empezar en cuanto C1 tenga los tokens, aunque falten formas y tipografía. C3 no depende de C2 para la parte de navegación, así que la barra inferior y los destinos nuevos se pueden adelantar. C5 y C6 son transversales y se cierran al final, no pantalla por pantalla.
