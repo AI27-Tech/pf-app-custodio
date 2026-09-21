@@ -2,6 +2,24 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 D4
+
+**Resumen:** Se resuelve la decisión D4 del plan: las cinco pantallas fuera de familia de la ronda anterior (`*_reparado`) quedan confirmadas como pantallas/estados Nocturne adaptados en C4, y las dos variantes que no tenían preview ganan una en claro y oscuro. Se cierra la última decisión pendiente de §11.2.
+
+**Cambios:**
+
+- `docs/PLAN.md` §11.2: D4 pasa de "Pendiente al implementar" a "Resuelta (2026-09-21)" con el mapeo de cada mockup a su implementación.
+- `ReporteScreen.kt`: previews "Abierto sin conexión · Claro/Oscuro" (`conectado = false`) para la variante `reporte_abierto_sin_conexi_n_reparado`.
+- `AjustesScreen.kt`: previews "Cierre deshabilitado · Claro/Oscuro" (`pendientesSinSubir = 3`) para la variante `ajustes_cierre_de_sesi_n_deshabilitado_reparado`.
+- Los otros tres mockups ya estaban cubiertos: `ajustes_*` (Ajustes normal), `cerrar_reporte_estructura` (CierreScreen) y `estado_vac_o_base` (`EstadoVacio` en la biblioteca y en `SinReporte`/pendientes vacío).
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/ReporteScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/ajustes/AjustesScreen.kt`
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
 ## 2026:09:21 Saneo del plan
 
 **Resumen:** Se cierra el bloque de reproducción del diseño en `docs/PLAN.md`: las fases C4 y C5 pasan a marcarse como hechas (ya estaban completadas en los commits de C3-C5) y el diagrama de orden de §11.11 queda con las siete fases C ✅.

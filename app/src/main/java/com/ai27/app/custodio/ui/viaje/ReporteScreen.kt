@@ -441,3 +441,53 @@ private fun ReporteSinViajeVistaOscuro() {
         )
     }
 }
+
+@Preview(name = "Abierto sin conexión · Claro")
+@Composable
+private fun ReporteSinConexionVistaClaro() {
+    Vitrina(oscuro = false) {
+        ReporteScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+                pendientesSinSubir = 2,
+            ),
+            conectado = false,
+            onPlacaCambio = {},
+            onIniciarViaje = {},
+            onIrACaptura = {},
+            onIrAAudio = {},
+            onIrAArchivos = {},
+            onIrACierre = {},
+            onIrAPendientes = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Abierto sin conexión · Oscuro")
+@Composable
+private fun ReporteSinConexionVistaOscuro() {
+    Vitrina(oscuro = true) {
+        ReporteScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+                pendientesSinSubir = 2,
+            ),
+            conectado = false,
+            onPlacaCambio = {},
+            onIniciarViaje = {},
+            onIrACaptura = {},
+            onIrAAudio = {},
+            onIrAArchivos = {},
+            onIrACierre = {},
+            onIrAPendientes = {},
+            onConsumirError = {},
+        )
+    }
+}

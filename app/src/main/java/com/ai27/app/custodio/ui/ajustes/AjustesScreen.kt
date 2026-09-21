@@ -181,3 +181,41 @@ private fun AjustesVistaOscuro() {
         )
     }
 }
+
+@Preview(name = "Cierre deshabilitado · Claro")
+@Composable
+private fun AjustesCierreDeshabilitadoVistaClaro() {
+    Vitrina(oscuro = false) {
+        AjustesScreen(
+            estado = AjustesUiState(
+                custodio = DatosDemo.custodio,
+                pendientesSinSubir = 3,
+            ),
+            oscuro = false,
+            onCambiarTema = {},
+            onSolicitarCerrarSesion = {},
+            onCancelarCerrarSesion = {},
+            onConfirmarCerrarSesion = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Cierre deshabilitado · Oscuro")
+@Composable
+private fun AjustesCierreDeshabilitadoVistaOscuro() {
+    Vitrina(oscuro = true) {
+        AjustesScreen(
+            estado = AjustesUiState(
+                custodio = DatosDemo.custodio,
+                pendientesSinSubir = 3,
+            ),
+            oscuro = true,
+            onCambiarTema = {},
+            onSolicitarCerrarSesion = {},
+            onCancelarCerrarSesion = {},
+            onConfirmarCerrarSesion = {},
+            onConsumirError = {},
+        )
+    }
+}
