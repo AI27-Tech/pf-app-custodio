@@ -44,7 +44,6 @@ import com.ai27.app.custodio.ui.previews.DatosDemo
 
 @Composable
 fun HistorialRoute(
-    onAtras: () -> Unit,
     onVerDetalle: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HistorialViewModel = hiltViewModel(),
@@ -52,7 +51,6 @@ fun HistorialRoute(
     val estado by viewModel.uiState.collectAsState()
     HistorialScreen(
         estado = estado,
-        onAtras = onAtras,
         onFiltroCambio = viewModel::onFiltroCambio,
         onVerDetalle = onVerDetalle,
         modifier = modifier,
@@ -67,14 +65,13 @@ fun HistorialRoute(
 @Composable
 fun HistorialScreen(
     estado: HistorialUiState,
-    onAtras: () -> Unit,
     onFiltroCambio: (String) -> Unit,
     onVerDetalle: (String) -> Unit,
     onReintentar: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        BarraSuperior(titulo = stringResource(R.string.destino_historial), onAtras = onAtras)
+        BarraSuperior(titulo = stringResource(R.string.destino_historial))
 
         OutlinedTextField(
             value = estado.filtroPlaca,
@@ -213,7 +210,6 @@ private fun HistorialVistaClaro() {
                 reportesVisible = listOf(DatosDemo.reporteCerrado, DatosDemo.reporteDescartado),
                 reportesTotales = 2,
             ),
-            onAtras = {},
             onFiltroCambio = {},
             onVerDetalle = {},
         )
@@ -229,7 +225,6 @@ private fun HistorialVistaOscuro() {
                 reportesVisible = listOf(DatosDemo.reporteCerrado, DatosDemo.reporteDescartado),
                 reportesTotales = 2,
             ),
-            onAtras = {},
             onFiltroCambio = {},
             onVerDetalle = {},
         )

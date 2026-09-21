@@ -2,6 +2,23 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 13:34
+
+**Resumen:** La barra superior del Historial pierde la flecha de regreso (es una pestaña de la barra inferior, no una ruta apilada), y el título de `BarraSuperior` gana una altura mínima de 48dp para que las barras sin botón de regreso (Historial y Ajustes) conserven el mismo alto y el mismo padding vertical que las que sí lo tienen, p. ej. Nota de Voz o Captura de evidencia.
+
+**Cambios:**
+
+- `BarraSuperior.kt`: el `Text` del título pasa a `Modifier.weight(1f).heightIn(min = 48.dp)`, igualando el hueco vertical que deja el `IconButton` de regreso: sin él la barra ya no encoge a la altura del texto y el alto/padding vertical queda idéntico al de las barras con botón.
+- `HistorialScreen.kt`: se quita `onAtras` de `HistorialRoute`/`HistorialScreen` y la `BarraSuperior` queda sin flecha de regreso (`BarraSuperior(titulo = ...)`).
+- `AppNavHost.kt`: la ruta `HISTORIAL` deja de pasar `onAtras` a `HistorialRoute`.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/components/BarraSuperior.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/historial/HistorialScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 13:15
 
 **Resumen:** Se corrige el resumen del cierre de viaje, que mostraba siempre 0 fotografías y 0 notas de voz sin importar cuánta evidencia se hubiera capturado. La pantalla de cierre leía los conteos de `reporte.resumenMedios`, un campo que solo se calcula y persiste en el momento de cerrar (`CerrarReporte`), así que durante el viaje activo quedaba en 0/0. Ahora el recuento se calcula en vivo desde la lista real de medios del viaje (`estado.medios`), con la misma lógica que usa `CerrarReporte` al cerrar.

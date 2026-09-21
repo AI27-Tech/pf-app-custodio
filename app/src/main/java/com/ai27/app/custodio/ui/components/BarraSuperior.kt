@@ -28,14 +28,14 @@ import com.ai27.app.custodio.R
  *
  * Sustituye a la `TopAppBar` de Material 3, cuyo manifiesto usa píldoras y estados de
  * superficie que el sistema de diseño no comparte. Es una `Surface` de nivel [MaterialTheme.colorScheme.surface]
- * con trazo inferior, [Column] opcional de flecha de regreso (oculta en la raíz de
- * Reporte) y un espacio de acciones libres al final.
+ * con trazo inferior, flecha de regreso opcional (oculta en la raíz de Reporte) y un
+ * espacio de acciones libres al final.
  */
 @Composable
 fun BarraSuperior(
+    modifier: Modifier = Modifier,
     titulo: String,
     onAtras: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
     acciones: @Composable RowScope.() -> Unit = {},
 ) {
     Surface(
@@ -44,7 +44,7 @@ fun BarraSuperior(
         modifier = modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onAtras != null) {
@@ -64,7 +64,8 @@ fun BarraSuperior(
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
             )
             acciones()
         }

@@ -261,7 +261,6 @@ fun AppNavHost() {
 
             composable(Rutas.HISTORIAL) {
                 HistorialRoute(
-                    onAtras = { navController.popBackStack() },
                     onVerDetalle = { reporteId -> navController.navigate(Rutas.detalle(reporteId)) },
                     modifier = Modifier
                         .fillMaxSize()
