@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.LifecycleCameraController
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.ai27.app.custodio.R
@@ -39,6 +43,8 @@ import com.ai27.app.custodio.ui.captura.VistaCamara
 import com.ai27.app.custodio.ui.captura.tomarFoto
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.DialogoError
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 private data class PermisosCamara(
     val camara: Boolean,
@@ -66,6 +72,11 @@ fun CapturaEvidenciaScreen(
     val context = LocalContext.current
     var controllerCamara by remember { mutableStateOf<LifecycleCameraController?>(null) }
 
+    // En la vista previa (@Preview) no hay cámara ni diálogo de permisos que lanzar;
+    // se simula el visor negro de la pantalla para que el HUD se pueda comparar contra
+    // `captura_de_evidencia_c_mara_visor_negro/screen.png`.
+    val inspeccion = LocalInspectionMode.current
+
     fun permisosActuales(): PermisosCamara = PermisosCamara(
         camara = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED,
@@ -73,13 +84,17 @@ fun CapturaEvidenciaScreen(
             PackageManager.PERMISSION_GRANTED,
     )
 
-    var permisos by remember { mutableStateOf(permisosActuales()) }
+    var permisos by remember {
+        mutableStateOf(
+            if (inspeccion) PermisosCamara(camara = true, mic = true) else permisosActuales(),
+        )
+    }
     val lanzadorPermisos = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { permisos = permisosActuales() }
 
     LaunchedEffect(Unit) {
-        if (!permisos.camara || !permisos.mic) {
+        if (!inspeccion && (!permisos.camara || !permisos.mic)) {
             lanzadorPermisos.launch(
                 arrayOf(
                     Manifest.permission.CAMERA,
@@ -97,10 +112,18 @@ fun CapturaEvidenciaScreen(
 
     Box(modifier.fillMaxSize()) {
         if (permisos.camara) {
-            VistaCamara(
-                alTenerController = { controllerCamara = it },
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (inspeccion) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
+                )
+            } else {
+                VistaCamara(
+                    alTenerController = { controllerCamara = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         } else {
             Surface(
                 modifier = Modifier.fillMaxSize(),
@@ -181,5 +204,45 @@ fun CapturaEvidenciaScreen(
     }
     estado.error?.let { error ->
         DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
+    }
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun CapturaEvidenciaVistaClaro() {
+    Vitrina(oscuro = false) {
+        CapturaEvidenciaScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+            ),
+            onAtras = {},
+            onTomarFoto = { _, _ -> },
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun CapturaEvidenciaVistaOscuro() {
+    Vitrina(oscuro = true) {
+        CapturaEvidenciaScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+            ),
+            onAtras = {},
+            onTomarFoto = { _, _ -> },
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+        )
     }
 }

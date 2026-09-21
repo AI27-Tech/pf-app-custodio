@@ -26,10 +26,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -117,5 +120,41 @@ fun HojaEtiqueta(
                 )
             }
         }
+    }
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun HojaEtiquetaVistaClaro() {
+    Vitrina(oscuro = false) {
+        HojaEtiqueta(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                medioPendienteDeEtiquetar = DatosDemo.mediosViaje.first(),
+                etiquetas = DatosDemo.etiquetas,
+            ),
+            onGuardar = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrar = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun HojaEtiquetaVistaOscuro() {
+    Vitrina(oscuro = true) {
+        HojaEtiqueta(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                medioPendienteDeEtiquetar = DatosDemo.mediosViaje.first(),
+                etiquetas = DatosDemo.etiquetas,
+            ),
+            onGuardar = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrar = {},
+        )
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
@@ -40,6 +41,8 @@ import com.ai27.app.custodio.ui.components.CajaCargaReportes
 import com.ai27.app.custodio.ui.components.CajaErrorHistorial
 import com.ai27.app.custodio.ui.components.ChipEstadoSubida
 import com.ai27.app.custodio.ui.components.RenglonResumen
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 @Composable
 fun DetalleReporteRoute(
@@ -227,3 +230,33 @@ private fun FilaMedio(
 
 private fun nombreEtiqueta(etiquetas: List<Etiqueta>, id: String?): String? =
     id?.let { idBuscado -> etiquetas.firstOrNull { it.id == idBuscado }?.nombre }
+
+@Preview(name = "Claro")
+@Composable
+private fun DetalleReporteVistaClaro() {
+    Vitrina(oscuro = false) {
+        DetalleReporteScreen(
+            estado = DetalleReporteUiState(
+                reporte = DatosDemo.reporteCerrado,
+                medios = DatosDemo.mediosViaje,
+                etiquetas = DatosDemo.etiquetas,
+            ),
+            onAtras = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun DetalleReporteVistaOscuro() {
+    Vitrina(oscuro = true) {
+        DetalleReporteScreen(
+            estado = DetalleReporteUiState(
+                reporte = DatosDemo.reporteCerrado,
+                medios = DatosDemo.mediosViaje,
+                etiquetas = DatosDemo.etiquetas,
+            ),
+            onAtras = {},
+        )
+    }
+}

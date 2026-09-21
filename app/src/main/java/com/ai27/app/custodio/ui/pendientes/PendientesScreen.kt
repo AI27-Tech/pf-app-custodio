@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.EstadoSubida
@@ -23,6 +24,8 @@ import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
 import com.ai27.app.custodio.ui.components.RenglonPendiente
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -104,3 +107,59 @@ private val formateadorHora: DateTimeFormatter = DateTimeFormatter.ofPattern("HH
 
 private fun horaDe(instante: Instant): String =
     formateadorHora.format(instante.atZone(ZoneId.systemDefault()))
+
+@Preview(name = "Claro")
+@Composable
+private fun PendientesVistaClaro() {
+    Vitrina(oscuro = false) {
+        PendientesScreen(
+            pendientes = DatosDemo.mediosPendientes,
+            error = null,
+            onAtras = {},
+            onReintentar = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun PendientesVistaOscuro() {
+    Vitrina(oscuro = true) {
+        PendientesScreen(
+            pendientes = DatosDemo.mediosPendientes,
+            error = null,
+            onAtras = {},
+            onReintentar = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Vacío · Claro")
+@Composable
+private fun PendientesVacioVistaClaro() {
+    Vitrina(oscuro = false) {
+        PendientesScreen(
+            pendientes = emptyList(),
+            error = null,
+            onAtras = {},
+            onReintentar = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Vacío · Oscuro")
+@Composable
+private fun PendientesVacioVistaOscuro() {
+    Vitrina(oscuro = true) {
+        PendientesScreen(
+            pendientes = emptyList(),
+            error = null,
+            onAtras = {},
+            onReintentar = {},
+            onConsumirError = {},
+        )
+    }
+}

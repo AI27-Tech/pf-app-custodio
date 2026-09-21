@@ -13,8 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 /**
  * Diálogo de confirmación de una decisión destructiva o de cierre.
@@ -177,4 +179,114 @@ fun DialogoError(
         },
         modifier = modifier,
     )
+}
+
+@Preview(name = "Confirmación · Claro")
+@Composable
+private fun DialogoConfirmacionVistaClaro() {
+    Vitrina(oscuro = false) {
+        DialogoConfirmacion(
+            visible = true,
+            titulo = stringResource(R.string.archivos_borrar_titulo),
+            texto = stringResource(R.string.archivos_borrar_texto),
+            textoConfirmar = stringResource(R.string.archivos_borrar),
+            onConfirmar = {},
+            onCancelar = {},
+        )
+    }
+}
+
+@Preview(name = "Confirmación · Oscuro")
+@Composable
+private fun DialogoConfirmacionVistaOscuro() {
+    Vitrina(oscuro = true) {
+        DialogoConfirmacion(
+            visible = true,
+            titulo = stringResource(R.string.archivos_borrar_titulo),
+            texto = stringResource(R.string.archivos_borrar_texto),
+            textoConfirmar = stringResource(R.string.archivos_borrar),
+            onConfirmar = {},
+            onCancelar = {},
+        )
+    }
+}
+
+@Preview(name = "Descarte · Claro")
+@Composable
+private fun DialogoDescarteVistaClaro() {
+    Vitrina(oscuro = false) {
+        DialogoDescarte(
+            visible = true,
+            motivo = "Placa registrada equivocada.",
+            descartando = false,
+            onMotivoCambio = {},
+            onConfirmar = {},
+            onCancelar = {},
+        )
+    }
+}
+
+@Preview(name = "Descarte · Oscuro")
+@Composable
+private fun DialogoDescarteVistaOscuro() {
+    Vitrina(oscuro = true) {
+        DialogoDescarte(
+            visible = true,
+            motivo = "Placa registrada equivocada.",
+            descartando = false,
+            onMotivoCambio = {},
+            onConfirmar = {},
+            onCancelar = {},
+        )
+    }
+}
+
+@Preview(name = "Cerrar sesión · Claro")
+@Composable
+private fun DialogoCerrarSesionVistaClaro() {
+    Vitrina(oscuro = false) {
+        DialogoCerrarSesion(
+            visible = true,
+            correo = DatosDemo.custodio.correo,
+            pendientesSinSubir = 2,
+            onConfirmar = {},
+            onCancelar = {},
+        )
+    }
+}
+
+@Preview(name = "Cerrar sesión · Oscuro")
+@Composable
+private fun DialogoCerrarSesionVistaOscuro() {
+    Vitrina(oscuro = true) {
+        DialogoCerrarSesion(
+            visible = true,
+            correo = DatosDemo.custodio.correo,
+            pendientesSinSubir = 2,
+            onConfirmar = {},
+            onCancelar = {},
+        )
+    }
+}
+
+@Preview(name = "Error · Claro")
+@Composable
+private fun DialogoErrorVistaClaro() {
+    Vitrina(oscuro = false) {
+        DialogoError(
+            mensaje = stringResource(R.string.error_sin_conexion),
+            onCerrar = {},
+        )
+    }
+}
+
+@Preview(name = "Error · Oscuro")
+@Composable
+private fun DialogoErrorVistaOscuro() {
+    Vitrina(oscuro = true) {
+        DialogoError(
+            mensaje = stringResource(R.string.error_sin_conexion),
+            onCerrar = {},
+        )
+    }
 }

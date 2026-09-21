@@ -24,9 +24,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 @Composable
 fun LoginRoute(
@@ -116,5 +119,37 @@ fun LoginScreen(
                 Text(stringResource(R.string.login_entrar))
             }
         }
+    }
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun LoginVistaClaro() {
+    Vitrina(oscuro = false) {
+        LoginScreen(
+            estado = LoginUiState(
+                correoEscrito = DatosDemo.custodio.correo,
+                contrasenaEscrita = "clave-segura",
+            ),
+            onCorreoCambio = {},
+            onContrasenaCambio = {},
+            onIniciarSesion = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun LoginVistaOscuro() {
+    Vitrina(oscuro = true) {
+        LoginScreen(
+            estado = LoginUiState(
+                correoEscrito = DatosDemo.custodio.correo,
+                contrasenaEscrita = "clave-segura",
+            ),
+            onCorreoCambio = {},
+            onContrasenaCambio = {},
+            onIniciarSesion = {},
+        )
     }
 }

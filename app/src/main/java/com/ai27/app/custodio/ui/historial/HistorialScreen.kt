@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ai27.app.custodio.R
@@ -38,6 +39,8 @@ import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.CajaCargaReportes
 import com.ai27.app.custodio.ui.components.CajaErrorHistorial
 import com.ai27.app.custodio.ui.components.RenglonReporte
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 @Composable
 fun HistorialRoute(
@@ -195,5 +198,37 @@ internal fun ChipEstado(
                 color = contenido,
             )
         }
+    }
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun HistorialVistaClaro() {
+    Vitrina(oscuro = false) {
+        HistorialScreen(
+            estado = HistorialUiState(
+                reportesVisible = listOf(DatosDemo.reporteCerrado, DatosDemo.reporteDescartado),
+                reportesTotales = 2,
+            ),
+            onAtras = {},
+            onFiltroCambio = {},
+            onVerDetalle = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun HistorialVistaOscuro() {
+    Vitrina(oscuro = true) {
+        HistorialScreen(
+            estado = HistorialUiState(
+                reportesVisible = listOf(DatosDemo.reporteCerrado, DatosDemo.reporteDescartado),
+                reportesTotales = 2,
+            ),
+            onAtras = {},
+            onFiltroCambio = {},
+            onVerDetalle = {},
+        )
     }
 }

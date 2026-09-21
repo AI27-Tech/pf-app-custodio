@@ -2,6 +2,26 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 C7
+
+**Resumen:** Fase C7 (verificación): todas las pantallas ganan `@Preview` en claro y oscuro sobre el lienzo `Vitrina`, con datos de demostración aislados en `ui/previews/`. Cierra el bloque de reproducción del diseño (C1-C7): componentes, pantallas, strings y accesibilidad.
+
+**Cambios:**
+
+- Previews de pantallas (claro + oscuro cada una): `LoginScreen`, `ReporteScreen` (viaje abierto y sin viaje), `CapturaEvidenciaScreen`, `AudioScreen` (grabando), `ArchivosScreen` (rejilla con PENDIENTE/FALLIDA/COMPLETA), `CierreScreen` (con pendientes), `HistorialScreen` (cerrado + descartado), `DetalleReporteScreen`, `PendientesScreen` (cola y vacío) y `AjustesScreen`. Previews nuevas también en `Dialogos.kt` (los 4 diálogos) y `HojaEtiqueta`.
+- Nuevo `ui/previews/DatosDemo.kt`: entidades de dominio ficticias (`Reporte` activo/cerrado/descartado, `Medio` de la rejilla y de la cola, `Etiqueta`, `Custodio`) que solo usan las previews; ningún ViewModel las produce.
+- Para que la preview de captura sea fiel al mockup de "visor negro", `CapturaEvidenciaScreen` detecta el modo de inspección (`LocalInspectionMode`): pinta un visor negro simulado y no pide permisos; en ejecución real no cambia nada.
+- `docs/PLAN.md` §11.9 marcada como hecha. Pendiente manual en dispositivo real: comparar cada preview contra su `screen.png` en Android Studio, escala de texto 130%/200% y revisión a pleno sol y de noche.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/previews/DatosDemo.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/{login,viaje,historial,pendientes,ajustes,captura}/` (previews por pantalla)
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Dialogos.kt` (previews de los 4 diálogos)
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt` (visor negro en modo inspección)
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
 ## 2026:09:21 C6
 
 **Resumen:** Fase C6: todos los strings de la UI salen a `values/strings.xml` (incluidos los `contentDescription`), los errores de dominio pasan de `String?` a recursos `@StringRes` en los UiState, y se corrigen los tres puntos de accesibilidad detectados en la auditoría (mínimos táctiles, chips de ciclo sólo-color y estados de grabación sin descripción).

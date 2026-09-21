@@ -513,12 +513,15 @@ Del checklist de `docs/MOBILE_GUIDELINES.md`, esto es lo que falta y el mockup y
 - **C6 completado:** `values/strings.xml` reescrito de punta a punta (strings por feature, comunes y 4 plurals), `ui/error/DominioErrorRecurso.kt` (mapeo `DominioError` → `@StringRes`, sustituye a `DominioErrorMensaje.kt`, borrado) y `error: String?` → `error: Int?` `@StringRes` en los UiState. Todas las pantallas y ViewModels migran a `stringResource`/`pluralStringResource` (login, reporte, captura, audio, archivos, cierre, hoja de etiquetado, historial, detalle, pendientes, ajustes, diálogos y cajas de estado). Accesibilidad: se quita la pinza `size(28.dp)`/`size(40.dp)` que encogía el área interactiva de los `IconButton` de Archivos y CampoPlaca por debajo de 48dp; `ChipCiclo` ya no es sólo color (icono cheque/alerta/reloj); `BotonGrabacion` publica `contentDescription` distinto al grabar (`boton_grabacion_detener`), que ya no queda huérfano. Compile (`assembleDebug`) y `testDebugUnitTest` verdes.
 - **Pendiente manual (C7):** escala de texto del sistema al 130%/200% y contraste a pleno sol y de noche en dispositivo real.
 
-### 11.9 Fase C7 — Verificación
+### 11.9 Fase C7 — Verificación ✅ hecha (2026-09-21)
 
 - `@Preview` en claro y oscuro de cada componente y cada pantalla; comparar contra el `screen.png` correspondiente.
 - `./gradlew testDebugUnitTest` en verde. Los tests de dominio no deberían tocarse: este trabajo es de presentación.
 - Revisión en dispositivo real **a pleno sol y de noche**, que es la condición que justifica los dos temas.
 - Entrada en `CHANGELOG.md` por cada fase, según `.kiro/steering/changelog.md`.
+
+- **C7 completado:** todas las pantallas pasan a tener `@Preview` en claro y oscuro sobre `Vitrina` (el mismo lienzo de la biblioteca de C2): login, reporte (abierto y sin viaje), captura de evidencia, nota de voz en grabación, archivos (rejilla con pendiente/fallida/completa), cierre con pendientes, historial (cerrado + descartado), detalle, pendientes (con cola y vacío) y ajustes. `DatosDemo` (`ui/previews/`) alimenta las previews con entidades de dominio ficticias; ningún ViewModel las produce. También reciben previews dos componentes que quedaban fuera del inventario de C2: los cuatro diálogos de `Dialogos.kt` y `HojaEtiqueta`. Para que la preview de captura sea fiel al mockup (visor negro) y no intente abrir cámara ni pedir permisos, `CapturaEvidenciaScreen` distingue el modo de inspección (`LocalInspectionMode`) y pinta un visor negro simulado; en dispositivo el comportamiento no cambia. Compile (`assembleDebug`) y `testDebugUnitTest` verdes; los tests de dominio no se tocaron.
+- **Pendiente manual (dispositivo real):** comparar cada preview contra su `screen.png` en la IDE (este agente no procesa imágenes), recorrer el flujo completo a pleno sol y de noche con los dos temas, y validar la escala de texto del sistema al 130%/200%.
 
 ### 11.10 Lo que no se implementa, aunque aparezca dibujado
 

@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.ai27.app.custodio.R
@@ -44,6 +45,8 @@ import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.DialogoConfirmacion
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 import java.io.File
 
 /**
@@ -213,5 +216,43 @@ private fun CeldaArchivo(
                 )
             }
         }
+    }
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun ArchivosVistaClaro() {
+    Vitrina(oscuro = false) {
+        ArchivosScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+            ),
+            onAtras = {},
+            onBorrarPendiente = {},
+            onReintentar = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun ArchivosVistaOscuro() {
+    Vitrina(oscuro = true) {
+        ArchivosScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+            ),
+            onAtras = {},
+            onBorrarPendiente = {},
+            onReintentar = {},
+            onConsumirError = {},
+        )
     }
 }

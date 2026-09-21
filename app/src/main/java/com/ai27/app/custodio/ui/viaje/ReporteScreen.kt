@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
@@ -35,6 +36,8 @@ import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
 import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.HojaInferior
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 /**
  * Pestaña Reporte: la raíz del flujo de captura (`reporte_abierto` / `reporte_sin_reporte_abierto`).
@@ -348,5 +351,93 @@ private fun FilaArchivos(
                 modifier = Modifier.size(20.dp),
             )
         }
+    }
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun ReporteAbiertoVistaClaro() {
+    Vitrina(oscuro = false) {
+        ReporteScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+                pendientesSinSubir = 2,
+            ),
+            conectado = true,
+            onPlacaCambio = {},
+            onIniciarViaje = {},
+            onIrACaptura = {},
+            onIrAAudio = {},
+            onIrAArchivos = {},
+            onIrACierre = {},
+            onIrAPendientes = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun ReporteAbiertoVistaOscuro() {
+    Vitrina(oscuro = true) {
+        ReporteScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+                pendientesSinSubir = 2,
+            ),
+            conectado = true,
+            onPlacaCambio = {},
+            onIniciarViaje = {},
+            onIrACaptura = {},
+            onIrAAudio = {},
+            onIrAArchivos = {},
+            onIrACierre = {},
+            onIrAPendientes = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Sin viaje · Claro")
+@Composable
+private fun ReporteSinViajeVistaClaro() {
+    Vitrina(oscuro = false) {
+        ReporteScreen(
+            estado = CapturaUiState(custodio = DatosDemo.custodio),
+            conectado = true,
+            onPlacaCambio = {},
+            onIniciarViaje = {},
+            onIrACaptura = {},
+            onIrAAudio = {},
+            onIrAArchivos = {},
+            onIrACierre = {},
+            onIrAPendientes = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Sin viaje · Oscuro")
+@Composable
+private fun ReporteSinViajeVistaOscuro() {
+    Vitrina(oscuro = true) {
+        ReporteScreen(
+            estado = CapturaUiState(custodio = DatosDemo.custodio),
+            conectado = true,
+            onPlacaCambio = {},
+            onIniciarViaje = {},
+            onIrACaptura = {},
+            onIrAAudio = {},
+            onIrAArchivos = {},
+            onIrACierre = {},
+            onIrAPendientes = {},
+            onConsumirError = {},
+        )
     }
 }

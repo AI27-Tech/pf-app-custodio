@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
@@ -32,6 +33,8 @@ import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.RenglonResumen
 import com.ai27.app.custodio.ui.components.RenglonSwitch
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 
 /**
  * Pantalla de cierre de viaje (`cerrar_reporte_estructura`).
@@ -195,4 +198,44 @@ private fun formatearCierre(segundos: Long): String {
     val min = segundos / 60
     val seg = segundos % 60
     return "%d:%02d".format(min, seg)
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun CierreVistaClaro() {
+    Vitrina(oscuro = false) {
+        CierreScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+                pendientesSinSubir = 1,
+            ),
+            onAtras = {},
+            onCerrarViaje = { _, _ -> },
+            onDescartarViaje = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun CierreVistaOscuro() {
+    Vitrina(oscuro = true) {
+        CierreScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje,
+                pendientesSinSubir = 1,
+            ),
+            onAtras = {},
+            onCerrarViaje = { _, _ -> },
+            onDescartarViaje = {},
+            onConsumirError = {},
+        )
+    }
 }

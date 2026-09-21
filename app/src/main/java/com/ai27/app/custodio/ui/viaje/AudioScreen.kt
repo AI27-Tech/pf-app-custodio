@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
@@ -23,6 +24,8 @@ import com.ai27.app.custodio.ui.components.BotonGrabacion
 import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.FranjaAviso
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 import com.ai27.app.custodio.ui.theme.TabularNumberStyle
 
 /**
@@ -125,4 +128,50 @@ private fun formatearDuracion(segundos: Long): String {
     val min = segundos / 60
     val seg = segundos % 60
     return "%d:%02d".format(min, seg)
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun AudioVistaClaro() {
+    Vitrina(oscuro = false) {
+        AudioScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                grabandoAudio = true,
+                segundosAudio = 187L,
+            ),
+            onAtras = {},
+            onIniciarAudio = {},
+            onDetenerAudio = {},
+            onDescartarAudio = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun AudioVistaOscuro() {
+    Vitrina(oscuro = true) {
+        AudioScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                grabandoAudio = true,
+                segundosAudio = 187L,
+            ),
+            onAtras = {},
+            onIniciarAudio = {},
+            onDetenerAudio = {},
+            onDescartarAudio = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+        )
+    }
 }

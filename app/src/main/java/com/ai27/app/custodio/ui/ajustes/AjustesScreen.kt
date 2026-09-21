@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ai27.app.custodio.R
@@ -27,6 +28,8 @@ import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.RenglonResumen
 import com.ai27.app.custodio.ui.components.RenglonSwitch
+import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.previews.DatosDemo
 import com.ai27.app.custodio.ui.theme.LocalCambiarTemaOscuro
 import com.ai27.app.custodio.ui.theme.LocalTemaOscuro
 
@@ -139,4 +142,42 @@ private fun TituloSeccion(texto: String) {
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(top = 4.dp),
     )
+}
+
+@Preview(name = "Claro")
+@Composable
+private fun AjustesVistaClaro() {
+    Vitrina(oscuro = false) {
+        AjustesScreen(
+            estado = AjustesUiState(
+                custodio = DatosDemo.custodio,
+                pendientesSinSubir = 0,
+            ),
+            oscuro = false,
+            onCambiarTema = {},
+            onSolicitarCerrarSesion = {},
+            onCancelarCerrarSesion = {},
+            onConfirmarCerrarSesion = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Oscuro")
+@Composable
+private fun AjustesVistaOscuro() {
+    Vitrina(oscuro = true) {
+        AjustesScreen(
+            estado = AjustesUiState(
+                custodio = DatosDemo.custodio,
+                pendientesSinSubir = 0,
+            ),
+            oscuro = true,
+            onCambiarTema = {},
+            onSolicitarCerrarSesion = {},
+            onCancelarCerrarSesion = {},
+            onConfirmarCerrarSesion = {},
+            onConsumirError = {},
+        )
+    }
 }
