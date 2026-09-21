@@ -6,7 +6,6 @@ import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
-import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.error.aMensajeUsuario
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.EstadoSubida
@@ -296,12 +295,16 @@ class CapturaViewModel @Inject constructor(
         }
     }
 
-    fun cerrarViaje() {
+    fun cerrarViaje(comentario: String?, hayNovedad: Boolean) {
         val reporte = uiState.value.reporte ?: return
         if (interno.value.cerrandoViaje) return
         viewModelScope.launch {
             interno.update { it.copy(cerrandoViaje = true, error = null) }
-            val resultado = cerrarReporte(reporte.id)
+            val resultado = cerrarReporte(
+                reporteId = reporte.id,
+                comentario = comentario?.trim()?.ifEmpty { null },
+                hayNovedad = hayNovedad,
+            )
             interno.update {
                 when (resultado) {
                     is Result.Success -> {
@@ -334,37 +337,6 @@ class CapturaViewModel @Inject constructor(
 
     fun consumirError() {
         interno.update { it.copy(error = null) }
-    }
-
-    fun solicitarCerrarSesion() {
-        val pendientes = uiState.value.pendientesSinSubir
-        if (pendientes > 0) {
-            interno.update { it.copy(confirmacionCerrarSesion = true) }
-        } else {
-            ejecutarCierreSesion()
-        }
-    }
-
-    fun cancelarCerrarSesion() {
-        interno.update { it.copy(confirmacionCerrarSesion = false) }
-    }
-
-    fun confirmarCerrarSesion() {
-        interno.update { it.copy(confirmacionCerrarSesion = false) }
-        ejecutarCierreSesion()
-    }
-
-    private fun ejecutarCierreSesion() {
-        if (interno.value.cerrandoSesion) return
-        viewModelScope.launch {
-            interno.update { it.copy(cerrandoSesion = true, error = null) }
-            when (val resultado = sesionRepositorio.cerrarSesion()) {
-                is Result.Success -> interno.update { it.copy(cerrandoSesion = false) }
-                is Result.Failure -> interno.update {
-                    it.copy(cerrandoSesion = false, error = resultado.error.aMensajeUsuario())
-                }
-            }
-        }
     }
 
     private suspend fun obtenerGpsLinear(): Gps? = try {

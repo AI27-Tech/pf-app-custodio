@@ -5,26 +5,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,7 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.Reporte
-import com.ai27.app.custodio.ui.components.ChipEstadoSubida
+import com.ai27.app.custodio.ui.components.BarraSuperior
+import com.ai27.app.custodio.ui.components.CajaCargaReportes
+import com.ai27.app.custodio.ui.components.CajaErrorHistorial
+import com.ai27.app.custodio.ui.components.RenglonReporte
 
 @Composable
 fun HistorialRoute(
@@ -54,143 +47,87 @@ fun HistorialRoute(
     )
 }
 
+/**
+ * Pestaña de historial: últimos 30 días en `CERRADO`/`DESCARTADO`, solo lectura, con
+ * buscador por placa. Renglones reutilizando [RenglonReporte] con el ciclo como distintivo;
+ * el conteo de pendientes vive en el badge de la barra inferior.
+ */
 @Composable
 fun HistorialScreen(
     estado: HistorialUiState,
     onAtras: () -> Unit,
     onFiltroCambio: (String) -> Unit,
     onVerDetalle: (String) -> Unit,
+    onReintentar: () -> Unit = {},
 ) {
-    Scaffold { padding ->
-        Column(
+    Column(modifier = Modifier.fillMaxSize()) {
+        BarraSuperior(titulo = "Historial", onAtras = onAtras)
+
+        OutlinedTextField(
+            value = estado.filtroPlaca,
+            onValueChange = onFiltroCambio,
+            label = { Text("Buscar por placa") },
+            leadingIcon = {
+                Icon(Icons.Filled.Search, contentDescription = null)
+            },
+            singleLine = true,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            EncabezadoHistorial(
-                pendientesSinSubir = estado.pendientesSinSubir,
-                onAtras = onAtras,
-            )
-            OutlinedTextField(
-                value = estado.filtroPlaca,
-                onValueChange = onFiltroCambio,
-                label = { Text("Buscar por placa") },
-                leadingIcon = {
-                    Icon(Icons.Filled.Search, contentDescription = null)
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            when {
-                estado.reportesTotales == 0 -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "Sin viajes en los últimos 30 días.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-                }
-
-                estado.reportesVisible.isEmpty() -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "Ningún viaje coincide con «${estado.filtroPlaca}».",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-                }
-
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(estado.reportesVisible, key = { it.id }) { reporte ->
-                        TarjetaReporte(
-                            reporte = reporte,
-                            onClick = { onVerDetalle(reporte.id) },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EncabezadoHistorial(
-    pendientesSinSubir: Int,
-    onAtras: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onAtras) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-        }
-        Text(
-            text = "Historial",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.weight(1f),
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
         )
-        if (pendientesSinSubir > 0) {
-            ChipEstado(
-                texto = "$pendientesSinSubir sin subir",
-                contenedor = MaterialTheme.colorScheme.errorContainer,
-                contenido = MaterialTheme.colorScheme.onErrorContainer,
+
+        when {
+            estado.reportesTotales == 0 -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Sin viajes en los últimos 30 días.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+
+            estado.reportesVisible.isEmpty() -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Ningún viaje coincide con «${estado.filtroPlaca}».",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+
+            estado.cargando -> CajaCargaReportes()
+
+            estado.error != null -> CajaErrorHistorial(
+                mensaje = estado.error,
+                onReintentar = onReintentar,
             )
-            Spacer(Modifier.width(12.dp))
+
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(estado.reportesVisible, key = { it.id }) { reporte ->
+                    RenglonReporte(
+                        placas = reporte.placasCapturadas,
+                        detalle = detalleDe(reporte),
+                        estado = reporte.subida,
+                        onClick = { onVerDetalle(reporte.id) },
+                        distintivo = { ChipCiclo(reporte.ciclo) },
+                    )
+                }
+            }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TarjetaReporte(
-    reporte: Reporte,
-    onClick: () -> Unit,
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = reporte.placasCapturadas,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        text = "Viaje del ${reporte.fechaLocal}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-                }
-                ChipCiclo(reporte.ciclo)
-                Spacer(Modifier.width(6.dp))
-                ChipEstadoSubida(reporte.subida)
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "${reporte.mediosSubidos} de ${reporte.mediosEsperados ?: 0} enviados" +
-                    (reporte.motivoDescarte?.let { " · ${it}" }.orEmpty()),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline,
-                maxLines = 1,
-            )
-        }
-    }
-}
+private fun detalleDe(reporte: Reporte): String =
+    "Viaje del ${reporte.fechaLocal} · ${reporte.mediosSubidos} de ${reporte.mediosEsperados ?: 0} enviados" +
+        (reporte.motivoDescarte?.let { " · $it" }.orEmpty())
 
 @Composable
 internal fun ChipCiclo(ciclo: Ciclo) {

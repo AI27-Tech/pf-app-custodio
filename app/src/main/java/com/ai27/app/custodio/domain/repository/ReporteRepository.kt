@@ -18,6 +18,7 @@ interface ReporteRepository {
         reporteId: String,
         closedAt: Instant,
         comentario: String?,
+        hayNovedad: Boolean,
         resumen: ResumenMedios,
         mediosEsperados: Int,
     ): Result<Reporte>

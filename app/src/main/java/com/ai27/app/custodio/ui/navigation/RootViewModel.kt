@@ -3,6 +3,7 @@ package com.ai27.app.custodio.ui.navigation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.domain.model.Custodio
+import com.ai27.app.custodio.data.conectividad.ConectividadMonitor
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -21,7 +22,15 @@ data class EstadoRaiz(
 @HiltViewModel
 class RootViewModel @Inject constructor(
     sesionRepositorio: SesionRepositorio,
+    conectividadMonitor: ConectividadMonitor,
 ) : ViewModel() {
+
+    val conectado: StateFlow<Boolean> = conectividadMonitor.observadorConectividad()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = true,
+        )
 
     val estado: StateFlow<EstadoRaiz> = sesionRepositorio.observarCustodio()
         .map { custodio ->

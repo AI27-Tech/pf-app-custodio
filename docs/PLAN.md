@@ -475,6 +475,8 @@ Del checklist de `docs/MOBILE_GUIDELINES.md`, esto es lo que falta y el mockup y
 - **Feedback.** No hay `Snackbar` en toda la app. Las confirmaciones de captura y de reintento no avisan nada.
 - **Progreso de subida.** No hay barra ni porcentaje, sólo chips de estado.
 
+
+- **C5 completado:** `CajaCargaReportes`/`CajaErrorHistorial` viven una sola vez en `ui/components/CajasEstado.kt` (canónico, con previews); podadas de `Avisos.kt` junto con sus imports duplicados; `HistorialScreen`/`DetalleReporteScreen` las importan y cablean `titulo`/`mensaje`/`onReintentar`. `HistorialViewModel` con `map`/`onStart`/`catch`; interface `ConectividadMonitor` en `data/conectividad/` con `Flow`. `FakeConectividadMonitor` en tests importa la interface canónica. Compile (`assembleDebug`) y `testDebugUnitTest` verdes.
 ### 11.8 Fase C6 — Strings y accesibilidad
 
 `strings.xml` tiene una sola entrada y todo el texto de UI está embebido como literales Kotlin, incluidos los `contentDescription`. Antes de dar por terminado el rediseño:
@@ -513,3 +515,4 @@ C1 tokens y tema ──► C2 componentes ──► C3 navegación y descomposic
 ```
 
 C2 puede empezar en cuanto C1 tenga los tokens, aunque falten formas y tipografía. C3 no depende de C2 para la parte de navegación, así que la barra inferior y los destinos nuevos se pueden adelantar. C5 y C6 son transversales y se cierran al final, no pantalla por pantalla.
+

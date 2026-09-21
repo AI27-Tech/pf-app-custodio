@@ -11,23 +11,22 @@ import com.ai27.app.custodio.domain.repository.ReporteRepository
 import com.ai27.app.custodio.domain.usecase.ObtenerEtiquetas
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
-
-data class DetalleReporteUiState(
-    val reporte: Reporte? = null,
-    val medios: List<Medio> = emptyList(),
-    val etiquetas: List<Etiqueta> = emptyList(),
-)
+import kotlinx.coroutines.flow.flowOf
 
 @HiltViewModel
 class DetalleReporteViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    reporteRepository: ReporteRepository,
+    private val reporteRepository: ReporteRepository,
     medioRepository: MedioRepository,
     obtenerEtiquetas: ObtenerEtiquetas,
 ) : ViewModel() {
@@ -43,19 +42,38 @@ class DetalleReporteViewModel @Inject constructor(
         }
     }
 
-    val uiState: StateFlow<DetalleReporteUiState> = combine(
-        reporteRepository.observarPorId(reporteId),
-        medioRepository.observarDelReporte(reporteId),
-        catalogoEtiquetas,
-    ) { reporte, medios, etiquetas ->
-        DetalleReporteUiState(
-            reporte = reporte,
-            medios = medios,
-            etiquetas = etiquetas,
+    /** Contador de reintentos: cada incremento re-dispara la carga (falla → error → reintentar). */
+    private val reintentos = MutableStateFlow(0)
+
+    private val carga = reintentos.flatMapLatest { _ ->
+        combine(
+            reporteRepository.observarPorId(reporteId),
+            medioRepository.observarDelReporte(reporteId),
+            catalogoEtiquetas,
+        ) { reporte, medios, etiquetas ->
+            DetalleReporteUiState(
+                reporte = reporte,
+                medios = medios,
+                etiquetas = etiquetas,
+                cargando = false,
+            )
+        }.catch { e ->
+            emit(
+                DetalleReporteUiState(
+                    error = e.message ?: "No se pudo cargar el detalle.",
+                ),
+            )
+        }
+    }
+
+    val uiState: StateFlow<DetalleReporteUiState> = carga
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DetalleReporteUiState(cargando = true),
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = DetalleReporteUiState(),
-    )
+
+    fun onReintentar() {
+        reintentos.value += 1
+    }
 }

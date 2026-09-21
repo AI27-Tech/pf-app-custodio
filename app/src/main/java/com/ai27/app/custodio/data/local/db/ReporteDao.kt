@@ -32,6 +32,7 @@ interface ReporteDao {
 
     @Query(
         "UPDATE reportes SET ciclo = 'CERRADO', closedAt = :closedAt, comentario = :comentario, " +
+            "hayNovedad = :hayNovedad, " +
             "mediosEsperados = :mediosEsperados, fotos = :fotos, audios = :audios, durationMsTotal = :durationMsTotal " +
             "WHERE id = :id AND ciclo = 'ACTIVO'",
     )
@@ -39,6 +40,7 @@ interface ReporteDao {
         id: String,
         closedAt: Long,
         comentario: String?,
+        hayNovedad: Boolean,
         mediosEsperados: Int,
         fotos: Int,
         audios: Int,

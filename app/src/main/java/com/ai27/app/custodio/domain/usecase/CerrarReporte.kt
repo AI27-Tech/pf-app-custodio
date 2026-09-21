@@ -15,7 +15,11 @@ class CerrarReporte(
     private val medioRepository: MedioRepository,
     private val ahora: () -> Instant = { Instant.now() },
 ) {
-    suspend operator fun invoke(reporteId: String, comentario: String? = null): Result<Reporte> {
+    suspend operator fun invoke(
+        reporteId: String,
+        comentario: String? = null,
+        hayNovedad: Boolean = false,
+    ): Result<Reporte> {
         val reporte = reporteRepository.obtenerPorId(reporteId)
             ?: return Result.Failure(DominioError.ReporteNoEncontrado)
         if (reporte.ciclo != Ciclo.ACTIVO) {
@@ -35,6 +39,13 @@ class CerrarReporte(
             audios = medios.count { it.tipo == TipoMedio.AUDIO },
             durationMsTotal = medios.sumOf { it.durationMs ?: 0L },
         )
-        return reporteRepository.cerrar(reporteId, ahora(), comentario, resumen, medios.size)
+        return reporteRepository.cerrar(
+            reporteId = reporteId,
+            closedAt = ahora(),
+            comentario = comentario,
+            hayNovedad = hayNovedad,
+            resumen = resumen,
+            mediosEsperados = medios.size,
+        )
     }
 }

@@ -50,6 +50,7 @@ class FakeReporteRepository(
         reporteId: String,
         closedAt: Instant,
         comentario: String?,
+        hayNovedad: Boolean,
         resumen: ResumenMedios,
         mediosEsperados: Int,
     ): Result<Reporte> {
@@ -71,6 +72,7 @@ class FakeReporteRepository(
             ciclo = Ciclo.CERRADO,
             closedAt = closedAt,
             comentario = comentario,
+            hayNovedad = hayNovedad,
             completo = true,
             mediosEsperados = mediosEsperados,
             mediosSubidos = mediosEsperados,

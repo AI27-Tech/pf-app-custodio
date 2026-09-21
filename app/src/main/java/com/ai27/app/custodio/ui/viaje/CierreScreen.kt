@@ -34,15 +34,15 @@ import com.ai27.app.custodio.ui.components.RenglonSwitch
  * Pantalla de cierre de viaje (`cerrar_reporte_estructura`).
  *
  * Resumen de lo capturado, interruptor de novedad y comentario opcionales, y las dos
- * salidas: cerrar (confirmación) o descartar (motivo obligatorio). El interruptor y el
- * comentario se conservan localmente en C3; el cableado al reporte corre en C4.
- * Al cerrar/descartar con éxito el reporte queda nulo y la pantalla vuelve a Reporte.
+ * salidas: cerrar (confirmación) o descartar (motivo obligatorio). Al cerrar, la novedad
+ * y el comentario se persisten junto con el reporte; al cerrar/descartar con éxito el
+ * reporte queda nulo y la pantalla vuelve a Reporte.
  */
 @Composable
 fun CierreScreen(
     estado: CapturaUiState,
     onAtras: () -> Unit,
-    onCerrarViaje: () -> Unit,
+    onCerrarViaje: (comentario: String?, hayNovedad: Boolean) -> Unit,
     onDescartarViaje: (motivo: String) -> Unit,
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
@@ -134,7 +134,7 @@ fun CierreScreen(
         textoConfirmarProcesando = if (estado.cerrandoViaje) "Cerrando…" else null,
         confirmarHabilitado = !estado.cerrandoViaje,
         onConfirmar = {
-            onCerrarViaje()
+            onCerrarViaje(comentario.trim().ifEmpty { null }, novedad)
             mostrarConfirmacionCierre = false
         },
         onCancelar = { mostrarConfirmacionCierre = false },

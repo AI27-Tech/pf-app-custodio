@@ -6,7 +6,8 @@ data class HistorialUiState(
     val reportesVisible: List<Reporte> = emptyList(),
     val reportesTotales: Int = 0,
     val filtroPlaca: String = "",
-    val pendientesSinSubir: Int = 0,
+    val cargando: Boolean = false,
+    val error: String? = null,
 )
 
 fun filtrarPorPlaca(reportes: List<Reporte>, consulta: String): List<Reporte> {

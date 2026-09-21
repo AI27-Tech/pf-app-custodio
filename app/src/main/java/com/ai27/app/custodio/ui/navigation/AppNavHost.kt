@@ -25,7 +25,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.ai27.app.custodio.ui.ajustes.AjustesScreen
+import com.ai27.app.custodio.ui.ajustes.AjustesRoute
 import com.ai27.app.custodio.ui.captura.CapturaViewModel
 import com.ai27.app.custodio.ui.components.BarraNavegacion
 import com.ai27.app.custodio.ui.components.DestinoInferior
@@ -121,6 +121,7 @@ fun AppNavHost() {
                     val estado by viewModel.uiState.collectAsState()
                     ReporteScreen(
                         estado = estado,
+                        conectado = rootViewModel.conectado.collectAsState().value,
                         onPlacaCambio = viewModel::onPlacaCambio,
                         onIniciarViaje = viewModel::iniciarViaje,
                         onIrACaptura = { navController.navigate(Rutas.CAPTURA) },
@@ -128,9 +129,6 @@ fun AppNavHost() {
                         onIrAArchivos = { navController.navigate(Rutas.ARCHIVOS) },
                         onIrACierre = { navController.navigate(Rutas.CIERRE) },
                         onIrAPendientes = { navController.navigate(Rutas.PENDIENTES) },
-                        onSolicitarCerrarSesion = viewModel::solicitarCerrarSesion,
-                        onCancelarCerrarSesion = viewModel::cancelarCerrarSesion,
-                        onConfirmarCerrarSesion = viewModel::confirmarCerrarSesion,
                         onConsumirError = viewModel::consumirError,
                         modifier = Modifier
                             .fillMaxSize()
@@ -243,7 +241,7 @@ fun AppNavHost() {
             }
 
             composable(Rutas.AJUSTES) {
-                AjustesScreen(
+                AjustesRoute(
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding(),

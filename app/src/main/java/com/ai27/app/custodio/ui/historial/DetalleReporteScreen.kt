@@ -15,12 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,7 +34,11 @@ import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.ui.components.BarraSuperior
+import com.ai27.app.custodio.ui.components.CajaCargaReportes
+import com.ai27.app.custodio.ui.components.CajaErrorHistorial
 import com.ai27.app.custodio.ui.components.ChipEstadoSubida
+import com.ai27.app.custodio.ui.components.RenglonResumen
 
 @Composable
 fun DetalleReporteRoute(
@@ -56,69 +56,65 @@ fun DetalleReporteRoute(
 fun DetalleReporteScreen(
     estado: DetalleReporteUiState,
     onAtras: () -> Unit,
+    onReintentar: () -> Unit = {},
 ) {
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    Column(modifier = Modifier.fillMaxSize()) {
+        BarraSuperior(titulo = "Detalle del viaje", onAtras = onAtras)
+
+        if (estado.cargando) {
+            CajaCargaReportes(titulo = "Cargando detalle…")
+            return
+        }
+
+        val error = estado.error
+        if (error != null) {
+            CajaErrorHistorial(
+                mensaje = error,
+                onReintentar = onReintentar,
+            )
+            return
+        }
+
+        val reporte = estado.reporte
+        if (reporte == null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
             ) {
-                IconButton(onClick = onAtras) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                }
                 Text(
-                    text = "Detalle del viaje",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = "No se encontró el viaje.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
                 )
             }
-
-            val reporte = estado.reporte
-            if (reporte == null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item(key = "cabeza") { CabezaDetalle(reporte) }
+                item(key = "titulo-medios") {
                     Text(
-                        text = "No se encontró el viaje.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
+                        text = "Archivos (${estado.medios.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item(key = "cabeza") { CabezaDetalle(reporte) }
-                    item(key = "titulo-medios") {
+                if (estado.medios.isEmpty()) {
+                    item(key = "sin-medios") {
                         Text(
-                            text = "Archivos (${estado.medios.size})",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 8.dp),
+                            text = "Sin archivos en este viaje.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
                         )
                     }
-                    if (estado.medios.isEmpty()) {
-                        item(key = "sin-medios") {
-                            Text(
-                                text = "Sin archivos en este viaje.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.outline,
-                            )
-                        }
-                    } else {
-                        items(estado.medios, key = { it.id }) { medio ->
-                            FilaMedio(
-                                medio = medio,
-                                nombreEtiqueta = nombreEtiqueta(estado.etiquetas, medio.etiqueta),
-                            )
-                        }
+                } else {
+                    items(estado.medios, key = { it.id }) { medio ->
+                        FilaMedio(
+                            medio = medio,
+                            nombreEtiqueta = nombreEtiqueta(estado.etiquetas, medio.etiqueta),
+                        )
                     }
                 }
             }
@@ -151,9 +147,9 @@ private fun CabezaDetalle(reporte: Reporte) {
                 ChipEstadoSubida(reporte.subida)
             }
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = "${reporte.mediosSubidos} de ${reporte.mediosEsperados ?: 0} enviados",
-                style = MaterialTheme.typography.bodyMedium,
+            RenglonResumen(
+                etiqueta = "Archivos enviados",
+                valor = "${reporte.mediosSubidos} de ${reporte.mediosEsperados ?: 0}",
             )
             reporte.comentario?.let { comentario ->
                 Spacer(Modifier.height(4.dp))

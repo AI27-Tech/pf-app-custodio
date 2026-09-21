@@ -54,6 +54,7 @@ class RoomReporteRepository(
         reporteId: String,
         closedAt: Instant,
         comentario: String?,
+        hayNovedad: Boolean,
         resumen: ResumenMedios,
         mediosEsperados: Int,
     ): Result<Reporte> {
@@ -61,6 +62,7 @@ class RoomReporteRepository(
             id = reporteId,
             closedAt = closedAt.toEpochMilli(),
             comentario = comentario,
+            hayNovedad = hayNovedad,
             mediosEsperados = mediosEsperados,
             fotos = resumen.fotos,
             audios = resumen.audios,

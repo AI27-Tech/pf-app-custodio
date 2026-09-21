@@ -10,14 +10,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -28,21 +29,23 @@ import com.ai27.app.custodio.ui.components.BotonPendientes
 import com.ai27.app.custodio.ui.components.BotonPrimario
 import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.CampoPlaca
-import com.ai27.app.custodio.ui.components.DialogoCerrarSesion
 import com.ai27.app.custodio.ui.components.DialogoError
+import com.ai27.app.custodio.ui.components.EstadoVacio
 import com.ai27.app.custodio.ui.components.FranjaAviso
+import com.ai27.app.custodio.ui.components.HojaInferior
 
 /**
  * Pestaña Reporte: la raíz del flujo de captura (`reporte_abierto` / `reporte_sin_reporte_abierto`).
  *
- * Sin viaje abierto muestra la tarjeta de nuevo viaje con el campo de placa; con viaje
- * abierto, el encabezado de la unidad, el contador y las tres llamadas del sistema:
- * capturar evidencia, nota de voz y archivos. La sesión (correo y salida) vive aquí en C3;
- * C4 la mueve a la pantalla de Ajustes.
+ * Sin viaje abierto muestra el estado vacío con el botón que abre la hoja de nuevo viaje
+ * (placa); con viaje abierto, el encabezado de la unidad, el contador y las tres llamadas
+ * del sistema: capturar evidencia, nota de voz y archivos. La sesión (correo y salida)
+ * vive en Ajustes desde C4.
  */
 @Composable
 fun ReporteScreen(
     estado: CapturaUiState,
+    conectado: Boolean,
     onPlacaCambio: (String) -> Unit,
     onIniciarViaje: () -> Unit,
     onIrACaptura: () -> Unit,
@@ -50,17 +53,10 @@ fun ReporteScreen(
     onIrAArchivos: () -> Unit,
     onIrACierre: () -> Unit,
     onIrAPendientes: () -> Unit,
-    onSolicitarCerrarSesion: () -> Unit,
-    onCancelarCerrarSesion: () -> Unit,
-    onConfirmarCerrarSesion: () -> Unit,
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
-        BarraSesion(
-            correo = estado.custodio?.correo.orEmpty(),
-            onCerrarSesion = onSolicitarCerrarSesion,
-        )
         val reporte = estado.reporte
         if (reporte == null) {
             SinReporte(
@@ -71,6 +67,7 @@ fun ReporteScreen(
         } else {
             ReporteAbierto(
                 estado = estado,
+                conectado = conectado,
                 onIrACaptura = onIrACaptura,
                 onIrAAudio = onIrAAudio,
                 onIrAArchivos = onIrAArchivos,
@@ -80,44 +77,8 @@ fun ReporteScreen(
         }
     }
 
-    DialogoCerrarSesion(
-        correo = estado.custodio?.correo.orEmpty(),
-        pendientesSinSubir = estado.pendientesSinSubir,
-        onConfirmar = onConfirmarCerrarSesion,
-        onCancelar = onCancelarCerrarSesion,
-        visible = estado.confirmacionCerrarSesion,
-    )
     estado.error?.let { mensaje ->
         DialogoError(mensaje = mensaje, onCerrar = onConsumirError)
-    }
-}
-
-@Composable
-private fun BarraSesion(
-    correo: String,
-    onCerrarSesion: () -> Unit,
-) {
-    if (correo.isBlank()) return
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = correo,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.outline,
-            maxLines = 1,
-            modifier = Modifier.weight(1f),
-        )
-        IconButton(onClick = onCerrarSesion) {
-            Icon(
-                Icons.Filled.ExitToApp,
-                contentDescription = "Cerrar sesión",
-                tint = MaterialTheme.colorScheme.outline,
-            )
-        }
     }
 }
 
@@ -127,38 +88,63 @@ private fun SinReporte(
     onPlacaCambio: (String) -> Unit,
     onIniciarViaje: () -> Unit,
 ) {
+    var mostrarHoja by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(48.dp))
-        Text(
-            text = "App Custodio",
-            style = MaterialTheme.typography.headlineMedium,
+        Spacer(Modifier.weight(1f))
+        EstadoVacio(
+            titulo = "Sin reporte activo",
+            descripcion = "Inicia un nuevo reporte de viaje para registrar evidencias y trayecto.",
         )
-        Text(
-            text = "Aún no hay un viaje en curso.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(Modifier.height(16.dp))
-        CampoPlaca(
-            valor = estado.placaEscrita,
-            onValorCambia = onPlacaCambio,
-        )
+        Spacer(Modifier.weight(1f))
         BotonPrimario(
-            texto = if (estado.creandoViaje) "Creando viaje…" else "Comenzar viaje",
-            onClick = onIniciarViaje,
-            habilitado = !estado.creandoViaje && estado.placaEscrita.isNotBlank(),
+            texto = "Iniciar nuevo reporte",
+            onClick = { mostrarHoja = true },
+            habilitado = !estado.creandoViaje,
         )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Protocolo AI27 Custodio",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    HojaInferior(
+        visible = mostrarHoja,
+        onOcultar = { mostrarHoja = false },
+        titulo = "Nuevo viaje",
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            CampoPlaca(
+                valor = estado.placaEscrita,
+                onValorCambia = onPlacaCambio,
+            )
+            BotonPrimario(
+                texto = if (estado.creandoViaje) "Creando viaje…" else "Comenzar viaje",
+                onClick = {
+                    onIniciarViaje()
+                    mostrarHoja = false
+                },
+                habilitado = !estado.creandoViaje && estado.placaEscrita.isNotBlank(),
+            )
+        }
     }
 }
 
 @Composable
 private fun ReporteAbierto(
     estado: CapturaUiState,
+    conectado: Boolean,
     onIrACaptura: () -> Unit,
     onIrAAudio: () -> Unit,
     onIrAArchivos: () -> Unit,
@@ -171,6 +157,9 @@ private fun ReporteAbierto(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        if (!conectado) {
+            FranjaAviso(texto = "Sin conexión: las capturas se guardan localmente en el dispositivo.")
+        }
         BloqueUnidad(
             placas = estado.reporte?.placasCapturadas.orEmpty(),
             contador = estado.medios.size,

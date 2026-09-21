@@ -15,8 +15,6 @@ data class CapturaUiState(
     val capturando: Boolean = false,
     val cerrandoViaje: Boolean = false,
     val descartandoViaje: Boolean = false,
-    val cerrandoSesion: Boolean = false,
-    val confirmacionCerrarSesion: Boolean = false,
     val pendientesSinSubir: Int = 0,
     val grabandoAudio: Boolean = false,
     val segundosAudio: Long = 0L,
