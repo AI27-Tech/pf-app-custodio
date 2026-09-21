@@ -1,5 +1,10 @@
 package com.ai27.app.custodio.ui.captura
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -20,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,8 +37,11 @@ import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.ui.components.AVISO_SUBIDA_DURACION_MS
+import com.ai27.app.custodio.ui.components.AvisoSubida
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.previews.DatosDemo
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -45,7 +54,15 @@ fun HojaEtiqueta(
     val medio = estado.medioPendienteDeEtiquetar ?: return
     val sheetState = rememberModalBottomSheetState()
     var seleccionada by remember(medio.id) { mutableStateOf<String?>(null) }
+    var avisoVisible by remember { mutableStateOf(true) }
     val etiquetasActivas = estado.etiquetas.filter { it.activo }.sortedBy { it.orden }
+
+    // La hoja se abre justo cuando un archivo queda capturado (foto tomada o nota de voz
+    // terminada): el aviso confirma que quedó en la cola y se subirá en breve.
+    LaunchedEffect(Unit) {
+        delay(AVISO_SUBIDA_DURACION_MS)
+        avisoVisible = false
+    }
 
     ModalBottomSheet(
         onDismissRequest = onCerrar,
@@ -58,6 +75,17 @@ fun HojaEtiqueta(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            AnimatedVisibility(
+                visible = avisoVisible,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                AvisoSubida(
+                    texto = stringResource(R.string.aviso_subida_en_breve),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

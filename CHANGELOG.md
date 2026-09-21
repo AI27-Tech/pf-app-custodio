@@ -2,6 +2,78 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 13:54
+
+**Resumen:** El aviso flotante de subida aterriza 20dp más abajo: el despegue desde la barra superior pasa de 80dp a 100dp en captura y audio.
+
+**Cambios:**
+
+- `CapturaEvidenciaScreen.kt`: `padding(top)` del aviso de 80dp a 100dp.
+- `AudioScreen.kt`: `padding(top)` del aviso de 80dp a 100dp.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/AudioScreen.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 13:52
+
+**Resumen:** El aviso flotante de subida que aparece al guardar la etiqueta ahora entra por la parte superior de la pantalla (en vez de flotar sobre el fondo): se ancla arriba, debajo de la barra superior, y desliza desde arriba hacia abajo.
+
+**Cambios:**
+
+- `Avisos.kt`: la entrada de `AvisoSubidaFlotante` pasa a `slideInVertically { -it / 2 }` (desliza desde arriba).
+- `CapturaEvidenciaScreen.kt`: el aviso se ancla en `Alignment.TopCenter` con `padding(top = 80.dp)` debajo de la barra superior de la cámara.
+- `AudioScreen.kt`: el aviso se ancla en `Alignment.TopCenter` con `padding(top = 80.dp)`; se elimina el import `navigationBarsPadding` que quedó sin uso.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Avisos.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/AudioScreen.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 13:47
+
+**Resumen:** Se agrega el segundo aviso verde de subida: además del que aparece al capturar (dentro de la hoja de etiquetado), al guardar la etiqueta se muestra un aviso flotante transitorio "Tu archivo se subirá en breve" sobre la pantalla de captura o de audio — justo cuando `guardarEtiqueta` encola la subida del medio y la hoja se cierra.
+
+**Cambios:**
+
+- `CapturaUiState.kt`: nuevo campo evento `avisoEncolado: Int` (contador que crece en cada etiqueta guardada, para no perder avisos consecutivos).
+- `CapturaViewModel.kt`: `guardarEtiqueta` en éxito incrementa `avisoEncolado` junto con la cola de subida (`encolarSubidaMedio`).
+- `Avisos.kt`: nuevo composable `AvisoSubidaFlotante(evento, texto, modifier)` — muestra la píldora `AvisoSubida` cuando `evento` cambia, la oculta solo a los `AVISO_SUBIDA_DURACION_MS` (3 s) y recuerda el último evento visto con `rememberSaveable` para no re-aparecer al volver a la pantalla; constante `AVISO_SUBIDA_DURACION_MS` compartida con la hoja; previews Claro/Oscuro.
+- `CapturaEvidenciaScreen.kt`: `AvisoSubidaFlotante` anclado bajo la barra superior de la cámara, arriba del disparador.
+- `AudioScreen.kt`: raíz envuelta en `Box` y `AvisoSubidaFlotante` anclado al fondo sobre la barra de navegación.
+- `HojaEtiqueta.kt`: usa la constante compartida `AVISO_SUBIDA_DURACION_MS` (se elimina la privada).
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaUiState.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Avisos.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/AudioScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 13:39
+
+**Resumen:** Al tomar una foto o terminar una nota de voz, la hoja de etiquetado abre con un aviso verde transitorio ("Tu archivo se subirá en breve") que confirma que el archivo recién capturado quedó en la cola de subida. La hoja aparece exactamente en ese momento para ambos flujos (foto y audio), así que el aviso se muestra ahí —en la misma ventana de la hoja, garantizando que no quede tapado por ella— y se desvanece solo a los 3 segundos.
+
+**Cambios:**
+
+- `Avisos.kt`: nuevo composable `AvisoSubida`, píldora verde que reutiliza la receta "enviado" de `AppTheme.coloresEstado` (relleno al 12%, borde al 25%, tinta a plena intensidad) con el icono de cheque; previews Claro/Oscuro.
+- `HojaEtiqueta.kt`: al abrir la hoja se muestra `AvisoSubida` con `AnimatedVisibility` (fade + expand/shrink) y se oculta solo tras `AVISO_SUBIDA_DURACION_MS = 3s`; cubre por igual la foto capturada y la nota de voz terminada.
+- `strings.xml`: nueva cadena `aviso_subida_en_breve = "Tu archivo se subirá en breve"`.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Avisos.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `app/src/main/res/values/strings.xml`
+- `CHANGELOG.md`
+
 ## 2026:09:21 13:34
 
 **Resumen:** La barra superior del Historial pierde la flecha de regreso (es una pestaña de la barra inferior, no una ruta apilada), y el título de `BarraSuperior` gana una altura mínima de 48dp para que las barras sin botón de regreso (Historial y Ajustes) conserven el mismo alto y el mismo padding vertical que las que sí lo tienen, p. ej. Nota de Voz o Captura de evidencia.

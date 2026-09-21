@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.ui.viaje
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.captura.HojaEtiqueta
+import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonGrabacion
 import com.ai27.app.custodio.ui.components.BotonSecundario
@@ -48,67 +50,78 @@ fun AudioScreen(
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize()) {
-        BarraSuperior(titulo = stringResource(R.string.nota_de_voz), onAtras = onAtras)
+    Box(modifier.fillMaxSize()) {
+        Column(modifier.fillMaxSize()) {
+            BarraSuperior(titulo = stringResource(R.string.nota_de_voz), onAtras = onAtras)
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            FranjaAviso(texto = stringResource(R.string.audio_aviso))
-            Spacer(Modifier.height(32.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                FranjaAviso(texto = stringResource(R.string.audio_aviso))
+                Spacer(Modifier.height(32.dp))
 
-            if (estado.grabandoAudio) {
-                Text(
-                    text = formatearDuracion(estado.segundosAudio),
-                    style = TabularNumberStyle.copy(
-                        fontSize = MaterialTheme.typography.headlineMedium.fontSize,
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.audio_grabando),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            } else if (estado.capturando) {
-                Text(
-                    text = stringResource(R.string.audio_guardando),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.audio_toca_para_iniciar),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+                if (estado.grabandoAudio) {
+                    Text(
+                        text = formatearDuracion(estado.segundosAudio),
+                        style = TabularNumberStyle.copy(
+                            fontSize = MaterialTheme.typography.headlineMedium.fontSize,
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.audio_grabando),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                } else if (estado.capturando) {
+                    Text(
+                        text = stringResource(R.string.audio_guardando),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.audio_toca_para_iniciar),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
-            Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(32.dp))
 
-            BotonGrabacion(
-                grabando = estado.grabandoAudio,
-                onClick = if (estado.grabandoAudio) onDetenerAudio else onIniciarAudio,
-            )
-
-            if (estado.grabandoAudio) {
-                Spacer(Modifier.height(24.dp))
-                BotonSecundario(
-                    texto = stringResource(R.string.comun_cancelar),
-                    onClick = onDescartarAudio,
+                BotonGrabacion(
+                    grabando = estado.grabandoAudio,
+                    onClick = if (estado.grabandoAudio) onDetenerAudio else onIniciarAudio,
                 )
-            } else {
-                Spacer(Modifier.height(24.dp))
-                Spacer(Modifier.size(48.dp))
+
+                if (estado.grabandoAudio) {
+                    Spacer(Modifier.height(24.dp))
+                    BotonSecundario(
+                        texto = stringResource(R.string.comun_cancelar),
+                        onClick = onDescartarAudio,
+                    )
+                } else {
+                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.size(48.dp))
+                }
             }
         }
+
+        AvisoSubidaFlotante(
+            evento = estado.avisoEncolado,
+            texto = stringResource(R.string.aviso_subida_en_breve),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 24.dp)
+                .padding(top = 100.dp),
+        )
     }
 
     estado.medioPendienteDeEtiquetar?.let {

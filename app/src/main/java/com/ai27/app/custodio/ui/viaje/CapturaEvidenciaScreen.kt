@@ -43,6 +43,7 @@ import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.captura.VistaCamara
 import com.ai27.app.custodio.ui.captura.tomarFoto
+import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.Vitrina
@@ -196,6 +197,15 @@ fun CapturaEvidenciaScreen(
                 }
             }
         }
+
+        AvisoSubidaFlotante(
+            evento = estado.avisoEncolado,
+            texto = stringResource(R.string.aviso_subida_en_breve),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 24.dp)
+                .padding(top = 100.dp),
+        )
     }
 
     estado.medioPendienteDeEtiquetar?.let {

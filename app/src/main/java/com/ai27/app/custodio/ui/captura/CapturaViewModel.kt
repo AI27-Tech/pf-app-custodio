@@ -262,7 +262,11 @@ class CapturaViewModel @Inject constructor(
                 when (resultado) {
                     is Result.Success -> {
                         programadorSubidas.encolarSubidaMedio(resultado.value.reporteId, medioId)
-                        it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "")
+                        it.copy(
+                            medioPendienteDeEtiquetar = null,
+                            ubicacionTextoEscrita = "",
+                            avisoEncolado = it.avisoEncolado + 1,
+                        )
                     }
                     is Result.Failure -> it.copy(error = resultado.error.aRecurso())
                 }

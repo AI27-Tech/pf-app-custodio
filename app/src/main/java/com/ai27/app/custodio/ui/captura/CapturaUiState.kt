@@ -21,6 +21,7 @@ data class CapturaUiState(
     val segundosAudio: Long = 0L,
     val medioPendienteDeEtiquetar: Medio? = null,
     val ubicacionTextoEscrita: String = "",
+    val avisoEncolado: Int = 0,
     @StringRes val error: Int? = null,
 ) {
     val limiteAlcanzado: Boolean

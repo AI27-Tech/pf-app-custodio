@@ -170,6 +170,7 @@
     <string name="cierre_confirmar">Cerrar</string>
 
     <!-- Hoja de etiquetado -->
+    <string name="aviso_subida_en_breve">Tu archivo se subirá en breve</string>
     <string name="hoja_foto_capturada">Foto capturada</string>
     <string name="hoja_descartar">Descartar</string>
     <string name="hoja_etiqueta_obligatoria">Etiqueta obligatoria:</string>
