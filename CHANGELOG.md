@@ -2,6 +2,19 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:21 13:15
+
+**Resumen:** Se corrige el resumen del cierre de viaje, que mostraba siempre 0 fotografías y 0 notas de voz sin importar cuánta evidencia se hubiera capturado. La pantalla de cierre leía los conteos de `reporte.resumenMedios`, un campo que solo se calcula y persiste en el momento de cerrar (`CerrarReporte`), así que durante el viaje activo quedaba en 0/0. Ahora el recuento se calcula en vivo desde la lista real de medios del viaje (`estado.medios`), con la misma lógica que usa `CerrarReporte` al cerrar.
+
+**Cambios:**
+
+- `CierreScreen.kt`: el resumen de fotografías, notas de voz y duración total ya no sale de `estado.reporte?.resumenMedios` (0/0 durante el viaje activo) sino que se calcula con `ResumenMedios` sobre `estado.medios` — `fotos = count { tipo == FOTO }`, `audios = count { tipo == AUDIO }` y `durationMsTotal = sumOf { durationMs }` — coincidiendo exactamente con `CerrarReporte`, de modo que lo que se ve en pantalla es lo mismo que queda grabado en el reporte al cerrar.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CierreScreen.kt`
+- `CHANGELOG.md`
+
 ## 2026:09:21 13:06
 
 **Resumen:** Las fotos tomadas por la app ahora también se guardan en la memoria del dispositivo, en la carpeta pública `Pictures/AppCustodio/` visible desde el administrador de archivos, además del almacenamiento interno (`filesDir/medios`) que ya alimenta la subida a Firebase.

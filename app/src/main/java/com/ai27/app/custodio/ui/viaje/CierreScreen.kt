@@ -23,6 +23,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.domain.model.ResumenMedios
+import com.ai27.app.custodio.domain.model.TipoMedio
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonPrimario
@@ -63,7 +65,11 @@ fun CierreScreen(
         if (estado.reporte == null) onAtras()
     }
 
-    val resumen = estado.reporte?.resumenMedios
+    val resumen = ResumenMedios(
+        fotos = estado.medios.count { it.tipo == TipoMedio.FOTO },
+        audios = estado.medios.count { it.tipo == TipoMedio.AUDIO },
+        durationMsTotal = estado.medios.sumOf { it.durationMs ?: 0L },
+    )
 
     Column(
         modifier = modifier
@@ -85,15 +91,14 @@ fun CierreScreen(
             )
             RenglonResumen(
                 etiqueta = stringResource(R.string.cierre_fotografias),
-                valor = "${resumen?.fotos ?: 0}",
+                valor = "${resumen.fotos}",
             )
             RenglonResumen(
                 etiqueta = stringResource(R.string.cierre_notas_voz),
-                valor = "${resumen?.audios ?: 0}",
+                valor = "${resumen.audios}",
             )
-            if ((resumen?.durationMsTotal ?: 0L) > 0L) {
-                val duracionMin =
-                    (resumen?.durationMsTotal?.plus(999L) ?: 0L) / 1_000L
+            if (resumen.durationMsTotal > 0L) {
+                val duracionMin = resumen.durationMsTotal.plus(999L) / 1_000L
                 RenglonResumen(
                     etiqueta = stringResource(R.string.cierre_audio_total),
                     valor = formatearCierre(duracionMin),
