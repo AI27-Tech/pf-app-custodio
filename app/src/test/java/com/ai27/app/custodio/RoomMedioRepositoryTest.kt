@@ -95,15 +95,15 @@ class RoomMedioRepositoryTest {
         val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
         val guardado = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
 
-        val conUbicacion = repoMedios.etiquetar(guardado.id, "fotografia", "Entrada 3")
+        val conUbicacion = repoMedios.etiquetar(guardado.id, listOf("sin-novedad"), "Entrada 3")
         assertTrue(conUbicacion is Result.Success)
-        assertEquals("fotografia", (conUbicacion as Result.Success).value.etiqueta)
+        assertEquals(listOf("sin-novedad"), (conUbicacion as Result.Success).value.etiquetas)
         assertEquals("Entrada 3", conUbicacion.value.ubicacionTexto)
 
-        val sinUbicacion = repoMedios.etiquetar(guardado.id, "inspeccion")
-        assertTrue(sinUbicacion is Result.Success)
-        assertEquals("inspeccion", (sinUbicacion as Result.Success).value.etiqueta)
-        assertEquals("Entrada 3", sinUbicacion.value.ubicacionTexto)
+        val sinUbicacion = repoMedios.etiquetar(guardado.id, listOf("detenido", "accidente"))
+                assertTrue(sinUbicacion is Result.Success)
+                assertEquals(listOf("detenido", "accidente"), (sinUbicacion as Result.Success).value.etiquetas)
+                assertEquals("Entrada 3", (sinUbicacion as Result.Success).value.ubicacionTexto)
     }
 
     @Test

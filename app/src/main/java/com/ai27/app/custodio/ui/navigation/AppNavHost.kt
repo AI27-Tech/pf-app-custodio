@@ -178,9 +178,7 @@ fun AppNavHost() {
                         onAtras = { navController.popBackStack() },
                         onTomarFoto = viewModel::capturarFoto,
                         onFallaDeCaptura = viewModel::fallaDeCaptura,
-                        onGuardarEtiqueta = { medioId, etiquetaId ->
-                            viewModel.guardarEtiqueta(medioId, etiquetaId)
-                        },
+                        onGuardarEtiqueta = viewModel::guardarEtiqueta,
                         onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
                         onCerrarHoja = viewModel::descartarEtiquetado,
                         onConsumirError = viewModel::consumirError,
@@ -202,9 +200,7 @@ fun AppNavHost() {
                         onPausarAudio = viewModel::pausarGrabacionDeAudio,
                         onReanudarAudio = viewModel::reanudarGrabacionDeAudio,
                         onDescartarAudio = viewModel::descartarAudio,
-                        onGuardarEtiqueta = { medioId, etiquetaId ->
-                            viewModel.guardarEtiqueta(medioId, etiquetaId)
-                        },
+                        onGuardarEtiqueta = viewModel::guardarEtiqueta,
                         onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
                         onCerrarHoja = viewModel::descartarEtiquetado,
                         onConsumirError = viewModel::consumirError,
@@ -225,9 +221,7 @@ fun AppNavHost() {
                         onBorrarPendiente = viewModel::borrarPendiente,
                         onReintentar = viewModel::reintentar,
                         onRetomarEtiquetado = viewModel::retomarEtiquetado,
-                        onGuardarEtiqueta = { medioId, etiquetaId ->
-                            viewModel.guardarEtiqueta(medioId, etiquetaId)
-                        },
+                        onGuardarEtiqueta = viewModel::guardarEtiqueta,
                         onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
                         onCerrarHoja = viewModel::descartarEtiquetado,
                         onConsumirError = viewModel::consumirError,

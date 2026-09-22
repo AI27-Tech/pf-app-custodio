@@ -78,7 +78,7 @@ class SubidaMedioProcesoTest {
                 createdAtDevice = fijo,
                 contentType = "image/jpeg",
                 estadoSubida = EstadoSubida.PENDIENTE,
-                etiqueta = "dano",
+                etiquetas = listOf("sin-novedad"),
             ),
             contenido = ByteArray(10),
             miniatura = ByteArray(4),
@@ -107,10 +107,11 @@ class SubidaMedioProcesoTest {
     }
 
     @Test
-    fun `no sube un medio sin etiqueta`() = runBlocking {
-        // Hallazgo E3: la etiqueta es obligatoria en el documento, así que un medio sin
-        // clasificar no puede salir. El proceso lo deja quieto en lugar de fallar en bucle.
-        val sinEtiqueta = (repoMedios.guardar(
+    fun `no sube un medio sin situacion`() = runBlocking {
+        // Hallazgo E3 + decisión A del PLAN §14: se exige al menos una etiqueta de
+        // Situación, así que un medio sin clasificar (o solo con Evidencia) no puede salir.
+        // El proceso lo deja quieto en lugar de fallar en bucle.
+        val sinSituacion = (repoMedios.guardar(
             Medio(
                 id = "m-2",
                 reporteId = "r-1",
@@ -119,19 +120,44 @@ class SubidaMedioProcesoTest {
                 createdAtDevice = fijo,
                 contentType = "image/jpeg",
                 estadoSubida = EstadoSubida.PENDIENTE,
-                etiqueta = null,
+                etiquetas = emptyList(),
             ),
             contenido = ByteArray(10),
             miniatura = ByteArray(4),
         ) as Result.Success).value
 
-        val resultado = proceso.ejecutar("r-1", sinEtiqueta.id)
+        val resultado = proceso.ejecutar("r-1", sinSituacion.id)
 
         assertTrue("No es un fallo: no hay nada que reintentar", resultado is Result.Success)
-        assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(sinEtiqueta.id)!!.estadoSubida)
+        assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(sinSituacion.id)!!.estadoSubida)
         assertEquals(0, medioRemoto.subidos.size)
         assertEquals(0, medioRemoto.docsCreados.size)
         assertTrue("El archivo local no se toca", archivos.archivos.containsKey("fisico/m-2"))
+    }
+
+    @Test
+    fun `no sube un medio que solo lleva evidencia`() = runBlocking {
+        val soloEvidencia = (repoMedios.guardar(
+            Medio(
+                id = "m-3",
+                reporteId = "r-1",
+                tipo = TipoMedio.FOTO,
+                origen = OrigenMedio.CAMARA,
+                createdAtDevice = fijo,
+                contentType = "image/jpeg",
+                estadoSubida = EstadoSubida.PENDIENTE,
+                etiquetas = listOf("estado-transporte", "accidente"),
+            ),
+            contenido = ByteArray(10),
+            miniatura = ByteArray(4),
+        ) as Result.Success).value
+
+        val resultado = proceso.ejecutar("r-1", soloEvidencia.id)
+
+        assertTrue(resultado is Result.Success)
+        assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(soloEvidencia.id)!!.estadoSubida)
+        assertEquals(0, medioRemoto.subidos.size)
+        assertEquals(0, medioRemoto.docsCreados.size)
     }
 
     @Test

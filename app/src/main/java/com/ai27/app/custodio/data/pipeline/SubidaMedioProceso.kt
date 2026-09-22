@@ -3,6 +3,7 @@ package com.ai27.app.custodio.data.pipeline
 import com.ai27.app.custodio.data.local.archivo.AlmacenArchivos
 import com.ai27.app.custodio.data.remote.MedioRemoto
 import com.ai27.app.custodio.data.remote.ReporteRemoto
+import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 import com.ai27.app.custodio.data.util.Sha256
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
@@ -27,10 +28,11 @@ class SubidaMedioProceso(
         val medio = medioRepository.obtenerPorId(medioId)
             ?: return Result.Success(Unit) // se borró antes de subir
         if (medio.estadoSubida == EstadoSubida.COMPLETA) return Result.Success(Unit)
-        // Sin etiqueta no sale: la etiqueta es obligatoria y el analista no puede filtrar
-        // evidencia sin clasificar. Es defensa en profundidad — la cola ya filtra por
-        // etiqueta— para que ningún camino futuro se la salte (hallazgo E3).
-        if (medio.etiqueta == null) return Result.Success(Unit)
+        // Sin etiqueta de Situación no sale: el criterio de subida es "tiene al menos una
+        // Situación" (PLAN §14, decisión A) y el analista no puede filtrar evidencia sin
+        // clasificar. Es defensa en profundidad — la cola ya filtra por tieneSituacion—
+        // para que ningún camino futuro se la salte (hallazgo E3).
+        if (medio.etiquetas.none { it in ETIQUETAS_SITUACION_IDS }) return Result.Success(Unit)
         val reporte = reporteRepository.obtenerPorId(reporteId)
             ?: return Result.Success(Unit)
         if (reporte.ciclo == Ciclo.DESCARTADO) return Result.Success(Unit) // sin evidencia futura a un viaje descartado

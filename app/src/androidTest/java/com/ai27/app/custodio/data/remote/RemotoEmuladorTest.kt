@@ -267,7 +267,7 @@ class RemotoEmuladorTest {
         createdAtDevice = Instant.now(),
         contentType = "image/jpeg",
         estadoSubida = EstadoSubida.PENDIENTE,
-        etiqueta = "dano",
+        etiquetas = listOf("sin-novedad"),
         sizeBytes = 128L,
     )
 }

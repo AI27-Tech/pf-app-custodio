@@ -186,7 +186,7 @@ class WorkerSubidaMedioTest {
             createdAtDevice = instante,
             contentType = "image/jpeg",
             estadoSubida = EstadoSubida.PENDIENTE,
-            etiqueta = "dano",
+            etiquetas = listOf("sin-novedad"),
         )
         val guardado = (medios.guardar(medio, ByteArray(64), ByteArray(16)) as Result.Success).value
         return reporte.id to guardado.id

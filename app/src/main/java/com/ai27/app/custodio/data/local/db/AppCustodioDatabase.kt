@@ -1,17 +1,21 @@
 package com.ai27.app.custodio.data.local.db
 
 import android.content.Context
+import androidx.room3.ColumnTypeConverters
 import androidx.room3.Database
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
+import androidx.room3.migration.Migration
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
+import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 
 @Database(
     entities = [ReporteEntity::class, MedioEntity::class],
-    version = 1,
+    version = 2,
 )
+@ColumnTypeConverters(EtiquetasConverter::class)
 abstract class AppCustodioDatabase : RoomDatabase() {
 
     abstract fun reporteDao(): ReporteDao
@@ -36,6 +40,41 @@ abstract class AppCustodioDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Primera migración de la app (PLAN §14 D2). Convierte la columna `etiqueta TEXT`
+         * en `etiquetas TEXT` (arreglo JSON de un elemento cuando había valor, arreglo
+         * vacío cuando era null) y añade el flag denormalizado `tieneSituacion`, calculado
+         * según si el valor viejo pertenece a la categoría Situación del catálogo.
+         *
+         * No hay equipos en campo (decisión B de §14.2), pero se hace bien igual: es la
+         * primera vez que la base cambia de versión y la premisa de la app es no perder
+         * evidencia.
+         */
+        val MIGRACION_1_2 = object : Migration(1, 2) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE medios ADD COLUMN etiquetas TEXT NOT NULL DEFAULT '[]'",
+                )
+                connection.execSQL(
+                    "ALTER TABLE medios ADD COLUMN tieneSituacion INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL(
+                    """
+                    UPDATE medios
+                    SET etiquetas = '["' || etiqueta || '"]'
+                    WHERE etiqueta IS NOT NULL
+                    """.trimIndent(),
+                )
+                if (ETIQUETAS_SITUACION_IDS.isNotEmpty()) {
+                    val ids = ETIQUETAS_SITUACION_IDS.joinToString("','") { it }
+                    connection.execSQL(
+                        "UPDATE medios SET tieneSituacion = 1 WHERE etiqueta IN ('$ids')",
+                    )
+                }
+                connection.execSQL("ALTER TABLE medios DROP COLUMN etiqueta")
+            }
+        }
+
         fun crearBaseDatos(context: Context): AppCustodioDatabase =
             crearBaseDatos(ruta = context.getDatabasePath(NOMBRE).absolutePath)
 
@@ -44,6 +83,7 @@ abstract class AppCustodioDatabase : RoomDatabase() {
             Room.databaseBuilder(name = ruta) { AppCustodioDatabase_Impl() }
                 .setDriver(BundledSQLiteDriver())
                 .addCallback(callback)
+                .addMigrations(MIGRACION_1_2)
                 .build()
     }
 }

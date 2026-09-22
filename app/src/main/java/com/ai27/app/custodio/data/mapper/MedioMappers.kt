@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.data.mapper
 
 import com.ai27.app.custodio.data.local.db.MedioEntity
+import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
@@ -16,7 +17,7 @@ fun MedioEntity.aDominio(): Medio = Medio(
     createdAtDevice = Instant.ofEpochMilli(createdAtDevice),
     contentType = contentType,
     estadoSubida = EstadoSubida.valueOf(estadoSubida),
-    etiqueta = etiqueta,
+    etiquetas = etiquetas,
     localPath = localPath,
     storagePath = storagePath,
     thumbnailPath = thumbnailPath,
@@ -45,7 +46,8 @@ fun Medio.aEntidad(): MedioEntity = MedioEntity(
     createdAtDevice = createdAtDevice.toEpochMilli(),
     contentType = contentType,
     estadoSubida = estadoSubida.name,
-    etiqueta = etiqueta,
+    etiquetas = etiquetas,
+    tieneSituacion = etiquetas.any { it in ETIQUETAS_SITUACION_IDS },
     localPath = localPath,
     storagePath = storagePath,
     thumbnailPath = thumbnailPath,

@@ -61,7 +61,7 @@ class AjustesViewModelTest {
                 createdAtDevice = Instant.parse("2026-09-21T15:00:00Z"),
                 contentType = "image/jpeg",
                 estadoSubida = EstadoSubida.PENDIENTE,
-                etiqueta = "dano",
+                etiquetas = listOf("sin-novedad"),
             ),
         )
         repoMedios.actualizarPendientes()

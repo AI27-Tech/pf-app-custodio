@@ -14,7 +14,7 @@ data class Medio(
     val createdAtDevice: Instant,
     val contentType: String,
     val estadoSubida: EstadoSubida,
-    val etiqueta: String? = null,
+    val etiquetas: List<String> = emptyList(),
     val localPath: String? = null,
     val storagePath: String? = null,
     val thumbnailPath: String? = null,

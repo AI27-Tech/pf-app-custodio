@@ -1,5 +1,6 @@
 package com.ai27.app.custodio.ui.previews
 
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.EstadoSubida
@@ -26,10 +27,13 @@ internal object DatosDemo {
     val custodio = Custodio(uid = "uid-demo", correo = "c.duarte@acme.mx")
 
     val etiquetas = listOf(
-        Etiqueta(id = "e-docs", nombre = "Documentación", orden = 1, activo = true),
-        Etiqueta(id = "e-viveres", nombre = "Víveres", orden = 2, activo = true),
-        Etiqueta(id = "e-valores", nombre = "Valores", orden = 3, activo = true),
-        Etiqueta(id = "e-inactiva", nombre = "Mascotas", orden = 4, activo = false),
+        Etiqueta(id = "sin-novedad", nombre = "Sin novedad", categoria = CategoriaEtiqueta.SITUACION, orden = 0, activo = true),
+        Etiqueta(id = "detenido", nombre = "Detenido", categoria = CategoriaEtiqueta.SITUACION, orden = 2, activo = true),
+        Etiqueta(id = "con-novedad", nombre = "Con novedad", categoria = CategoriaEtiqueta.SITUACION, orden = 4, activo = true),
+        Etiqueta(id = "estado-transporte", nombre = "Estado del transporte", categoria = CategoriaEtiqueta.EVIDENCIA, orden = 0, activo = true),
+        Etiqueta(id = "accidente", nombre = "Accidente", categoria = CategoriaEtiqueta.EVIDENCIA, orden = 2, activo = true),
+        Etiqueta(id = "otro", nombre = "Otro", categoria = CategoriaEtiqueta.EVIDENCIA, orden = 5, activo = true),
+        Etiqueta(id = "e-inactiva", nombre = "Mascotas", categoria = CategoriaEtiqueta.EVIDENCIA, orden = 6, activo = false),
     )
 
     val reporteActivo = Reporte(
@@ -100,7 +104,7 @@ internal object DatosDemo {
             createdAtDevice = instante,
             contentType = "image/jpeg",
             estadoSubida = EstadoSubida.COMPLETA,
-            etiqueta = "e-docs",
+            etiquetas = listOf("sin-novedad"),
             gps = null,
         ),
         Medio(
@@ -111,7 +115,7 @@ internal object DatosDemo {
             createdAtDevice = instante.plusSeconds(120L),
             contentType = "audio/mp4",
             estadoSubida = EstadoSubida.PENDIENTE,
-            etiqueta = "e-viveres",
+            etiquetas = listOf("en-recorrido", "estado-transporte"),
             durationMs = 138_000L,
         ),
         Medio(
@@ -122,7 +126,7 @@ internal object DatosDemo {
             createdAtDevice = instante.plusSeconds(300L),
             contentType = "image/jpeg",
             estadoSubida = EstadoSubida.PENDIENTE,
-            etiqueta = null,
+            etiquetas = emptyList(),
         ),
         Medio(
             id = "m4",
@@ -132,7 +136,7 @@ internal object DatosDemo {
             createdAtDevice = instante.plusSeconds(480L),
             contentType = "image/jpeg",
             estadoSubida = EstadoSubida.FALLIDA,
-            etiqueta = "e-valores",
+            etiquetas = listOf("con-novedad", "accidente"),
         ),
     )
 
@@ -145,7 +149,7 @@ internal object DatosDemo {
             createdAtDevice = instante,
             contentType = "image/jpeg",
             estadoSubida = EstadoSubida.PENDIENTE,
-            etiqueta = null,
+            etiquetas = emptyList(),
         ),
         Medio(
             id = "p2",
@@ -155,7 +159,7 @@ internal object DatosDemo {
             createdAtDevice = instante.minusSeconds(600L),
             contentType = "audio/mp4",
             estadoSubida = EstadoSubida.EN_PROGRESO,
-            etiqueta = "e-docs",
+            etiquetas = listOf("sin-novedad"),
             durationMs = 42_000L,
         ),
         Medio(
@@ -166,7 +170,7 @@ internal object DatosDemo {
             createdAtDevice = instante.minusSeconds(1_500L),
             contentType = "image/jpeg",
             estadoSubida = EstadoSubida.FALLIDA,
-            etiqueta = "e-viveres",
+            etiquetas = listOf("en-recorrido", "estado-transporte"),
         ),
     )
 }

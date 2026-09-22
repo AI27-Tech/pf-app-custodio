@@ -67,8 +67,9 @@ class RoomMedioRepository(
     override fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>> =
         dao.observarPendientesDe(custodioUid).map { lista -> lista.map { it.aDominio() } }
 
-    override suspend fun etiquetar(medioId: String, etiquetaId: String, ubicacionTexto: String?): Result<Medio> {
-        val filas = dao.etiquetar(medioId, etiquetaId, ubicacionTexto)
+    override suspend fun etiquetar(medioId: String, etiquetas: List<String>, ubicacionTexto: String?): Result<Medio> {
+        val tieneSituacion = etiquetas.any { it in ETIQUETAS_SITUACION_IDS }
+        val filas = dao.etiquetar(medioId, etiquetas, tieneSituacion, ubicacionTexto)
         val actualizado = dao.obtenerPorId(medioId)
         return if (filas == 1 && actualizado != null) {
             Result.Success(actualizado.aDominio())

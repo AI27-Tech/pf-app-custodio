@@ -889,3 +889,288 @@ todos preexistentes) y `compileDebugAndroidTestKotlin`.
 2. `observarSinEtiquetaDelReporte`, añadido al DAO en T3 pensando en T4, quedó sin llamadas cuando
    T4 resultó más simple derivando la lista del estado. Se **retiró**: una query de DAO sin uso es
    peor que no tenerla.
+
+
+
+---
+
+## 14. Etiquetas en dos categorías con selección múltiple (§3.1 destrabado por Operaciones)
+
+Operaciones entregó por fin el insumo que §3.1 marcaba como pendiente y que bloqueaba la salida a
+producción: el catálogo real de etiquetas. Llegó como dos cosas distintas que conviene no
+confundir:
+
+1. **Cómo reportan hoy el estado del viaje** — "sin novedad", "en recorrido", "detenido", "baños".
+   Describen **qué está pasando ahora**, no qué muestra la foto.
+2. **La imagen `Media.jpeg`** (en la raíz del repo): el codebook de **claves operativas** de radio,
+   con 150+ entradas. **No es una taxonomía de etiquetas**: es el vocabulario compartido de la
+   comunicación por radio. Volcar las 150 como chips sería inusable en un teléfono.
+
+Y por separado, "suben sus fotos o el audio de cómo está el transporte" es la **evidencia** que se
+captura, que es el `Medio` que ya se etiqueta.
+
+**El hallazgo de fondo:** Operaciones mezcló dos ejes. El modelo de hoy tiene **una** etiqueta por
+archivo (`Medio.etiqueta: String?`, chip de selección única). Lo que describen es una *situación*
+("sin novedad", "en recorrido") **más** evidencia sobre el transporte. No son el mismo eje.
+
+### 14.1 Decisión: dos ejes, selección múltiple, catálogo curado de las claves
+
+Se adopta la **Opción B**: dos categorías de etiqueta en lugar de una lista plana. La imagen de
+claves se trata como el **vocabulario maestro del que se curan las categorías**, no como la lista de
+chips.
+
+- **Situación** (qué está pasando): Sin novedad, En recorrido, Detenido, Parada por baño, Con
+  novedad.
+- **Evidencia** (qué muestra el archivo): Estado del transporte, Falla mecánica, Accidente, Robo o
+  asalto, Desvío de ruta, Otro.
+
+Un archivo puede llevar etiquetas de **ambas** categorías, y **varias** dentro de cada una
+(selección múltiple). El catálogo queda **fijo en la app por ahora**; será configurable desde
+Firebase cuando llegue el gancho de catálogo remoto (§3.1 / B5), y la forma del modelo ya no
+cambiará entonces.
+
+### 14.2 Decisiones bloqueadas (respuestas de Operaciones)
+
+| # | Pregunta | Decisión |
+| --- | --- | --- |
+| A | ¿Qué cuenta como "etiquetado" para que el archivo suba? | **Al menos una etiqueta de Situación.** La Evidencia es opcional. Coincide con "normalmente quieren mostrar qué está pasando ahora"; exigir ambas categorías en cada captura molestaría al custodio |
+| B | ¿Hay equipos en campo con datos reales? | **No, todavía no.** Aun así se hace **migración de Room como es debido** (versión 1 → 2), no `fallbackToDestructiveMigration()`: es barato aquí y es lo responsable en una app cuya premisa es no perder evidencia |
+| C | ¿Cómo se guarda la lista en Room? | **`List<String>` serializada en una sola columna vía `TypeConverter`.** Catálogo fijo y necesidad solo legible (D) no justifican una tabla puente |
+| D | ¿Algo externo consume `medios.etiqueta`? | **No.** Verificado en el repo: ninguna regla de Firestore/Storage valida el campo (los valores en `reglas.test.js` son solo fixtures), no hay panel de analista ni Cloud Function. Seguro renombrar `etiqueta` (string) → `etiquetas` (array) en el documento |
+
+Nota de la verificación de D: los fixtures de `reglas.test.js` ya usan valores distintos
+(`carga`, `descarga`, `novedad`) de los del catálogo hardcodeado, lo que confirma que nada externo
+depende de cadenas de etiqueta concretas. Existe además un doc `catalogos/c1` con forma
+`{ etiquetas: [...] }` (el futuro gancho de catálogo remoto de B5); el campo `etiquetas` (array) en
+el medio no colisiona con él.
+
+### 14.3 Decisiones de diseño
+
+**D1 — El filtro de la cola pasa a "tiene Situación", no "tiene etiqueta".** Hoy la cola excluye
+medios con `etiqueta IS NOT NULL` (E3/§13). Con dos categorías y selección múltiple, "etiquetado" es
+ambiguo. Se define como **tiene al menos una etiqueta de Situación**. Para que la consulta SQL siga
+siendo simple e indexable sobre una columna serializada, se añade una columna denormalizada
+booleana `tieneSituacion` que la migración y el `etiquetar` recalculan; el predicado de
+`obtenerPendientes` pasa a `tieneSituacion = 1`. La alternativa —traer todo y filtrar en Kotlin—
+rompería la propiedad de que la cola es una sola consulta acotada.
+
+**D2 — Migración de Room 1 → 2 que preserva el valor viejo.** No existe infraestructura de
+migración (versión 1, sin migraciones, sin export de esquema; esto es el hallazgo T3 de la
+auditoría, que sigue abierto). La migración convierte la columna `etiqueta TEXT` en la nueva
+`etiquetas TEXT` (JSON de un elemento cuando había valor, arreglo vacío cuando era null) y calcula
+`tieneSituacion` a partir de si ese valor pertenece a la categoría Situación del catálogo. Aunque no
+haya equipos en campo (decisión B), se hace bien: el costo es una función de migración y su prueba.
+
+**D3 — El renombre en Firestore es un corte limpio, no doble escritura.** Como D confirmó que nadie
+lee `medios.etiqueta`, el documento pasa directo a `"etiquetas": [String]`. No se escribe el campo
+viejo en paralelo: no hay lector que proteger y la doble escritura solo dejaría deuda.
+
+**D4 — `EtiquetarMedio` valida la lista y exige Situación.** El caso de uso recibe `List<String>`,
+valida que cada id exista y esté activo en el catálogo, y rechaza con un `DominioError` nuevo
+(`FaltaSituacion`) si no hay ninguna etiqueta de Situación. `EtiquetaInvalida` se conserva, ahora
+por-id sobre la lista.
+
+**Pausa de Sync:** subir la versión de la base y añadir `TypeConverter`s **no** toca scripts de
+build, así que no hace falta Sync. Si en el camino se añade un directorio de export de esquema
+(cerraría parte de T3), eso sí es un cambio de `build.gradle.kts` y se para para el Sync en Android
+Studio, según la regla de `AGENTS.md`.
+
+### 14.4 Alcance
+
+| # | Decisión |
+| --- | --- |
+| R1 | **Solo el cambio de etiquetas.** No se abren los hallazgos de integridad (C1–C9) ni las reglas de Firebase (S3–S14), aunque el renombre del campo toque el mapper que también arrastra el `sha256` nulo de C2 |
+| R2 | El catálogo queda **fijo en la app**; el gancho remoto de B5 no se implementa en esta tanda, pero la forma del modelo se deja lista para él |
+| R3 | Se actualizan las pruebas de contrato, worker, emulador y caso de uso a la forma de lista y a la nueva semántica del filtro |
+
+### 14.5 Tareas
+
+| # | Tarea | Estado |
+| --- | --- | --- |
+| T0 | Registrar este plan como §14 de `docs/PLAN.md` | ✅ hecha |
+| T1 | **Dominio** — `enum CategoriaEtiqueta`, `categoria` en `Etiqueta`, `Medio.etiqueta` → `etiquetas: List<String>`, `DominioError.FaltaSituacion` | ✅ hecha |
+| T2 | **Catálogo** — reemplazar las 5 etiquetas provisionales por el set curado de dos categorías | ✅ hecha |
+| T3 | **Room** — `MedioEntity.etiquetas` + `tieneSituacion`, `TypeConverter`, `etiquetar` y `obtenerPendientes` nuevos, versión 2 + `Migration(1,2)`, mappers | ✅ hecha |
+| T4 | **Caso de uso** — `EtiquetarMedio` sobre `List<String>` con validación por-id y regla "≥1 Situación" | ✅ hecha |
+| T5 | **Remoto** — `DocumentoMappers` escribe `"etiquetas": [..]` | ✅ hecha |
+| T6 | **UI** — `HojaEtiqueta` con dos grupos de chips multi-selección; `ArchivosScreen` y `DetalleReporteScreen` a la lista | ✅ hecha |
+| T7 | **Pruebas** — contrato, worker, emulador y caso de uso a la forma de lista y al filtro de Situación | ✅ hecha |
+| T8 | Cierre: estado en §14 y entrada de `CHANGELOG.md` | ✅ hecha |
+
+**Dependencias:** T1 habilita todo lo demás. T2 depende de T1 (necesita `CategoriaEtiqueta`). T3, T4
+y T5 dependen de T1; T3 además de T2 (la migración lee la categoría del catálogo para calcular
+`tieneSituacion`). T6 depende de T1–T4. T7 es transversal y se cierra al final con T8.
+
+### 14.6 Fuera de alcance — no dar por resuelto
+
+Sigue abierto todo lo que ya listaban §12.5 y §13.6, en particular: **C2** (`sha256` nulo, que este
+cambio roza al tocar el mapper pero no arregla), el resto del grupo C de integridad, **T3 de la
+auditoría** (export de esquema de Room — esta tanda añade la primera migración pero no el
+directorio de esquemas ni la prueba de `MigrationTestHelper` salvo que se decida cerrarlo aquí),
+todas las reglas S3–S14, y el gancho de **catálogo remoto de B5** (§3.1), que este cambio deja
+preparado pero no implementa.
+
+
+---
+
+## 15. Verificación de §12/§13, pendientes manuales e integridad del dato (Grupo 1)
+
+Tercera tanda sobre `docs/AUDIT.md`. Nace de un encargo con tres partes: (a) **verificar
+exhaustivamente** que el código respalda las marcas `✅ hecha` de §12 y §13, (b) **cerrar los
+pendientes de comprobación manual** que esas dos tandas dejaron, y (c) **atacar lo que quedó
+fuera de alcance**, empezando por la tanda que la propia auditoría marca como la más urgente en
+§11 (Grupo 1) y en §12.6: la **integridad del dato**. Desde que B1 (§12) hizo funcionar las
+subidas, C1/C2/C3/C4/C5/C6 están produciendo datos incorrectos en Firestore; son los primeros
+candidatos de la siguiente tanda.
+
+El encargo pidió **profundidad primero**: esta sección detalla en modo TDD solo el Grupo 1, y
+deja las tandas de los Grupos 2–6 como un roadmap de una línea (§15.6) que se detallará cuando
+toque.
+
+### 15.1 Estado verificado de §12/§13 (leído contra el código, no contra la doc)
+
+Confirmado leyendo los archivos que cada sección dice haber tocado:
+
+| Hallazgo | Marca | Evidencia en el código |
+| --- | --- | --- |
+| B1 | ✅ confirmado | `data/remote/AuthDataSource.kt` usa `.await()` (`kotlinx.coroutines.tasks.await`); el helper `esperar()` ya no existe. `observarCustodio` gana `distinctUntilChanged` |
+| B2 | ✅ confirmado | `GrabadoraMediaRecorder.nuevoRecorder()` con gate `SDK_INT >= S` y `catch (_: Throwable)` |
+| B3 | ✅ confirmado | `app/build.gradle.kts` tiene `lint { abortOnError = true; fatal += setOf("NewApi","MissingPermission",…) }`, sin baseline |
+| S1 | ✅ confirmado | El manifest no declara `WRITE_EXTERNAL_STORAGE` ni referencia MediaStore |
+| S2 | ✅ confirmado | `android:allowBackup="false"` en el manifest |
+| E3/E6 | ✅ confirmado | `MedioDao.obtenerPendientes` filtra `tieneSituacion = 1` + `custodioUid` (JOIN); `ReporteDao.obtenerPendientesSubida` filtra `custodioUid` + `fechaLocal >= :fechaDesde` |
+| E5 | ✅ confirmado | `GrabadoraMediaRecorder` con `pausar`/`reanudar`/`pausada`/`eventos`/`barrerNotasHuerfanas`, `setOnErrorListener`/`InfoListener`/`MaxDuration`, todo `suspend` sobre `Dispatchers.IO` |
+
+De paso se confirmó que §14 (etiquetas en dos categorías: `etiquetas: List<String>` +
+`tieneSituacion`) ya está en el código.
+
+**Falta leer para cerrar (a) al 100 %** (Tarea T1): los archivos de E1/E2
+(`ui/viaje/CapturaEvidenciaScreen.kt`, `ui/captura/VistaCamara.kt`, `RegistroDeFallos`), E4
+(`FilesDirAlmacenArchivos` → `Result`, `DominioError.SinEspacio`), E7 (`AjustesViewModel`), la
+poda de `res/values-es-rMX/`, los dos XML de backup y las suites nuevas
+(`EsperaDeTareasTest`/`RemotoEmuladorTest`/contrato).
+
+### 15.2 Los seis hallazgos del Grupo 1 (confirmados presentes)
+
+| ID | Hallazgo | Evidencia en el código |
+| --- | --- | --- |
+| **C1** | El `Result` de `actualizarContadores` se descarta y el reporte sale de la reconciliación para siempre | `SubidaMedioProceso.actualizarContadores` llama `reporteRemoto.actualizarContadores(...)` sin mirar su `Result`; `actualizarSubida` ya escribió `COMPLETA` local, y `ReporteDao.obtenerPendientesSubida` filtra `subida != 'COMPLETA'` |
+| **C2** | El `sha256` nunca llega al servidor y no se puede rellenar | `SubidaMedioProceso` calcula `sha`, pero `crearDocumentoSiNoExiste` recibe el `medio` pre-subida (sha null); `FirebaseMedioRemoto` copia solo rutas; `DocumentoMappers` escribe `"sha256" to null`. `medios` es create-only |
+| **C3** | Carrera lost-update de contadores | `actualizarContadores` recomputa el valor absoluto desde Room y lo `.update()`; sin `FieldValue.increment` ni transacción → dos workers intercalados hacen retroceder `mediosSubidos` |
+| **C4** | `ExistingWorkPolicy.REPLACE` cancela subidas en vuelo | `WorkManagerSubidaScheduler` usa `REPLACE` en `encolarSubidaMedio` y `sincronizarReporte`; `reconciliar` re-encola todo, incluido `EN_PROGRESO` |
+| **C5** | Tope de 4 intentos sin clasificar permanente vs transitorio | `ErroresRemoto` solo mapea `IOException`/`FirebaseNetworkException → SinConexion`; el resto cae en `Inesperado`; la causa no se persiste ni va a Crashlytics |
+| **C6** | El cierre no es transaccional | `CerrarReporte` lee los medios y después llama `cerrar`; sin `@Transaction`, una captura en la ventana intermedia queda fuera del conteo y `completo` puede ponerse `true` antes de tiempo |
+
+El diseño de idempotencia base es sólido (rutas determinísticas por `medioId`, documento
+create-only con guarda de existencia, `asegurarReporte` antes de Storage) y **no se toca**
+(§10 de la auditoría).
+
+### 15.3 Alcance acordado
+
+| # | Decisión |
+| --- | --- |
+| R1 | **(a) verificación exhaustiva** de §12/§13; **(b) pendientes manuales**; **(c) Grupo 1 (C1–C6) en detalle** + roadmap para los Grupos 2–6 |
+| R2 | Hay **dispositivo real con Android > 11** y **Emulator Suite**. No hay equipo con Android ≤11, así que la rama del constructor viejo de B2 queda comprobable solo por lint/release, no por ejecución |
+| R3 | **C3 entra acoplado a C1**: ambos son el mismo defecto de contadores y su corrección es una sola (monótona + `Result` propagado). C7/C8/C9 quedan **fuera** |
+| R4 | No se toca ni se despliega nada de Firebase salvo pruebas contra el Emulator Suite. Reglas (S3–S14) quedan para el Grupo 2 |
+
+### 15.4 Decisiones de diseño
+
+**D1 — Contadores monótonos y con el `Result` propagado (C1+C3).** Hoy se recomputa el valor
+absoluto desde Room (bien contra el doble conteo por reintento, mal contra lost-update). La
+corrección: propagar el `Failure` de `actualizarContadores` (devolver retry) o encolar
+`sincronizarReporte` al completar cada medio; hacer la escritura remota **monótona** (solo
+avanzar) vía transacción de Firestore o escritura condicionada; y basar la reconciliación en
+**divergencia con el remoto** en vez del flag local `COMPLETA`. Con eso, un fallo de red deja
+de reportar éxito y el reporte no se cae de la cola.
+
+**D2 — Cierre en una transacción de Room (C6).** Un método `@Transaction` en el DAO deriva
+`mediosEsperados`/`resumenMedios` con `COUNT(*)`/agregados y marca `ciclo='CERRADO'` en el mismo
+paso; `CapturarMedio` valida `ciclo==ACTIVO` dentro de la misma frontera. Es el primer
+`@Transaction` del proyecto (la auditoría hace notar que no hay ninguno), pero **no** exige
+export de esquema ni migración —eso es T3, del Grupo 6—, así que no toca scripts de build.
+
+**D3 — `sha` antes de construir el documento (C2).** Se calcula el sha y se pasa por la cadena
+`SubidaMedioProceso.ejecutar → crearDocumentoSiNoExiste(reporte, medio.copy(sha256=sha), rutas)`
+para que `DocumentoMappers` lo escriba. Consecuencia registrada: los medios ya subidos con
+`sha256` nulo **no se pueden rellenar** (`medios` es create-only); esta corrección aplica de
+aquí en adelante.
+
+**D4 — `KEEP` para reconciliación y reintento (C4).** `ExistingWorkPolicy.KEEP` en los caminos
+de reconciliación y reintento; `REPLACE` se reserva para cambios reales de input; `reconciliar`
+no re-encola `EN_PROGRESO` con worker vivo (`getWorkInfosForUniqueWork`). La prueba de
+caracterización `caracterizacion_C4_encolar_de_nuevo_REEMPLAZA_el_trabajo_anterior` (§13.5) va a
+**fallar** con este cambio y hay que convertirla, como ya pasó con las de E3/E6.
+
+**D5 — Clasificar el error y persistir la causa (C5).** Ampliar la clasificación para
+`PERMISSION_DENIED`/`UNAVAILABLE`/`DEADLINE_EXCEEDED`/archivo ausente; para `SinConexion`,
+reintentar con backoff largo sin tope (la constraint de red evita el spin); para permanentes,
+fallo inmediato; persistir `ultimoError`/`intentos` en `medios` y mandar la excepción a
+`RegistroDeFallos`/Crashlytics. Nota del audit: `FirebaseNetworkException` no se instancia en
+JVM host, así que esa rama se cubre con `IOException`.
+
+**Sin pausa de Sync.** Ninguna tarea del Grupo 1 añade dependencias: `work-testing` ya está en
+el classpath (§12 T5) y el resto es código. Los scripts de build no se tocan.
+
+### 15.5 Tareas
+
+| # | Tarea | Estado |
+| --- | --- | --- |
+| T1 | **(a)** Completar la verificación exhaustiva de §12/§13: leer E1/E2/E4/E7, la poda de `values-es-rMX/`, los XML de backup y las suites nuevas; producir un reporte con `CONFIRMADO`/`DESVIACIÓN` por hallazgo | pendiente |
+| T2 | **(b)** Ejecutar el checklist manual disponible: `bmgr backupnow` (S2), revisar galería (S1), `cd firebase && npm test` (reglas), y B2 por lint/experimento; dejar anotado lo `PENDIENTE-HW` (Android ≤11) | pendiente |
+| C0 | Infra de prueba: `SubidaMedioProceso`/`ReporteSyncProceso` contra Room real (patrón de `InvarianteUnSoloActivoTest`), extender `RemotoEmuladorTest` con `actualizarContadores`; evaluar `turbine` solo si hace falta | pendiente |
+| C1 | **C2** — el `sha256` llega al documento remoto (calcular antes de construir el doc) | pendiente |
+| C2 | **C6** — cierre transaccional que no infla contadores (`@Transaction` + `COUNT(*)`) | pendiente |
+| C3 | **C1 + C3** — contadores monótonos con `Result` propagado y reconciliación por divergencia | pendiente |
+| C4 | **C4** — `REPLACE → KEEP` en reconciliación/reintento; no re-encolar `EN_PROGRESO` vivo | pendiente |
+| C5 | **C5** — clasificar permanente vs transitorio, persistir causa, Crashlytics | pendiente |
+| C6 | Cierre: marcas en `AUDIT.md`, resultado y verificación en §15, entrada en `CHANGELOG.md` | pendiente |
+
+**Dependencias:** T1 y T2 son independientes y pueden ir primero. C0 habilita todo lo demás. C1
+(C2) y C2 (C6) habilitan C3 (C1/C3, que consume el conteo correcto y el sha). C4 va después de
+C3; C5 al final del bloque. C6 cierra.
+
+**Orden de las pruebas que fija cada tarea:**
+- C1: prueba de emulador que lee `medios/{id}` por llave y afirma `sha256 != null` y == al hash; unit del mapper.
+- C2: prueba Room real de carrera cierre-vs-captura que afirma que `mediosEsperados`/`completo` no se inflan; ajustar `CerrarReporteTest`.
+- C3: unit de que un remoto fallando devuelve `Failure`/retry y el reporte sigue reconciliable; prueba de emulador de dos actualizaciones intercaladas que no retroceden.
+- C4: `work-testing` (`TestListenableWorkerBuilder` + `WorkManagerTestInitHelper`) de que un re-encolado no mata el trabajo en curso; convertir `caracterizacion_C4_...`.
+- C5: unit de la clasificación por tipo de excepción y de que el permanente no consume reintentos.
+
+### 15.6 Roadmap de las tandas restantes (una línea; se detallan cuando toquen)
+
+- **Grupo 2 — Privacidad y reglas:** S3/S4 (tope de tamaño y `contentType`, `update` acotado a
+  `ACTIVO`), S5 (validación de forma `hasOnly`/tipos), S6/S7 (cotas de contadores y `soloCambia`
+  por transición), S8 (declarar+pedir+consultar `COARSE`), S11 (limpieza al rotar), S12/S13
+  (`ModoEmulador` tras `BuildConfig.DEBUG`, contexto de Crashlytics), **cada regla con su caso en
+  `reglas.test.js`** (S14). Requiere despliegue de reglas y decisión de producto.
+- **Grupo 3 — Uso en campo:** R1/R2 (abrir en el visor, estado de carga en Reporte), U1/U2
+  (ráfaga sin bloqueo, etiqueta heredada, chips a 48dp), U3 (háptica+sonido), U4/U5/U6 (estado en
+  Pendientes y rejilla, separar el badge), U8 (orden del `when` de Historial y cablear
+  `onReintentar`), U9 (franja de sin conexión en todo el flujo), U10 (`launchSingleTop`), U11
+  (`rememberSaveable`), U12 (motivos de descarte en chips), S9/S10 (rationale y ruta a Ajustes).
+- **Grupo 4 — Rendimiento:** R3 (conteo fuera del cuerpo de `AppNavHost`), R6
+  (`lifecycle-runtime-compose` + `collectAsStateWithLifecycle`), R9 (`@Index` +
+  `distinctUntilChanged`), R8 (`@Immutable` + `contentType`), R4/R5 (no recomprimir, EXIF,
+  `putFile` reanudable, SHA en streaming, concurrencia 1), R7 (flash en `graphicsLayer`), R13
+  (fix GPS compartido con TTL + `lastLocation`), R14 (constraints de red +
+  `NET_CAPABILITY_VALIDATED`), R15/R16, T6 (baseline profile).
+- **Grupo 5 — Accesibilidad:** A3.9+U11 (`verticalScroll` en Login/ReporteAbierto/Audio/Ajustes
+  por `fullSensor`), A2 (dejar de usar `outline` como color de texto; recalcular la receta de
+  chips/`FranjaAviso` para tema claro), A4 (`imePadding`+insets en los 5 destinos), A1 (blancos
+  táctiles ≥48/56dp), A3 resto (`overflow` con `maxLines`), A5 (`contentDescription` +
+  `mergeDescendants`), A6 (`liveRegion`, `Role.Tab`, `toggleable`).
+- **Grupo 6 — Proceso y deuda:** T1 (CI), T3/T4 (esquema de Room exportado + migración + índice
+  solo en `onCreate`), T2 (versionado derivado), T9 (firma v3), T8 (`applicationIdSuffix`), T7
+  (contexto de Crashlytics), T10/T5 (ABIs y R8 midiendo), T11/T12; E8 (rescate de `EN_PROGRESO`),
+  E9 (barrido de huérfanos), E10 (sacar trabajo crítico de `viewModelScope`), E11 (sesión perdida
+  en caliente); P2 restante, P3–P7.
+
+### 15.7 Fuera de alcance — no dar por resuelto
+
+Siguen abiertos, además de todo lo que ya listaban §12.5, §13.6 y §14.6: **C7** (`set` con
+`serverTimestamp` que puede chocar con las reglas), **C8** (confirmación de existencia desde la
+caché de Firestore), **C9** (detalles menores del bloque de consistencia), y todos los Grupos
+2–6 hasta que su tanda los tome. Las decisiones de producto del cierre de la auditoría
+(resolución de captura §3.4, solo-Wi-Fi para subir, retención de datos y de miniaturas) tampoco
+se resuelven aquí.

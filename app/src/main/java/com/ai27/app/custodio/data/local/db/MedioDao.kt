@@ -29,8 +29,15 @@ interface MedioDao {
     )
     fun contarPendientes(custodioUid: String): Flow<Int>
 
-    @Query("UPDATE medios SET etiqueta = :etiqueta, ubicacionTexto = COALESCE(:ubicacionTexto, ubicacionTexto) WHERE id = :id")
-    suspend fun etiquetar(id: String, etiqueta: String, ubicacionTexto: String?): Int
+    @Query(
+        """
+        UPDATE medios
+        SET etiquetas = :etiquetas, tieneSituacion = :tieneSituacion,
+            ubicacionTexto = COALESCE(:ubicacionTexto, ubicacionTexto)
+        WHERE id = :id
+        """,
+    )
+    suspend fun etiquetar(id: String, etiquetas: List<String>, tieneSituacion: Boolean, ubicacionTexto: String?): Int
 
     @Query(
         """
@@ -63,7 +70,7 @@ interface MedioDao {
         INNER JOIN reportes r ON m.reporteId = r.id
         WHERE r.custodioUid = :custodioUid
           AND m.estadoSubida != 'COMPLETA'
-          AND m.etiqueta IS NOT NULL
+          AND m.tieneSituacion = 1
         ORDER BY m.createdAtDevice ASC
         """,
     )

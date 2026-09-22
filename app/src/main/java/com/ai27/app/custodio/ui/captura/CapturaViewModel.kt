@@ -9,6 +9,7 @@ import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Etiqueta
@@ -360,15 +361,21 @@ class CapturaViewModel @Inject constructor(
         CoroutineScope(Dispatchers.IO).launch { grabadora.descartar() }
     }
 
-    fun guardarEtiqueta(medioId: String, etiquetaId: String) {
-        if (etiquetaId.isBlank()) {
+    private fun idsSituacion(): Set<String> =
+        interno.value.etiquetas
+            .filter { it.activo && it.categoria == CategoriaEtiqueta.SITUACION }
+            .map { it.id }
+            .toSet()
+
+    fun guardarEtiqueta(medioId: String, etiquetas: List<String>) {
+        if (etiquetas.isEmpty()) {
             interno.update { it.copy(error = R.string.error_etiqueta_obligatoria) }
             return
         }
         viewModelScope.launch {
             val resultado = etiquetarMedio(
                 medioId = medioId,
-                etiquetaId = etiquetaId,
+                etiquetas = etiquetas,
                 ubicacionTexto = interno.value.ubicacionTextoEscrita.trim().ifBlank { null },
             )
             interno.update {
@@ -398,23 +405,23 @@ class CapturaViewModel @Inject constructor(
         // El medio queda persistido y pendiente aunque se descarte el etiquetado; el
         // trabajo de GPS puede seguir y adjuntar la ubicación. Solo se suelta la referencia
         // del mapa para que no crezca sin límite. Desde §13 ese medio NO se sube hasta que
-        // se etiquete, y la rejilla de Archivos lo señala para poder resolverlo
+        // tenga una Situación, y la rejilla de Archivos lo señala para poder resolverlo
         // (ver retomarEtiquetado).
         interno.value.medioPendienteDeEtiquetar?.let { trabajosGps.remove(it.id) }
         interno.update { it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "") }
     }
 
     /**
-     * Reabre la hoja de etiquetado de un medio que ya está guardado sin etiqueta
+     * Reabre la hoja de clasificación de un medio que ya está guardado sin situación
      * (hallazgo E3). Es la única salida para la evidencia que quedó sin clasificar, porque
      * `medioPendienteDeEtiquetar` vive en memoria y no sobrevive a la muerte del proceso.
      *
-     * Se invoca desde la rejilla de Archivos. Un medio ya etiquetado se ignora: reetiquetar
-     * no está en el alcance y la subida pudo haber salido ya.
+     * Se invoca desde la rejilla de Archivos. Un medio con Situación se ignora:
+     * reetiquetar no está en el alcance y la subida pudo haber salido ya.
      */
     fun retomarEtiquetado(medioId: String) {
         val medio = uiState.value.medios.firstOrNull { it.id == medioId } ?: return
-        if (medio.etiqueta != null) return
+        if (medio.etiquetas.any { it in idsSituacion() }) return
         interno.update { it.copy(medioPendienteDeEtiquetar = medio, ubicacionTextoEscrita = "") }
     }
 

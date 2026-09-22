@@ -58,7 +58,7 @@ fun AudioScreen(
     onPausarAudio: () -> Unit,
     onReanudarAudio: () -> Unit,
     onDescartarAudio: () -> Unit,
-    onGuardarEtiqueta: (medioId: String, etiquetaId: String) -> Unit,
+    onGuardarEtiqueta: (medioId: String, etiquetas: List<String>) -> Unit,
     onUbicacionTextoCambio: (String) -> Unit,
     onCerrarHoja: () -> Unit,
     onConsumirError: () -> Unit,

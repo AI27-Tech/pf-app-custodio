@@ -28,6 +28,7 @@ fun DominioError.aRecurso(): Int = when (this) {
     DominioError.SinEspacioEnDispositivo -> R.string.error_sin_espacio
     DominioError.AudioExcedeCincoMinutos -> R.string.error_audio_excede_max
     is DominioError.EtiquetaInvalida -> R.string.error_etiqueta_invalida
+    DominioError.FaltaSituacion -> R.string.error_falta_situacion
     DominioError.MedioNoEncontrado -> R.string.error_medio_no_encontrado
     DominioError.MedioEnSubida -> R.string.error_medio_en_subida
     DominioError.MedioYaSubido -> R.string.error_medio_ya_subido

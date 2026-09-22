@@ -81,6 +81,7 @@
     <string name="error_sin_contenido">El archivo capturado está vacío.</string>
     <string name="error_audio_excede_max">La nota de voz no puede exceder 5 minutos.</string>
     <string name="error_etiqueta_invalida">La etiqueta seleccionada no es válida.</string>
+    <string name="error_falta_situacion">Falta una etiqueta de Situación para poder subir el archivo.</string>
     <string name="error_medio_no_encontrado">El archivo ya no existe.</string>
     <string name="error_medio_en_subida">El archivo ya está en subida y no puede borrarse.</string>
     <string name="error_medio_ya_subido">El archivo ya fue subido.</string>
@@ -161,11 +162,11 @@
     <string name="archivos_borrar_captura">Borrar captura</string>
     <string name="archivos_reintentar_subida">Reintentar subida</string>
     <string name="archivos_fallida">FALLIDA</string>
-    <string name="archivos_sin_etiqueta">SIN ETIQUETA</string>
-    <string name="archivos_etiquetar_ahora">Etiquetar este archivo</string>
+    <string name="archivos_sin_etiqueta">SIN SITUACIÓN</string>
+    <string name="archivos_etiquetar_ahora">Clasificar este archivo</string>
     <plurals name="archivos_aviso_sin_etiquetar">
-        <item quantity="one">%1$d archivo espera etiqueta. Tócalo para clasificarlo; sin etiqueta no se sube.</item>
-        <item quantity="other">%1$d archivos esperan etiqueta. Tócalos para clasificarlos; sin etiqueta no se suben.</item>
+        <item quantity="one">%1$d archivo espera situación. Tócalo para clasificarlo; sin situación no se sube.</item>
+        <item quantity="other">%1$d archivos esperan situación. Tócalos para clasificarlos; sin situación no se suben.</item>
     </plurals>
 
     <!-- Viaje: Cierre -->
@@ -188,9 +189,10 @@
     <string name="aviso_subida_en_breve">Tu archivo se subirá en breve</string>
     <string name="hoja_foto_capturada">Foto capturada</string>
     <string name="hoja_descartar">Descartar</string>
-    <string name="hoja_etiqueta_obligatoria">Etiqueta obligatoria:</string>
+    <string name="hoja_etiqueta_obligatoria">Situación (obligatoria):</string>
+    <string name="hoja_evidencia_opcional">Evidencia (opcional):</string>
     <string name="hoja_ubicacion_sin_gps">Ubicación (sin GPS)</string>
-    <string name="hoja_selecciona_etiqueta">Selecciona una etiqueta</string>
+    <string name="hoja_selecciona_etiqueta">Selecciona una situación</string>
     <string name="hoja_guardar">Guardar</string>
 
     <!-- Historial -->
@@ -211,14 +213,14 @@
     <string name="detalle_archivos_enviados">Archivos enviados</string>
     <string name="detalle_comentario">Comentario: %1$s</string>
     <string name="detalle_motivo_descarte">Motivo del descarte: %1$s</string>
-    <string name="detalle_sin_etiqueta">Sin etiqueta</string>
+    <string name="detalle_sin_etiqueta">Sin situación</string>
 
     <!-- Pendientes -->
     <string name="pendientes_todo_sincronizado">Todo sincronizado</string>
     <string name="pendientes_ninguno">No hay archivos pendientes\nen esta sesión.</string>
     <string name="pendientes_subida_fallida">Subida fallida</string>
     <string name="pendientes_enviando">Enviando…</string>
-    <string name="pendientes_falta_etiqueta">Falta etiqueta</string>
+    <string name="pendientes_falta_etiqueta">Falta situación</string>
 
     <!-- Ajustes -->
     <string name="ajustes_entorno">Entorno y visualización</string>

@@ -13,7 +13,9 @@ data class MedioEntity(
     @ColumnInfo(name = "createdAtDevice") val createdAtDevice: Long,
     @ColumnInfo(name = "contentType") val contentType: String,
     @ColumnInfo(name = "estadoSubida") val estadoSubida: String,
-    @ColumnInfo(name = "etiqueta") val etiqueta: String?,
+    @ColumnInfo(name = "etiquetas") val etiquetas: List<String>,
+    /** Denormalizado (PLAN §14 D1): la cola filtra `tieneSituacion = 1`. */
+    @ColumnInfo(name = "tieneSituacion") val tieneSituacion: Boolean,
     @ColumnInfo(name = "localPath") val localPath: String?,
     @ColumnInfo(name = "storagePath") val storagePath: String?,
     @ColumnInfo(name = "thumbnailPath") val thumbnailPath: String?,

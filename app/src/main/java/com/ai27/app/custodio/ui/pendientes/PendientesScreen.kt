@@ -110,12 +110,13 @@ fun PendientesScreen(
 
 @Composable
 private fun detalleDe(medio: Medio): String = when {
-    // Sin etiqueta el medio NO está en cola: desde §13 la cola lo excluye (E3). Decir "en
-    // cola" sería mentir y el custodio esperaría eternamente a que subiera solo.
-    medio.etiqueta == null -> stringResource(R.string.pendientes_falta_etiqueta)
+    // Sin Situación el medio NO está en cola: desde §13 la cola lo excluye (E3) y exige al
+    // menos una (decisión A del PLAN §14). Decir "en cola" sería mentir y el custodio
+    // esperaría eternamente a que subiera solo.
+    medio.etiquetas.isEmpty() -> stringResource(R.string.pendientes_falta_etiqueta)
     medio.estadoSubida == EstadoSubida.FALLIDA -> stringResource(R.string.pendientes_subida_fallida)
     medio.estadoSubida == EstadoSubida.EN_PROGRESO -> stringResource(R.string.pendientes_enviando)
-    else -> medio.etiqueta
+    else -> medio.etiquetas.joinToString(", ")
 }
 
 private val formateadorHora: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

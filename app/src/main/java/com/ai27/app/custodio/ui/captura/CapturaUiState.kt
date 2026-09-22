@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.ui.captura
 
 import androidx.annotation.StringRes
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
@@ -31,17 +32,23 @@ data class CapturaUiState(
         get() = medios.size >= LIMITE_MEDIOS_REJILLA
 
     /**
-     * Evidencia capturada que quedó **sin clasificar** (hallazgo E3).
+     * Evidencia capturada que quedó **sin situación** (hallazgo E3).
      *
-     * Ocurre cuando el custodio cierra la hoja de etiquetado con la X, o cuando el proceso
-     * muere con la hoja abierta: el medio ya está persistido pero sin etiqueta. Desde §13
-     * la cola de subida excluye esos medios —subirlos daría al analista evidencia que no
-     * puede filtrar—, así que la app tiene que enseñarlos y dejar etiquetarlos después.
-     * Se deriva de [medios] en lugar de consultar Room aparte: la lista ya está aquí y
-     * está acotada a 50.
+     * Ocurre cuando el custodio cierra la hoja de clasificación con la X, o cuando el
+     * proceso muere con la hoja abierta: el medio ya está persistido pero sin etiqueta de
+     * Situación. Desde §13 la cola de subida excluye esos medios —subirlos daría al
+     * analista evidencia que no puede filtrar—, así que la app tiene que enseñarlos y
+     * dejar clasificarlos después. Se deriva de [medios] en lugar de consultar Room aparte:
+     * la lista ya está aquí y está acotada a 50.
      */
     val mediosSinEtiquetar: List<Medio>
-        get() = medios.filter { it.etiqueta == null }
+        get() {
+            val idsSituacion = etiquetas
+                .filter { it.activo && it.categoria == CategoriaEtiqueta.SITUACION }
+                .map { it.id }
+                .toSet()
+            return medios.filter { medio -> medio.etiquetas.none { it in idsSituacion } }
+        }
 
     companion object {
         const val LIMITE_MEDIOS_REJILLA = 50

@@ -118,7 +118,7 @@ class CapturaViewModelTest {
             runCurrent()
             val medioId = repoMedios.medios.single().id
 
-            vm.guardarEtiqueta(medioId, "dano")
+            vm.guardarEtiqueta(medioId, listOf("sin-novedad"))
             runCurrent() // etiqueta aplicada y hoja cerrada, pero el encolado espera al GPS
 
             assertNull(vm.uiState.value.medioPendienteDeEtiquetar)
@@ -184,7 +184,7 @@ class CapturaViewModelTest {
     @Test
     fun `descartar el etiquetado deja el medio visible como sin etiquetar`() =
         runTest(mainDispatcherRule.dispatcher) {
-            // Hallazgo E3: cerrar la hoja con la X dejaba el medio con etiqueta = null y
+            // Hallazgo E3: cerrar la hoja con la X dejaba el medio sin situación y
             // sin ninguna forma de llegar a él. Ahora la rejilla lo puede señalar porque
             // el estado lo expone, y la cola no lo sube hasta que se clasifique.
             seedReporteActivo()
@@ -232,7 +232,7 @@ class CapturaViewModelTest {
 
             assertEquals(medioId, vm.uiState.value.medioPendienteDeEtiquetar?.id)
 
-            vm.guardarEtiqueta(medioId, "dano")
+            vm.guardarEtiqueta(medioId, listOf("sin-novedad"))
             runCurrent()
             ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
             runCurrent()
@@ -260,7 +260,7 @@ class CapturaViewModelTest {
             vm.capturarFoto(ByteArray(32), ByteArray(8))
             runCurrent()
             val medioId = repoMedios.medios.single().id
-            vm.guardarEtiqueta(medioId, "dano")
+            vm.guardarEtiqueta(medioId, listOf("sin-novedad"))
             runCurrent()
             ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
             runCurrent()

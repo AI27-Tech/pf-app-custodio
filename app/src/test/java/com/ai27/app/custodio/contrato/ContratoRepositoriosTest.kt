@@ -83,7 +83,7 @@ abstract class ContratoRepositoriosTest {
     protected fun nuevoMedio(
         reporteId: String,
         tipo: TipoMedio = TipoMedio.FOTO,
-        etiqueta: String? = "dano",
+        etiquetas: List<String> = listOf("sin-novedad"),
     ): Medio = Medio(
         id = "medio-${UUID.randomUUID()}",
         reporteId = reporteId,
@@ -92,7 +92,7 @@ abstract class ContratoRepositoriosTest {
         createdAtDevice = instante,
         contentType = if (tipo == TipoMedio.FOTO) "image/jpeg" else "audio/mp4",
         estadoSubida = EstadoSubida.PENDIENTE,
-        etiqueta = etiqueta,
+        etiquetas = etiquetas,
     )
 
     private suspend fun reporteGuardado(
@@ -109,9 +109,9 @@ abstract class ContratoRepositoriosTest {
     private suspend fun medioGuardado(
         reporteId: String,
         tipo: TipoMedio = TipoMedio.FOTO,
-        etiqueta: String? = "dano",
+        etiquetas: List<String> = listOf("sin-novedad"),
     ): Medio {
-        val resultado = medios.guardar(nuevoMedio(reporteId, tipo, etiqueta), ByteArray(64), ByteArray(16))
+        val resultado = medios.guardar(nuevoMedio(reporteId, tipo, etiquetas), ByteArray(64), ByteArray(16))
         return (resultado as Result.Success).value
     }
 
@@ -151,21 +151,26 @@ abstract class ContratoRepositoriosTest {
     }
 
     @Test
-    fun `obtenerPendientes excluye los medios sin etiqueta`() = runBlocking {
-        // Hallazgo E3: un medio sin etiqueta no puede subirse (la etiqueta es obligatoria
-        // en el documento), así que encolarlo solo produce trabajo que falla en bucle.
-        // Se queda fuera de la cola hasta que alguien lo etiquete.
+    fun `obtenerPendientes excluye los medios sin etiqueta de situacion`() = runBlocking {
+        // Hallazgo E3: un medio sin Situación no puede subirse (siempre se exige al menos
+        // una, decisión A del PLAN §14), así que encolarlo solo produce trabajo que falla en
+        // bucle. Se queda fuera de la cola hasta que alguien lo clasifique.
         val reporte = reporteGuardado()
-        val sinEtiqueta = medioGuardado(reporte.id, etiqueta = null)
-        val conEtiqueta = medioGuardado(reporte.id, etiqueta = "dano")
+        val sinEtiqueta = medioGuardado(reporte.id, etiquetas = emptyList())
+        val soloEvidencia = medioGuardado(reporte.id, etiquetas = listOf("accidente"))
+        val conSituacion = medioGuardado(reporte.id, etiquetas = listOf("sin-novedad", "accidente"))
 
         val pendientes = medios.obtenerPendientes(reporte.custodioUid)
 
         assertFalse(
-            "Un medio sin etiqueta no debe entrar a la cola de subida",
+            "Un medio sin etiqueta de Situación no debe entrar a la cola de subida",
             pendientes.any { it.id == sinEtiqueta.id },
         )
-        assertTrue(pendientes.any { it.id == conEtiqueta.id })
+        assertFalse(
+            "Un medio solo con Evidencia no debe entrar a la cola de subida",
+            pendientes.any { it.id == soloEvidencia.id },
+        )
+        assertTrue(pendientes.any { it.id == conSituacion.id })
     }
 
     @Test
@@ -291,17 +296,17 @@ abstract class ContratoRepositoriosTest {
     }
 
     @Test
-    fun `etiquetar fija la etiqueta y conserva la ubicacion previa si no se pasa otra`() = runBlocking {
+    fun `etiquetar fija las etiquetas y conserva la ubicacion previa si no se pasa otra`() = runBlocking {
         val reporte = reporteGuardado()
         val medio = medioGuardado(reporte.id)
 
-        assertTrue(medios.etiquetar(medio.id, "dano", "Entrada 3") is Result.Success)
-        assertEquals("dano", medios.obtenerPorId(medio.id)!!.etiqueta)
+        assertTrue(medios.etiquetar(medio.id, listOf("sin-novedad"), "Entrada 3") is Result.Success)
+        assertEquals(listOf("sin-novedad"), medios.obtenerPorId(medio.id)!!.etiquetas)
         assertEquals("Entrada 3", medios.obtenerPorId(medio.id)!!.ubicacionTexto)
 
-        assertTrue(medios.etiquetar(medio.id, "devolucion") is Result.Success)
+        assertTrue(medios.etiquetar(medio.id, listOf("detenido", "accidente")) is Result.Success)
         val reetiquetado = medios.obtenerPorId(medio.id)!!
-        assertEquals("devolucion", reetiquetado.etiqueta)
+        assertEquals(listOf("detenido", "accidente"), reetiquetado.etiquetas)
         assertEquals("Entrada 3", reetiquetado.ubicacionTexto)
     }
 

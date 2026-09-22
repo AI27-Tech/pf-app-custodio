@@ -120,7 +120,7 @@ fun DetalleReporteScreen(
                     items(estado.medios, key = { it.id }) { medio ->
                         FilaMedio(
                             medio = medio,
-                            nombreEtiqueta = nombreEtiqueta(estado.etiquetas, medio.etiqueta),
+                            nombresEtiqueta = nombresEtiqueta(estado.etiquetas, medio.etiquetas),
                         )
                     }
                 }
@@ -180,7 +180,7 @@ private fun CabezaDetalle(reporte: Reporte) {
 @Composable
 private fun FilaMedio(
     medio: Medio,
-    nombreEtiqueta: String?,
+    nombresEtiqueta: List<String>,
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
@@ -213,7 +213,9 @@ private fun FilaMedio(
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = nombreEtiqueta ?: medio.etiqueta ?: stringResource(R.string.detalle_sin_etiqueta),
+                    text = nombresEtiqueta
+                        .joinToString(" · ")
+                        .ifBlank { stringResource(R.string.detalle_sin_etiqueta) },
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
@@ -231,8 +233,8 @@ private fun FilaMedio(
     }
 }
 
-private fun nombreEtiqueta(etiquetas: List<Etiqueta>, id: String?): String? =
-    id?.let { idBuscado -> etiquetas.firstOrNull { it.id == idBuscado }?.nombre }
+private fun nombresEtiqueta(etiquetas: List<Etiqueta>, ids: List<String>): List<String> =
+    ids.mapNotNull { idBuscado -> etiquetas.firstOrNull { it.id == idBuscado }?.nombre }
 
 @Preview(name = "Claro")
 @Composable

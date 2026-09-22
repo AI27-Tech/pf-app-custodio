@@ -14,6 +14,7 @@ sealed interface DominioError {
     data object SinEspacioEnDispositivo : DominioError
     data object AudioExcedeCincoMinutos : DominioError
     data class EtiquetaInvalida(val etiquetaId: String) : DominioError
+    data object FaltaSituacion : DominioError
     data object MedioNoEncontrado : DominioError
     data object MedioEnSubida : DominioError
     data object MedioYaSubido : DominioError

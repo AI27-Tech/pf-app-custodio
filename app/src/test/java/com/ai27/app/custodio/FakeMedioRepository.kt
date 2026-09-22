@@ -1,5 +1,6 @@
 package com.ai27.app.custodio
 
+import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Medio
@@ -68,7 +69,7 @@ class FakeMedioRepository(
 
     override suspend fun etiquetar(
         medioId: String,
-        etiquetaId: String,
+        etiquetas: List<String>,
         ubicacionTexto: String?,
     ): Result<Medio> {
         val indice = medios.indexOfFirst { it.id == medioId }
@@ -77,7 +78,7 @@ class FakeMedioRepository(
         }
         val anterior = medios[indice]
         val actualizado = anterior.copy(
-            etiqueta = etiquetaId,
+            etiquetas = etiquetas,
             ubicacionTexto = ubicacionTexto ?: anterior.ubicacionTexto,
         )
         medios[indice] = actualizado
@@ -143,10 +144,10 @@ class FakeMedioRepository(
 
     override suspend fun obtenerPendientes(custodioUid: String): List<Medio> =
         // Mismo filtro que MedioDao.obtenerPendientes: del custodio, no COMPLETA (FALLIDA
-        // incluida, para que la reconciliación los reintente) y con etiqueta.
+        // incluida, para que la reconciliación los reintente) y con Situación marcada.
         medios.filter {
             it.estadoSubida != EstadoSubida.COMPLETA &&
-                it.etiqueta != null &&
+                it.etiquetas.any { etiqueta -> etiqueta in ETIQUETAS_SITUACION_IDS } &&
                 esDelCustodio(it.reporteId, custodioUid)
         }
 

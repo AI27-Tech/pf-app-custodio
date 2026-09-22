@@ -1,9 +1,9 @@
 package com.ai27.app.custodio.ui.captura
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.TipoMedio
 import com.ai27.app.custodio.ui.components.AVISO_SUBIDA_DURACION_MS
@@ -48,25 +49,33 @@ import kotlinx.coroutines.delay
 @Composable
 fun HojaEtiqueta(
     estado: CapturaUiState,
-    onGuardar: (medioId: String, etiquetaId: String) -> Unit,
+    onGuardar: (medioId: String, etiquetas: List<String>) -> Unit,
     onUbicacionTextoCambio: (String) -> Unit,
     onCerrar: () -> Unit,
 ) {
     val medio = estado.medioPendienteDeEtiquetar ?: return
-    var seleccionada by remember(medio.id) { mutableStateOf<String?>(null) }
+    var seleccionadas by remember(medio.id) { mutableStateOf(setOf<String>()) }
     // La hoja se abre siempre totalmente expandida: con el aviso, las etiquetas y el
     // campo de ubicación, la versión parcialmente expandida ocultaría el botón de guardar
     // y obligaría a hacer scroll.
     //
-    // El etiquetado es obligatorio: sin un chip elegido no se puede descartar la hoja. El
-    // estado de la hoja rechaza el cambio a Hidden (frena el gesto de baja) y onDismissRequest
-    // ignora el toque fuera de la hoja y el botón atrás; el botón de cerrar además se
-    // deshabilita. Así la foto y la nota de voz recién capturadas siempre quedan etiquetadas
-    // y pasan a la cola de subida.
+    // Hay que elegir al menos una etiqueta de Situación (decisión A del PLAN §14); la
+    // Evidencia es opcional. Sin Situación la hoja no se puede descartar: el estado de la
+    // hoja rechaza el cambio a Hidden (frena el gesto de baja) y onDismissRequest ignora
+    // el toque fuera de la hoja y el botón atrás; el botón de cerrar además se deshabilita.
+    // Así la foto y la nota de voz recién capturadas siempre quedan clasificadas y pasan
+    // a la cola de subida.
+    val idsSituacion = remember(estado.etiquetas) {
+        estado.etiquetas
+            .filter { it.activo && it.categoria == CategoriaEtiqueta.SITUACION }
+            .map { it.id }
+            .toSet()
+    }
+    val tieneSituacion = seleccionadas.any { it in idsSituacion }
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { valor ->
-            if (valor == SheetValue.Hidden) seleccionada != null else true
+            if (valor == SheetValue.Hidden) tieneSituacion else true
         },
     )
     var avisoVisible by remember { mutableStateOf(true) }
@@ -80,7 +89,7 @@ fun HojaEtiqueta(
     }
 
     ModalBottomSheet(
-        onDismissRequest = { if (seleccionada != null) onCerrar() },
+        onDismissRequest = { if (tieneSituacion) onCerrar() },
         sheetState = sheetState,
     ) {
         Column(
@@ -115,7 +124,7 @@ fun HojaEtiqueta(
                 )
                 IconButton(
                     onClick = onCerrar,
-                    enabled = seleccionada != null,
+                    enabled = tieneSituacion,
                 ) {
                     Icon(
                         Icons.Filled.Close,
@@ -124,21 +133,36 @@ fun HojaEtiqueta(
                 }
             }
 
-            Text(
-                text = stringResource(R.string.hoja_etiqueta_obligatoria),
-                style = MaterialTheme.typography.labelLarge,
-            )
+            CategoriaEtiqueta.entries.forEach { categoria ->
+                Text(
+                    text = stringResource(
+                        when (categoria) {
+                            CategoriaEtiqueta.SITUACION -> R.string.hoja_etiqueta_obligatoria
+                            CategoriaEtiqueta.EVIDENCIA -> R.string.hoja_evidencia_opcional
+                        },
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                )
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                etiquetasActivas.forEach { etiqueta ->
-                    FilterChip(
-                        selected = seleccionada == etiqueta.id,
-                        onClick = { seleccionada = etiqueta.id },
-                        label = { Text(etiqueta.nombre) },
-                    )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    etiquetasActivas
+                        .filter { it.categoria == categoria }
+                        .forEach { etiqueta ->
+                            FilterChip(
+                                selected = etiqueta.id in seleccionadas,
+                                onClick = {
+                                    seleccionadas = if (etiqueta.id in seleccionadas) {
+                                        seleccionadas - etiqueta.id
+                                    } else {
+                                        seleccionadas + etiqueta.id
+                                    }
+                                },
+                                label = { Text(etiqueta.nombre) },
+                            )
+                        }
                 }
             }
 
@@ -153,12 +177,12 @@ fun HojaEtiqueta(
             }
 
             Button(
-                onClick = { seleccionada?.let { onGuardar(medio.id, it) } },
-                enabled = seleccionada != null,
+                onClick = { onGuardar(medio.id, seleccionadas.toList()) },
+                enabled = tieneSituacion,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    if (seleccionada == null) {
+                    if (!tieneSituacion) {
                         stringResource(R.string.hoja_selecciona_etiqueta)
                     } else {
                         stringResource(R.string.hoja_guardar)

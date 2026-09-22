@@ -72,7 +72,7 @@ fun CapturaEvidenciaScreen(
     onAtras: () -> Unit,
     onTomarFoto: (jpeg: ByteArray, miniatura: ByteArray) -> Unit,
     onFallaDeCaptura: (causa: Throwable) -> Unit,
-    onGuardarEtiqueta: (medioId: String, etiquetaId: String) -> Unit,
+    onGuardarEtiqueta: (medioId: String, etiquetas: List<String>) -> Unit,
     onUbicacionTextoCambio: (String) -> Unit,
     onCerrarHoja: () -> Unit,
     onConsumirError: () -> Unit,

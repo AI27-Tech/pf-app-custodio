@@ -2,6 +2,37 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:22 13:56
+
+**Resumen:** Se agregó la sección §15 a `docs/PLAN.md` con el plan de la tercera tanda sobre la auditoría: verificación exhaustiva de §12/§13, cierre de los pendientes de comprobación manual, y la tanda de **integridad del dato (Grupo 1: C1–C6)** en modo TDD, más un roadmap de una línea para los Grupos 2–6. Cambio solo de documentación; aún no se toca código.
+
+**Cambios:**
+
+- Nueva sección **§15** en `docs/PLAN.md`: estado verificado de §12/§13 contra el código (B1, B2, B3, S1, S2, E3/E6, E5 confirmados leyendo los archivos), los seis hallazgos del Grupo 1 confirmados presentes (C1 contador con `Result` descartado, C2 `sha256` nulo, C3 lost-update, C4 `REPLACE` cancela subidas, C5 error sin clasificar, C6 cierre no transaccional), alcance acordado, decisiones de diseño (D1–D5), tabla de tareas (T1/T2 + C0–C6), roadmap de los Grupos 2–6 y lista de fuera de alcance.
+- El plan registra que hay dispositivo con Android > 11 y Emulator Suite, y que la rama del constructor viejo de B2 (Android ≤11) queda `PENDIENTE-HW`.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:22 12:59
+
+**Resumen:** §14 completa: las etiquetas provisionales de una sola opción (`Medio.etiqueta`) se reemplazan por un catálogo curado de dos categorías — **Situación** (obligatoria, 5 etiquetas) y **Evidencia** (opcional, 6 etiquetas) — y los medios aceptan varias, con la regla de dominio "≥1 etiqueta de Situación" validada en todos los puntos de entrada.
+
+**Cambios:**
+
+- **Dominio y catálogo**: `CategoriaEtiqueta` (SITUACION/EVIDENCIA), `Etiqueta.categoria`, `Medio.etiqueta` → `etiquetas: List<String>`, `DominioError.FaltaSituacion`, y el catálogo nuevo en `CatalogoEtiquetasRepository` (los ids viejos —`dano`, `devolucion`, `novedad`, `contraentrega`, `otro`— dejan de existir).
+- **Room v2**: `MedioEntity.etiquetas` (con `EtiquetasConverter`) + columna denormalizada `tieneSituacion`; `etiquetar` devuelve la lista y actualiza el flag; `obtenerPendientes` (cola de subida y badge) filtra por `tieneSituacion = 1`. Primera migración de la app: `Migration(1,2)` convierte `etiqueta TEXT` en `etiquetas TEXT` (JSON de un elemento si venía valor o `[]`) y calcula `tieneSituacion` según el catálogo; los registros viejos pasan sin Situación y quedan pendientes de reclasificar.
+- **Caso de uso**: `EtiquetarMedio` valida que todos los ids existan y estén activos (`EtiquetaInvalida`) y que el conjunto incluya al menos una Situación (`FaltaSituacion`).
+- **Remoto**: `DocumentoMappers` escribe `"etiquetas": [..]`; `SubidaMedioProceso` no sube evidencia de un medio sin Situación.
+- **UI**: `HojaEtiqueta` con dos grupos de chips multi-selección (marca "Situación (obligatoria)"), que reemplaza los chips de una sola etiqueta; `ArchivosScreen`, `CapturaEvidenciaScreen`, `AudioScreen` y `DetalleReporteScreen` muestran la lista (unidas con " · ", "Sin situación" si está vacía); `PendientesScreen` distingue "Falta situación" del detalle normal.
+- **Pruebas**: contrato, `FakeMedioRepository`, worker, reconciliación, emulador y el caso de uso reescrito para la lista y el filtro de Situación; de paso se corrigió una divergencia que dejaba entrar en la cola a un medio solo con Evidencia (el fake vs. la query de Room, 🔁 alineados con `ETIQUETAS_SITUACION_IDS`). Nueva prueba de migración (`MigracionEtiquetasTest`) que aplica `MIGRACION_1_2` sobre una base v1 sembrada y verifica columnas y datos.
+
+**Resultado:** 149 pruebas unitarias / 0 fallos (142 previas + 7 de esta tanda); `assembleDebug` y `lintDebug` en 0 errores (35 warnings todos preexistentes: bump de dependencias, orden de `Modifier` en componentes viejos, orientación fija, recursos sin uso).
+
+**Archivos modificados:** dominio (`Etiqueta.kt`, `Medio.kt`, `DominioError.kt`), `data/local/db/` (`MedioEntity.kt`, `MedioDao.kt`, `AppCustodioDatabase.kt` en versión 2, `EtiquetasConverter.kt`), `data/repository/{CatalogoEtiquetasRepository.kt, RoomMedioRepository.kt}`, `data/mapper/{MedioMappers.kt, DocumentoMappers.kt}`, `data/usecase/{EtiquetarMedio.kt, SubidaMedioProceso.kt}`, `ui/captura/{HojaEtiqueta.kt, CapturaViewModel.kt, CapturaUiState.kt}`, `ui/viaje/{ArchivosScreen.kt, CapturaEvidenciaScreen.kt, AudioScreen.kt}`, `ui/historial/DetalleReporte*.kt`, `ui/pendientes/PendientesScreen.kt`, `ui/error/DominioErrorRecurso.kt`, `ui/previews/DatosDemo.kt`, `res/values/strings.xml`, pruebas unitarias e instrumentadas citadas, y `docs/PLAN.md` (§14 cerrada).
+
 ## 2026:09:22 11:37
 
 **Resumen:** Se ejecutó la verificación instrumentada de §13 que había quedado pendiente: el teléfono se reconectó y `connectedDebugAndroidTest` corrió completo contra el Emulator Suite. Sin cambios de código.

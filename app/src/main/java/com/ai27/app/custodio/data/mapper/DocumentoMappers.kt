@@ -39,7 +39,7 @@ fun Reporte.aDocumentoFirestore(): Map<String, Any?> = mapOf(
 fun Medio.aDocumentoFirestore(reporte: Reporte, rutas: RutasRemotas): Map<String, Any?> = mapOf(
     "reporteId" to reporteId,
     "tipo" to tipo.name,
-    "etiqueta" to etiqueta,
+    "etiquetas" to etiquetas,
     "storagePath" to rutas.media,
     "thumbnailPath" to rutas.miniatura,
     "createdAtDevice" to Timestamp(createdAtDevice.epochSecond, createdAtDevice.nano),

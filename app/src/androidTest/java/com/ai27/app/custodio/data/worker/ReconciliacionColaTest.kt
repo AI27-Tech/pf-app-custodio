@@ -109,7 +109,7 @@ class ReconciliacionColaTest {
         return reporte
     }
 
-    private suspend fun crearMedio(reporteId: String, etiqueta: String? = "dano"): Medio {
+    private suspend fun crearMedio(reporteId: String, etiquetas: List<String> = listOf("sin-novedad")): Medio {
         val medio = Medio(
             id = "medio-${UUID.randomUUID()}",
             reporteId = reporteId,
@@ -118,7 +118,7 @@ class ReconciliacionColaTest {
             createdAtDevice = instante,
             contentType = "image/jpeg",
             estadoSubida = EstadoSubida.PENDIENTE,
-            etiqueta = etiqueta,
+            etiquetas = etiquetas,
         )
         return (medios.guardar(medio, ByteArray(64), ByteArray(16)) as Result.Success).value
     }
@@ -194,33 +194,39 @@ class ReconciliacionColaTest {
     }
 
     @Test
-    fun reconciliar_no_encola_los_medios_SIN_etiquetar() = runBlocking {
-        // Hallazgo E3, cerrado en §13.
+    fun reconciliar_no_encola_los_medios_SIN_situacion() = runBlocking {
+        // Hallazgo E3, cerrado en §13 y endurecido en §14 (decisión A: al menos una
+        // etiqueta de Situación).
         //
-        // La hoja de etiquetado es una trampa deliberada en la UI: no se puede cerrar sin
-        // elegir un chip. Pero si el custodio la descarta con la X, o si el proceso muere
-        // con la hoja abierta, el medio queda persistido con etiqueta = null. Antes,
-        // reconciliar() encolaba TODO lo que no estuviera COMPLETA, así que al siguiente
-        // arranque ese medio subía sin clasificar y el analista recibía evidencia que no
-        // podía filtrar.
+        // La hoja de clasificación es una trampa deliberada en la UI: no se puede cerrar
+        // sin elegir una Situación. Pero si el custodio la descarta con la X, o si el
+        // proceso muere con la hoja abierta, el medio queda persistido sin situación.
+        // Antes, reconciliar() encolaba TODO lo que no estuviera COMPLETA, así que al
+        // siguiente arranque ese medio subía sin clasificar y el analista recibía evidencia
+        // que no podía filtrar.
         //
-        // Ahora la cola filtra por etiqueta. El medio NO se pierde: sigue en Room, cuenta
+        // Ahora la cola filtra por Situación. El medio NO se pierde: sigue en Room, cuenta
         // en el badge de pendientes y la rejilla de Archivos lo marca como pendiente de
-        // etiquetar para que el custodio lo resuelva con un toque.
+        // clasificar para que el custodio lo resuelva con un toque.
         val reporte = crearReporte()
-        val sinEtiqueta = crearMedio(reporte.id, etiqueta = null)
-        val conEtiqueta = crearMedio(reporte.id)
+        val sinSituacion = crearMedio(reporte.id, etiquetas = emptyList())
+        val soloEvidencia = crearMedio(reporte.id, etiquetas = listOf("estado-transporte"))
+        val conSituacion = crearMedio(reporte.id)
 
         scheduler.reconciliar(reporte.custodioUid)
 
         assertTrue(
-            "Un medio sin etiqueta no debe encolarse: subiría evidencia sin clasificar",
-            trabajosDeMedio(sinEtiqueta.id).isEmpty(),
+            "Un medio sin Situación no debe encolarse: subiría evidencia sin clasificar",
+            trabajosDeMedio(sinSituacion.id).isEmpty(),
+        )
+        assertTrue(
+            "Un medio solo con Evidencia tampoco: la Situación es obligatoria",
+            trabajosDeMedio(soloEvidencia.id).isEmpty(),
         )
         assertEquals(
-            "El resto del reporte sí se encola: un medio sin etiquetar no bloquea a los demás",
+            "El resto del reporte sí se encola: un medio sin clasificar no bloquea a los demás",
             1,
-            trabajosDeMedio(conEtiqueta.id).size,
+            trabajosDeMedio(conSituacion.id).size,
         )
     }
 
