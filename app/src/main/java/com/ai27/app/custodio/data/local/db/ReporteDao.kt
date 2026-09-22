@@ -59,6 +59,10 @@ interface ReporteDao {
     )
     suspend fun actualizarSubida(id: String, subida: String, mediosSubidos: Int, completo: Boolean): Int
 
-    @Query("SELECT * FROM reportes WHERE subida != 'COMPLETA' ORDER BY createdAtDevice ASC")
-    suspend fun obtenerPendientesSubida(): List<ReporteEntity>
+    @Query(
+        "SELECT * FROM reportes WHERE custodioUid = :custodioUid " +
+            "AND subida != 'COMPLETA' AND fechaLocal >= :fechaDesde " +
+            "ORDER BY createdAtDevice ASC",
+    )
+    suspend fun obtenerPendientesSubida(custodioUid: String, fechaDesde: String): List<ReporteEntity>
 }

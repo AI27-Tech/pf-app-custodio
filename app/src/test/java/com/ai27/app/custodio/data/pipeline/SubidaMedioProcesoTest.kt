@@ -17,6 +17,7 @@ import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -77,6 +78,7 @@ class SubidaMedioProcesoTest {
                 createdAtDevice = fijo,
                 contentType = "image/jpeg",
                 estadoSubida = EstadoSubida.PENDIENTE,
+                etiqueta = "dano",
             ),
             contenido = ByteArray(10),
             miniatura = ByteArray(4),
@@ -90,7 +92,11 @@ class SubidaMedioProcesoTest {
         assertTrue(resultado is Result.Success)
         val subido = repoMedios.obtenerPorId(medio.id)!!
         assertEquals(EstadoSubida.COMPLETA, subido.estadoSubida)
-        assertNull(subido.localPath)
+        // localPath se CONSERVA en la fila: MedioDao.marcarSubidaCompleta solo actualiza
+        // estadoSubida, storagePath y sha256. El archivo físico sí se borra (se comprueba
+        // abajo), así que la fila queda apuntando a una ruta que ya no existe. Esta
+        // aserción decía assertNull porque el fake limpiaba la columna (P2/D3).
+        assertNotNull(subido.localPath)
         assertEquals("medios/r-1/m-1.jpg", subido.storagePath)
         assertTrue(subido.sha256!!.isNotBlank())
         // El archivo grande se borra; la miniatura local se conserva para la rejilla.
@@ -98,6 +104,34 @@ class SubidaMedioProcesoTest {
         assertTrue(archivos.archivos.containsKey("fisico/m-1-min"))
         assertEquals(1, medioRemoto.subidos.size)
         assertEquals(1, medioRemoto.docsCreados.size)
+    }
+
+    @Test
+    fun `no sube un medio sin etiqueta`() = runBlocking {
+        // Hallazgo E3: la etiqueta es obligatoria en el documento, así que un medio sin
+        // clasificar no puede salir. El proceso lo deja quieto en lugar de fallar en bucle.
+        val sinEtiqueta = (repoMedios.guardar(
+            Medio(
+                id = "m-2",
+                reporteId = "r-1",
+                tipo = TipoMedio.FOTO,
+                origen = OrigenMedio.CAMARA,
+                createdAtDevice = fijo,
+                contentType = "image/jpeg",
+                estadoSubida = EstadoSubida.PENDIENTE,
+                etiqueta = null,
+            ),
+            contenido = ByteArray(10),
+            miniatura = ByteArray(4),
+        ) as Result.Success).value
+
+        val resultado = proceso.ejecutar("r-1", sinEtiqueta.id)
+
+        assertTrue("No es un fallo: no hay nada que reintentar", resultado is Result.Success)
+        assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(sinEtiqueta.id)!!.estadoSubida)
+        assertEquals(0, medioRemoto.subidos.size)
+        assertEquals(0, medioRemoto.docsCreados.size)
+        assertTrue("El archivo local no se toca", archivos.archivos.containsKey("fisico/m-2"))
     }
 
     @Test

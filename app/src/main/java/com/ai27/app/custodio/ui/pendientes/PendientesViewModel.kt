@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -22,7 +23,7 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class PendientesViewModel @Inject constructor(
-    sesionRepositorio: SesionRepositorio,
+    private val sesionRepositorio: SesionRepositorio,
     private val medioRepository: MedioRepository,
     private val reintentarSubida: ReintentarSubida,
     private val programadorSubidas: SubidaScheduler,
@@ -51,9 +52,11 @@ class PendientesViewModel @Inject constructor(
 
     fun recargar() {
         viewModelScope.launch {
+            // La cola es por custodio (E6): sin sesión no hay nada que reponer.
+            val uid = sesionRepositorio.observarCustodio().first()?.uid ?: return@launch
             _refrescando.value = true
             try {
-                programadorSubidas.reconciliar()
+                programadorSubidas.reconciliar(uid)
             } finally {
                 _refrescando.value = false
             }

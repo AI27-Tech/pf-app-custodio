@@ -2,7 +2,6 @@ package com.ai27.app.custodio.ui.viaje
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.LifecycleCameraController
@@ -72,6 +71,7 @@ fun CapturaEvidenciaScreen(
     estado: CapturaUiState,
     onAtras: () -> Unit,
     onTomarFoto: (jpeg: ByteArray, miniatura: ByteArray) -> Unit,
+    onFallaDeCaptura: (causa: Throwable) -> Unit,
     onGuardarEtiqueta: (medioId: String, etiquetaId: String) -> Unit,
     onUbicacionTextoCambio: (String) -> Unit,
     onCerrarHoja: () -> Unit,
@@ -81,15 +81,19 @@ fun CapturaEvidenciaScreen(
     val context = LocalContext.current
     var controllerCamara by remember { mutableStateOf<LifecycleCameraController?>(null) }
 
+    // Cerrojo del obturador, sincrónico con el toque. Es lo que impide que un segundo
+    // toque lance otra captura mientras la primera todavía se está comprimiendo: el
+    // `estado.capturando` del ViewModel llega demasiado tarde para eso (hallazgo E1).
+    var disparoEnCurso by remember { mutableStateOf(false) }
+
     // El procesamiento de la foto (rotación + compresión JPEG del original y la
     // miniatura) es costoso y NO debe correr en el hilo principal: se ejecuta en el
     // pool por defecto para que el visor no se congele en el momento del disparo.
     val ejecutorImagen = remember { Dispatchers.Default.asExecutor() }
 
-    // "Flash" del obturador: cuando la captura tiene éxito (dentro del callback de
-    // `tomarFoto`, ya con el JPEG listo) se pinta un velo negro a pantalla completa
-    // que se desvanece, para confirmar que la foto realmente se tomó aunque el
-    // guardado y la ubicación tarden un instante más.
+    // "Flash" del obturador: se pinta un velo negro a pantalla completa que se desvanece.
+    // Se dispara en el toque, no al terminar de comprimir, para que el custodio tenga
+    // confirmación inmediata de que la app registró la pulsación.
     val scope = rememberCoroutineScope()
     val flash = remember { Animatable(0f) }
 
@@ -105,18 +109,11 @@ fun CapturaEvidenciaScreen(
             PackageManager.PERMISSION_GRANTED,
     )
 
-    fun permisosSolicitados(): Array<String> {
-        val base = arrayOf(
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        )
-        return if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            base + Manifest.permission.WRITE_EXTERNAL_STORAGE
-        } else {
-            base
-        }
-    }
+    fun permisosSolicitados(): Array<String> = arrayOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    )
 
     var permisos by remember {
         mutableStateOf(
@@ -135,6 +132,7 @@ fun CapturaEvidenciaScreen(
 
     val disparoHabilitado = permisos.camara &&
         controllerCamara != null &&
+        !disparoEnCurso &&
         !estado.capturando &&
         !estado.limiteAlcanzado
 
@@ -192,13 +190,30 @@ fun CapturaEvidenciaScreen(
             Surface(
                 onClick = {
                     val camara = controllerCamara ?: return@Surface
-                    tomarFoto(camara, ejecutorImagen) { jpeg, miniatura ->
-                        scope.launch {
-                            flash.snapTo(1f)
-                            flash.animateTo(0f, animationSpec = tween(durationMillis = 280))
-                        }
-                        onTomarFoto(jpeg, miniatura)
+                    // Cerrojo SÍNCRONO: `estado.capturando` solo se pone en true cuando el
+                    // JPEG ya está comprimido, cientos de ms después, así que por sí solo
+                    // no impide el segundo toque (hallazgo E1). Se libera en los dos
+                    // callbacks de tomarFoto, que son excluyentes.
+                    disparoEnCurso = true
+                    // El flash va ANTES de disparar, no en el callback de éxito: el toque
+                    // tiene que producir señal inmediata, porque la ausencia de señal es
+                    // justo lo que hace que el custodio vuelva a tocar.
+                    scope.launch {
+                        flash.snapTo(1f)
+                        flash.animateTo(0f, animationSpec = tween(durationMillis = 280))
                     }
+                    tomarFoto(
+                        controller = camara,
+                        ejecutor = ejecutorImagen,
+                        alTenerFoto = { jpeg, miniatura ->
+                            disparoEnCurso = false
+                            onTomarFoto(jpeg, miniatura)
+                        },
+                        alFallar = { causa ->
+                            disparoEnCurso = false
+                            onFallaDeCaptura(causa)
+                        },
+                    )
                 },
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -263,6 +278,7 @@ private fun CapturaEvidenciaVistaClaro() {
             ),
             onAtras = {},
             onTomarFoto = { _, _ -> },
+            onFallaDeCaptura = {},
             onGuardarEtiqueta = { _, _ -> },
             onUbicacionTextoCambio = {},
             onCerrarHoja = {},
@@ -283,6 +299,7 @@ private fun CapturaEvidenciaVistaOscuro() {
             ),
             onAtras = {},
             onTomarFoto = { _, _ -> },
+            onFallaDeCaptura = {},
             onGuardarEtiqueta = { _, _ -> },
             onUbicacionTextoCambio = {},
             onCerrarHoja = {},

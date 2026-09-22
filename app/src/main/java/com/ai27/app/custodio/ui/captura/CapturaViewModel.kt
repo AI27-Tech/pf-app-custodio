@@ -1,10 +1,10 @@
 package com.ai27.app.custodio.ui.captura
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.R
-import com.ai27.app.custodio.data.local.media.FotosPublicas
+import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
+import com.ai27.app.custodio.data.local.media.EventoGrabacion
 import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
@@ -13,7 +13,6 @@ import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Gps
-import com.ai27.app.custodio.domain.model.Limites
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
 import com.ai27.app.custodio.domain.model.Reporte
@@ -32,12 +31,16 @@ import com.ai27.app.custodio.ui.error.aRecurso
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import javax.inject.Named
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -60,8 +63,8 @@ class CapturaViewModel @Inject constructor(
     private val reintentarSubida: ReintentarSubida,
     private val proveedorUbicacion: ProveedorUbicacion,
     private val grabadora: Grabadora,
-    private val fotosPublicas: FotosPublicas,
     private val programadorSubidas: SubidaScheduler,
+    private val registroDeFallos: RegistroDeFallos,
     @Named("deviceId") private val deviceId: String,
 ) : ViewModel() {
 
@@ -117,8 +120,30 @@ class CapturaViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             interno.update { it.copy(etiquetas = obtenerEtiquetas()) }
-            // Repone la cola de subida de la sesión anterior (espera red por sí sola).
-            programadorSubidas.reconciliar()
+        }
+        viewModelScope.launch {
+            // La reconciliación es por custodio (E6), así que espera a que la sesión
+            // resuelva antes de reponer la cola. Si no hay sesión no hay nada que reponer.
+            val uid = custodioFlow.filterNotNull().first().uid
+            programadorSubidas.reconciliar(uid)
+        }
+        viewModelScope.launch {
+            // Un .m4a suelto en caché es la prueba de que el proceso murió a media nota.
+            // `pause()` no escribe el índice del MPEG-4, así que ese audio es
+            // irrecuperable: lo único honesto es borrarlo y decirlo (R3 de §13).
+            if (grabadora.barrerNotasHuerfanas() > 0) {
+                interno.update { it.copy(avisoNotaPerdida = true) }
+            }
+        }
+        viewModelScope.launch {
+            // Sin recoger esto, un MEDIA_RECORDER_ERROR_SERVER_DIED dejaba la nota en
+            // silencio sin que nadie se enterara (hallazgo E5).
+            grabadora.eventos.collect { evento ->
+                when (evento) {
+                    is EventoGrabacion.LimiteAlcanzado -> detenerGrabacionDeAudio()
+                    is EventoGrabacion.Fallo -> falloDeGrabacion(evento.codigo)
+                }
+            }
         }
     }
 
@@ -174,14 +199,11 @@ class CapturaViewModel @Inject constructor(
             )
             interno.update {
                 when (resultado) {
-                    is Result.Success -> {
-                        copiarAPublica(resultado.value.id, jpeg)
-                        it.copy(
-                            capturando = false,
-                            ubicacionTextoEscrita = "",
-                            medioPendienteDeEtiquetar = resultado.value,
-                        )
-                    }
+                    is Result.Success -> it.copy(
+                        capturando = false,
+                        ubicacionTextoEscrita = "",
+                        medioPendienteDeEtiquetar = resultado.value,
+                    )
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
             }
@@ -194,20 +216,52 @@ class CapturaViewModel @Inject constructor(
     fun iniciarGrabacionDeAudio() {
         if (interno.value.grabandoAudio || interno.value.capturando) return
         if (uiState.value.reporte == null) return
-        if (!grabadora.iniciar()) {
-            interno.update { it.copy(error = R.string.error_grabacion_no_inicio) }
-            return
+        viewModelScope.launch {
+            if (!grabadora.iniciar()) {
+                interno.update { it.copy(error = R.string.error_grabacion_no_inicio) }
+                return@launch
+            }
+            interno.update { it.copy(grabandoAudio = true, audioPausado = false, segundosAudio = 0L) }
+            arrancarCronometro()
         }
-        interno.update { it.copy(grabandoAudio = true, segundosAudio = 0L) }
+    }
+
+    /**
+     * Pausa la nota al salir de la app. La alternativa —seguir grabando en segundo plano—
+     * exige un servicio en primer plano con notificación permanente, y dejarla corriendo
+     * sin él acaba en audio en silencio cuando el sistema le quita el micrófono (E5).
+     */
+    fun pausarGrabacionDeAudio() {
+        if (!interno.value.grabandoAudio || interno.value.audioPausado) return
+        jobTimerAudio?.cancel()
+        jobTimerAudio = null
+        viewModelScope.launch {
+            grabadora.pausar()
+            interno.update {
+                it.copy(audioPausado = true, segundosAudio = grabadora.duracionActualMs() / 1_000L)
+            }
+        }
+    }
+
+    fun reanudarGrabacionDeAudio() {
+        if (!interno.value.grabandoAudio || !interno.value.audioPausado) return
+        viewModelScope.launch {
+            if (!grabadora.reanudar()) {
+                interno.update { it.copy(error = R.string.error_grabacion_no_reanudo) }
+                return@launch
+            }
+            interno.update { it.copy(audioPausado = false) }
+            arrancarCronometro()
+        }
+    }
+
+    private fun arrancarCronometro() {
+        jobTimerAudio?.cancel()
         jobTimerAudio = viewModelScope.launch {
-            while (interno.value.grabandoAudio) {
+            while (interno.value.grabandoAudio && !interno.value.audioPausado) {
                 delay(1_000L)
-                if (!interno.value.grabandoAudio) break
-                val segundos = grabadora.duracionActualMs() / 1_000L
-                interno.update { it.copy(segundosAudio = segundos) }
-                if (grabadora.duracionActualMs() >= Limites.AUDIO_MAX_MS) {
-                    detenerGrabacionDeAudio()
-                }
+                if (!interno.value.grabandoAudio || interno.value.audioPausado) break
+                interno.update { it.copy(segundosAudio = grabadora.duracionActualMs() / 1_000L) }
             }
         }
     }
@@ -216,16 +270,22 @@ class CapturaViewModel @Inject constructor(
         if (!interno.value.grabandoAudio) return
         jobTimerAudio?.cancel()
         jobTimerAudio = null
-        interno.update { it.copy(grabandoAudio = false, segundosAudio = 0L) }
+        interno.update { it.copy(grabandoAudio = false, audioPausado = false, segundosAudio = 0L) }
         val custodio = uiState.value.custodio
         val reporte = uiState.value.reporte
         if (custodio == null || reporte == null) {
-            grabadora.descartar()
+            viewModelScope.launch { grabadora.descartar() }
             return
         }
         viewModelScope.launch {
             val grabacion = grabadora.detener()
-            if (grabacion == null) return@launch
+            if (grabacion == null) {
+                // El grabador no devolvió audio usable (archivo vacío o duración cero).
+                // Callarse aquí sería el mismo defecto que E5 vino a cerrar: la nota
+                // desaparecería y el custodio se iría creyendo que la dejó grabada.
+                interno.update { it.copy(error = R.string.error_grabacion_vacia) }
+                return@launch
+            }
             interno.update { it.copy(capturando = true) }
             // Igual que la foto: se persiste sin esperar el GPS y la ubicación se adjunta
             // en segundo plano; guardarEtiqueta la espera antes de encolar la subida.
@@ -257,8 +317,47 @@ class CapturaViewModel @Inject constructor(
     fun descartarAudio() {
         jobTimerAudio?.cancel()
         jobTimerAudio = null
-        interno.update { it.copy(grabandoAudio = false, segundosAudio = 0L) }
-        grabadora.descartar()
+        interno.update { it.copy(grabandoAudio = false, audioPausado = false, segundosAudio = 0L) }
+        viewModelScope.launch { grabadora.descartar() }
+    }
+
+    /**
+     * El grabador falló por su cuenta. Se descarta la nota —un `.m4a` que nunca se cerró no
+     * es audio, es basura— y se avisa, en vez de entregar silencio como evidencia (E5).
+     */
+    private fun falloDeGrabacion(codigo: Int) {
+        jobTimerAudio?.cancel()
+        jobTimerAudio = null
+        interno.update {
+            it.copy(
+                grabandoAudio = false,
+                audioPausado = false,
+                segundosAudio = 0L,
+                error = R.string.error_grabacion_fallo,
+            )
+        }
+        registroDeFallos.registrar(CONTEXTO_GRABACION, IllegalStateException("MediaRecorder error $codigo"))
+        viewModelScope.launch { grabadora.descartar() }
+    }
+
+    fun consumirAvisoNotaPerdida() {
+        interno.update { it.copy(avisoNotaPerdida = false) }
+    }
+
+    /**
+     * Suelta el micrófono al salir del flujo de viaje. `Grabadora` es `@Singleton`, así que
+     * sin esto el `MediaRecorder` se quedaba tomado y la siguiente grabación —o cualquier
+     * otra app— fallaba en silencio (E5).
+     *
+     * Se usa un scope propio porque `viewModelScope` ya está cancelado aquí. La nota a
+     * medias se pierde a propósito: es la última salida, y para entonces el custodio ya
+     * abandonó la pantalla de audio con la nota pausada.
+     */
+    override fun onCleared() {
+        // Sin `super.onCleared()`: el de ViewModel está vacío y lint lo marca como llamada
+        // superflua. Si alguna versión de AndroidX le añade comportamiento, lint avisará de
+        // que falta.
+        CoroutineScope(Dispatchers.IO).launch { grabadora.descartar() }
     }
 
     fun guardarEtiqueta(medioId: String, etiquetaId: String) {
@@ -298,9 +397,25 @@ class CapturaViewModel @Inject constructor(
     fun descartarEtiquetado() {
         // El medio queda persistido y pendiente aunque se descarte el etiquetado; el
         // trabajo de GPS puede seguir y adjuntar la ubicación. Solo se suelta la referencia
-        // del mapa para que no crezca sin límite.
+        // del mapa para que no crezca sin límite. Desde §13 ese medio NO se sube hasta que
+        // se etiquete, y la rejilla de Archivos lo señala para poder resolverlo
+        // (ver retomarEtiquetado).
         interno.value.medioPendienteDeEtiquetar?.let { trabajosGps.remove(it.id) }
         interno.update { it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "") }
+    }
+
+    /**
+     * Reabre la hoja de etiquetado de un medio que ya está guardado sin etiqueta
+     * (hallazgo E3). Es la única salida para la evidencia que quedó sin clasificar, porque
+     * `medioPendienteDeEtiquetar` vive en memoria y no sobrevive a la muerte del proceso.
+     *
+     * Se invoca desde la rejilla de Archivos. Un medio ya etiquetado se ignora: reetiquetar
+     * no está en el alcance y la subida pudo haber salido ya.
+     */
+    fun retomarEtiquetado(medioId: String) {
+        val medio = uiState.value.medios.firstOrNull { it.id == medioId } ?: return
+        if (medio.etiqueta != null) return
+        interno.update { it.copy(medioPendienteDeEtiquetar = medio, ubicacionTextoEscrita = "") }
     }
 
     fun onUbicacionTextoCambio(texto: String) {
@@ -375,6 +490,16 @@ class CapturaViewModel @Inject constructor(
         interno.update { it.copy(error = null) }
     }
 
+    /**
+     * Un fallo de cámara o de procesamiento de imagen (hallazgo E2). Antes se perdía en
+     * un `catch` vacío: el custodio tocaba, no pasaba nada, y no quedaba rastro para
+     * diagnosticarlo. Ahora se le dice, y la causa va a Crashlytics como no fatal.
+     */
+    fun fallaDeCaptura(causa: Throwable) {
+        registroDeFallos.registrar(CONTEXTO_CAPTURA_FOTO, causa)
+        interno.update { it.copy(capturando = false, error = R.string.error_captura_fallo) }
+    }
+
     private suspend fun obtenerGpsLinear(): Gps? = try {
         withTimeoutOrNull(TIEMPO_OBTENER_UBICACION_MS) {
             proveedorUbicacion.obtener()
@@ -395,22 +520,10 @@ class CapturaViewModel @Inject constructor(
         }
     }
 
-    private fun copiarAPublica(medioId: String, jpeg: ByteArray) {
-        viewModelScope.launch {
-            try {
-                fotosPublicas.guardar(medioId, jpeg)
-            } catch (error: Exception) {
-                // La copia pública es accesoria: la evidencia vive igual en la app y,
-                // una vez etiquetada, en Firebase. Se deja rastro en LogCat pero no se
-                // bloquea la captura ni se marca error de usuario.
-                Log.w(TAG, "No se pudo guardar la foto en Pictures/AppCustodio: ${error.message}")
-            }
-        }
-    }
-
     private companion object {
         const val CLIENTE_PROVISIONAL = "cliente-provisional"
         const val TIEMPO_OBTENER_UBICACION_MS = 8_000L
-        const val TAG = "CapturaViewModel"
+        const val CONTEXTO_CAPTURA_FOTO = "captura_foto"
+        const val CONTEXTO_GRABACION = "grabacion_audio"
     }
 }

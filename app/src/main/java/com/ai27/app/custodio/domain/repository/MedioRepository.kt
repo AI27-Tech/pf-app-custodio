@@ -18,5 +18,11 @@ interface MedioRepository {
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
     suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>
     suspend fun borrarPendiente(medioId: String): Result<Medio>
-    suspend fun obtenerPendientes(): List<Medio>
+
+    /**
+     * Cola de subida del custodio. Excluye los medios sin etiqueta —que no deben salir sin
+     * clasificar— y se acota por custodio para no tocar la evidencia de quien usó el equipo
+     * antes (hallazgos E3 y E6).
+     */
+    suspend fun obtenerPendientes(custodioUid: String): List<Medio>
 }

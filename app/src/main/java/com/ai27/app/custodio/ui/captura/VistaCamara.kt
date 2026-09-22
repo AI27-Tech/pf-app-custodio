@@ -60,29 +60,47 @@ fun VistaCamara(
     }
 }
 
+/**
+ * Dispara una foto. [alTenerFoto] recibe el JPEG y su miniatura; [alFallar] recibe
+ * cualquier fallo, incluidos los de CameraX y los del procesamiento de imagen.
+ *
+ * Los dos callbacks son excluyentes y **siempre se invoca exactamente uno**: de eso
+ * depende que el cerrojo del obturador se libere (hallazgos E1 y E2 de `docs/AUDIT.md`,
+ * donde el `catch` y el `onError` estaban vacíos y un fallo no producía ninguna señal).
+ */
 fun tomarFoto(
     controller: LifecycleCameraController,
     ejecutor: Executor,
     alTenerFoto: (jpeg: ByteArray, miniatura: ByteArray) -> Unit,
+    alFallar: (causa: Throwable) -> Unit,
 ) {
-    controller.takePicture(
-        ejecutor,
-        object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                try {
-                    val bitmap = image.aBitmap()
-                    val (jpeg, miniatura) = Miniaturas.fotoOriginalYJpeg(bitmap)
-                    alTenerFoto(jpeg, miniatura)
-                } catch (_: Exception) {
-                } finally {
-                    image.close()
+    try {
+        controller.takePicture(
+            ejecutor,
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    try {
+                        val bitmap = image.aBitmap()
+                        val (jpeg, miniatura) = Miniaturas.fotoOriginalYJpeg(bitmap)
+                        alTenerFoto(jpeg, miniatura)
+                    } catch (causa: Throwable) {
+                        // Throwable y no Exception: aquí es donde revienta un
+                        // OutOfMemoryError al decodificar y recomprimir el bitmap.
+                        alFallar(causa)
+                    } finally {
+                        image.close()
+                    }
                 }
-            }
 
-            override fun onError(exception: ImageCaptureException) {
-            }
-        },
-    )
+                override fun onError(exception: ImageCaptureException) {
+                    alFallar(exception)
+                }
+            },
+        )
+    } catch (causa: Throwable) {
+        // takePicture puede lanzar de forma sincrónica si la cámara no está lista.
+        alFallar(causa)
+    }
 }
 
 private fun ImageProxy.aBitmap(): Bitmap {

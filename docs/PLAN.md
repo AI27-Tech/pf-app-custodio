@@ -548,3 +548,344 @@ C1 tokens y tema ✅ ──► C2 componentes ✅ ──► C3 navegación ✅
 
 C2 puede empezar en cuanto C1 tenga los tokens, aunque falten formas y tipografía. C3 no depende de C2 para la parte de navegación, así que la barra inferior y los destinos nuevos se pueden adelantar. C5 y C6 son transversales y se cierran al final, no pantalla por pantalla.
 
+
+---
+
+## 12. Atención de hallazgos críticos de la auditoría (2026-09-21)
+
+El 2026-09-21 se levantó una auditoría técnica y de experiencia de uso de toda la app, que
+vive en `docs/AUDIT.md` con **95 hallazgos** clasificados por severidad y con estado de
+verificación. Esta sección registra el plan aprobado para atender **solo los cinco críticos**:
+los tres `BLOQUEANTE` que impiden entregar a campo y los dos `CRÍTICO` de privacidad.
+
+El resto de los 90 hallazgos queda **documentado y sin tocar**. Eso es deliberado, y §12.5
+los lista para que nadie los dé por resueltos al leer esta sección.
+
+### 12.1 Los cinco hallazgos
+
+| ID | Hallazgo | Por qué es crítico |
+| --- | --- | --- |
+| **B1** | `Task<T>.esperar()` (`data/remote/AuthDataSource.kt:52-64`) resuelve solo si `resultado.result != null`, y una `Task<Void>` exitosa tiene `getResult() == null` | Toda escritura a Firestore lanza excepción. `asegurarReporte()` corre antes de Storage, así que **ni un byte sale del dispositivo**: todo medio termina en `FALLIDA`, el badge nunca baja y el cierre de sesión queda bloqueado para siempre |
+| **B2** | `MediaRecorder(context)` (`data/local/media/GrabadoraMediaRecorder.kt:22`) es API 31 con `minSdk = 26`, sin gate, y el `catch (_: Exception)` no atrapa el `NoSuchMethodError` | Cualquier equipo con Android 8, 9, 10 u 11 **cierra la app** al grabar una nota de voz |
+| **B3** | `lintDebug` falla con 141 errores pero `lintVitalRelease` pasa en verde, porque solo aborta en severidad `Fatal`; no hay bloque `lint { }` | B2 se puede empaquetar y entregar sin que nada lo detecte. 138 de los 141 errores son ruido de `MissingTranslation` que tapa los 3 reales |
+| **S1** | Cada foto se escribe **siempre** una segunda vez en `Pictures/AppCustodio` (`FotosPublicasMediaStore`, cableado sin condición) y **nunca se borra** | Fuga de evidencia del cliente a la galería del equipo compartido, a WhatsApp y al respaldo de Google Fotos. Contradice la premisa de `filesDir` privado de §4 y vuelve cosmético el borrado pre-subida |
+| **S2** | `allowBackup="true"` con `backup_rules.xml` y `data_extraction_rules.xml` como plantillas vacías | La base Room y `filesDir/medios` entran al respaldo en la nube y a la transferencia entre dispositivos. Contradice §4, que dice que `filesDir` está excluido de Auto Backup |
+
+### 12.2 Alcance acordado
+
+| # | Decisión |
+| --- | --- |
+| R1 | **Estrictamente los cinco.** Los demás hallazgos, incluidos los de severidad ALTO, quedan fuera |
+| R2 | **S1 se elimina por completo**: se borra `FotosPublicas` entero, no se vuelve privado |
+| R3 | Se construye la infraestructura de prueba que hoy no existe: test de `data/remote` contra el Emulator Suite, `work-testing`, y la suite de contrato que alinea los fakes divergentes (P2) |
+| R4 | El plan se registra en esta sección §12 |
+
+### 12.3 Decisiones de diseño
+
+**D1 — B1 se arregla con `await()`, no parcheando el helper.** Se sustituye el
+`Task<T>.esperar()` propio por `await()` de `kotlinx-coroutines-play-services`. Es la
+implementación oficial y probada de este contrato, resuelve `Task<Void>` correctamente y trae
+la **propagación de cancelación** que hoy falta (el helper no tiene `invokeOnCancellation`, así
+que un worker cancelado deja el `UploadTask` corriendo).
+
+Consecuencia aceptada y registrada: al borrar el helper no queda función propia que probar con
+un test unitario barato, así que la red de regresión de B1 pasa a ser el test de integración
+contra el emulador (T7). Se descartó arreglar el `when` y declarar `esperar(): T?`, que sí
+permitía un test JVM puro pero conservaba código de concurrencia hecho a mano y no arreglaba la
+cancelación.
+
+**D2 — Los tests de `work-testing` documentan defectos aceptados.** Con R1 no se arreglan C4
+(`ExistingWorkPolicy.REPLACE` cancela subidas en vuelo) ni E3 (`reconciliar()` encola medios sin
+etiqueta), y los tests de T9 se topan con ambos. Se escriben como **tests de caracterización**:
+afirman el comportamiento actual con un comentario que nombra el ID de auditoría y por qué está
+aceptado hoy. No se usa `@Ignore`, porque un test ignorado no protege nada. Así, el día que se
+arregle C4, el test falla y obliga a actualizarlo conscientemente.
+
+**D3 — Corregir dos pruebas verdes no es maquillar un fallo.** `docs/GENERIC_RULES.md` prohíbe
+modificar pruebas para ocultar fallos. Aquí es lo inverso: `CerrarReporteTest`
+(`assertEquals(3, cerrado.mediosSubidos)`) y `SubidaMedioProcesoTest`
+(`assertNull(subido.localPath)`) afirman comportamiento **que no existe en producción**, porque
+los fakes divergen del DAO. Se corrigen para que digan la verdad, y el `CHANGELOG.md` lo deja
+explícito para que quede trazable.
+
+### 12.4 Tareas ✅ todas hechas (2026-09-21)
+
+| # | Tarea | Estado |
+| --- | --- | --- |
+| T1 | Registrar este plan como §12 de `docs/PLAN.md` | ✅ hecha |
+| T2 | **B2** — gate de `SDK_INT` en `MediaRecorder` y `catch (_: Throwable)` en esa ruta | ✅ hecha |
+| T3 | **S1** — eliminar la copia a la galería pública en sus 9 puntos de contacto | ✅ hecha |
+| T4 | **S2** — `allowBackup="false"` más exclusiones explícitas en los dos XML | ✅ hecha |
+| T5 | Batch de build: `kotlinx-coroutines-play-services` y `work-testing` | ✅ hecha (Sync hecho) |
+| T6 | **B1** — sustituir los `.esperar()` por `.await()` y borrar el helper | ✅ hecha |
+| T7 | Test de `data/remote` contra el Emulator Suite, con el acceso al emulador documentado | ✅ hecha |
+| T8 | **P2** — suite de contrato Room ⇄ fake y corrección de las dos aserciones falsas | ✅ hecha |
+| T9 | `work-testing` — escalera de reintentos y reconciliación (caracterización según D2) | ✅ hecha |
+| T10 | **B3** — podar `values-es-rMX/` y cerrar el gate de lint | ✅ hecha (Sync requerido) |
+| T11 | Cierre: estado en §12, marcas en `AUDIT.md` y entrada de `CHANGELOG.md` | ✅ hecha |
+
+Dependencias: T2, T3 y T4 son independientes entre sí y sólo dependen de T1. T5 agrupa los dos
+cambios de dependencias para que haya **una sola** pausa de Sync antes del bloque de pruebas.
+T6 habilita T7. T8 y T9 son paralelos a T6. T10 va al final porque activar `abortOnError` antes
+de arreglar los errores reales bloquearía todos los builds.
+
+Dos pausas de Sync en total (T5 y T10), agrupadas a propósito para no interrumpir cinco veces,
+según la regla de `AGENTS.md`.
+
+### 12.4.1 Resultado y verificación
+
+**Los cinco hallazgos críticos quedaron cerrados.** Estado de las pruebas al terminar:
+
+| Suite | Antes | Después |
+| --- | --- | --- |
+| `testDebugUnitTest` | 71 pruebas | **111 pruebas, 0 fallos** |
+| `connectedDebugAndroidTest` | 1 (andamiaje) | **23 pruebas, 0 fallos** |
+| `lintDebug` | **141 errores** | **0 errores** |
+| `lintVitalRelease` | pasaba en verde siendo ciego | pasa, y ahora **sí** detiene el release |
+
+Verificado por ejecución, no por lectura:
+
+- **B1 comprobado en los dos sentidos.** Con el helper viejo reintroducido en un solo punto de
+  llamada, **7 de las 8** pruebas de `RemotoEmuladorTest` fallan contra el Emulator Suite con el
+  mensaje `IllegalStateException: Tarea Auth sin resultado ni error`. Restaurado el arreglo,
+  vuelven las 8 a verde. Es la prueba de que el defecto era real y total, y de que la red nueva
+  lo atrapa.
+- **B3 comprobado en los dos sentidos.** Con el defecto de B2 reintroducido, `assembleRelease`
+  **falla** con `Call requires API level 31 (current min is 26) [NewApi]`. Antes de esta tanda
+  ese mismo APK se empaquetaba y se firmaba sin una sola queja.
+- **B2** ya no aparece como `NewApi` en el reporte de lint.
+- **S1** verificado por búsqueda: cero referencias a `FotosPublicas`, `copiarAPublica`,
+  `WRITE_EXTERNAL_STORAGE` o `MediaStore` en todo `app/src`.
+- **S2** verificado en el manifest fusionado: `android:allowBackup="false"`.
+- El APK de release sigue firmado con `CN=App Custodio, OU=AI27` y la configuration cache se
+  sigue reutilizando.
+
+**Tres correcciones al plan que salieron de ejecutarlo:**
+
+1. **`abortOnError = true` no cerraba el gate de B3.** `lintVitalRelease` solo considera issues
+   de severidad **Fatal**, y `NewApi` es **Error**, así que ni se reportaba. Comprobado con el
+   experimento descrito arriba: el release seguía pasando. Lo que cierra el gate es **promover a
+   Fatal** los issues que significan "esto truena o filtra en campo". Está documentado en el
+   comentario del bloque `lint { }` para que nadie lo simplifique.
+2. **D1 resultó menos costoso de lo previsto.** Se había aceptado que al borrar el helper propio
+   no quedaría un test unitario barato para B1. Resultó que sí: `Tasks.forResult<Void>(null)` y
+   `await()` funcionan en una prueba JVM de host, porque la API de `Tasks` es Java puro y
+   `await()` usa un executor directo. Son 4 pruebas que corren en CI sin dispositivo, además de
+   las 8 de integración.
+3. **`kotlinx-coroutines-play-services` ya estaba en el classpath**, arrastrado por Firebase. T5
+   no añadió una dependencia nueva: hizo explícito un transitivo del que el código iba a
+   depender de forma directa.
+
+**Pendiente de comprobación manual** (no hubo forma de verificarlo con lo disponible):
+
+- Grabar una nota de voz en un equipo con **Android 8, 9, 10 u 11**. El teléfono de pruebas es
+  API 36, así que la rama del gate de B2 que usa el constructor antiguo **no se ejercitó**; lo
+  que se comprobó es que lint ya no la marca y que el release la exige.
+- `adb shell bmgr backupnow com.ai27.app.custodio` para confirmar que no se respalda nada.
+- Capturar y mirar la galería del dispositivo para confirmar que `Pictures/AppCustodio` ya no
+  recibe copias.
+- **Aviso operativo:** en los equipos que **ya** tienen la app instalada, las copias que crearon
+  las versiones anteriores siguen en `Pictures/AppCustodio`. Quitar el código no las borra; hay
+  que limpiarlas a mano al actualizar.
+
+**Hallazgos nuevos, anotados en `docs/AUDIT.md` y sin atender:** `lintVital` solo mira severidad
+Fatal (afecta a cómo se configura cualquier gate futuro), y `FirebaseNetworkException` no se
+puede instanciar en pruebas JVM porque su constructor usa `android.text.TextUtils`.
+
+### 12.5 Fuera de alcance — no dar por resuelto
+
+Estos hallazgos **siguen abiertos** después de este plan. Están descritos con su evidencia en
+`docs/AUDIT.md`:
+
+- **Consistencia de datos:** C1 (el resultado de `actualizarContadores` se descarta y el reporte
+  sale de la reconciliación para siempre), C2 (`sha256` nunca llega a Firestore y las reglas
+  impiden rellenarlo), C3 (carrera lost-update de contadores), C4 (`REPLACE` cancela subidas en
+  vuelo), C5 (tope de 4 intentos en ~70 s sin clasificar permanente vs transitorio), C6 (cierre
+  no transaccional: un reporte puede marcarse completo sin estarlo), C7, C8, C9.
+- **Pérdida de evidencia:** E1 (el doble toque descarta fotos en silencio), E2 (todo fallo de
+  cámara es mudo), E3 (los medios sin etiquetar suben igual y bloquean la sesión para siempre),
+  E4 (disco lleno tira la app), E5 (la nota de voz graba silencio o audio corrupto sin que nadie
+  lo note), E6 (la cola no filtra por `custodioUid` en equipos compartidos), E7–E12.
+- **Seguridad y reglas:** S3 (Storage sin tope de tamaño ni `contentType`), S4 (`update` permite
+  sobrescribir evidencia ya cerrada), S5 (Firestore sin validación de forma), S6 (contadores sin
+  cota), S7 (`ACTIVO → CERRADO` no acota qué más cambia), S8 (`ACCESS_COARSE_LOCATION` declarado
+  pero no solicitado), S9–S14.
+- **Rendimiento:** todo el grupo R (R1–R16), incluidos R1 (la app no abre en la cámara) y R3 (el
+  grafo de navegación se reconstruye en cada emisión de la cola).
+- **Fricción de uso:** todo el grupo U (U1–U16), incluidos U1 (la hoja de etiquetado bloquea la
+  ráfaga y no tiene salida) y U8 (carga, error y vacío son indistinguibles en Historial).
+- **Accesibilidad:** todo el grupo A (A1–A10), incluidos A2 (`colorScheme.outline` usado como
+  color de texto, con 1.37:1 de contraste) y A4 (el teclado tapa el botón "Entrar").
+- **Proceso:** T1 (no hay CI), T2 (`versionCode = 1` fijo), T3 (esquema de Room no exportado ni
+  versionado), T4 (el índice único parcial se recrea en cada `onOpen`), T5 (R8 desactivado),
+  T6–T15, salvo lo que toque este plan.
+- **Pruebas:** P3–P7, salvo P2, que sí entra por R3.
+
+### 12.6 Aviso de riesgo para Producto
+
+**T6 hace que las subidas funcionen por primera vez, y en ese momento C1, C2 y C4 empiezan a
+producir datos incorrectos en Firestore.** Con el alcance acordado es una consecuencia aceptada,
+no un descuido, pero conviene que Producto lo sepa antes de entregar a los 37 custodios:
+
+- Todos los documentos de `medios` llevarán `sha256` nulo, y como `medios` es create-only en las
+  reglas, **no se puede rellenar después**. La evidencia queda sin integridad verificable en el
+  servidor (C2).
+- `mediosSubidos` y `completo` pueden quedar desfasados respecto de lo que realmente hay en
+  Storage, así que el panel del analista puede mostrar un viaje como completo cuando falta
+  evidencia, o incompleto cuando no falta (C1, C3).
+- Un pull-to-refresh en Pendientes cancela las subidas en curso y las reinicia desde cero (C4).
+
+Ninguno de los tres impide entregar; los tres hacen que el dato que ve el analista sea menos
+confiable de lo que aparenta. Son los primeros candidatos para la siguiente tanda.
+
+
+---
+
+## 13. Eliminación de la pérdida de evidencia (E1–E6) — ✅ hecha (2026-09-22)
+
+Segunda tanda sobre `docs/AUDIT.md`, después de los cinco críticos de §12. Ataca los **seis
+hallazgos del grupo "pérdida de evidencia"**, que comparten un patrón: la app pierde o corrompe
+evidencia **sin decírselo al custodio**, que es el peor modo de fallo posible en un producto cuya
+premisa es que la evidencia llega.
+
+Importan más ahora que antes de §12: con B1 arreglado las subidas funcionan, así que lo que se
+pierda aquí ya no es "se queda local", es "no existe".
+
+### 13.1 Los seis hallazgos
+
+| ID | Hallazgo | Evidencia en el código |
+| --- | --- | --- |
+| **E1** | El doble toque del disparador descarta fotos en silencio | `disparoHabilitado` (`CapturaEvidenciaScreen.kt:126-131`) depende de `estado.capturando`, que solo se pone en `true` en el callback de éxito de CameraX, **después** de decodificar, rotar y comprimir. El 2.º y 3.er toque caen en un `return` mudo. El flash también se dispara ahí, así que el toque no produce ninguna señal inmediata — y por eso el custodio vuelve a tocar |
+| **E2** | Todo fallo de cámara y de procesamiento es mudo | `VistaCamara.kt:79` es `catch (_: Exception) {}` y `:83` es `onError` vacío. `tomarFoto` no tiene forma de reportar un fallo: su única salida es `alTenerFoto`. Aquí también muere un OOM de `Miniaturas.fotoOriginalYJpeg` |
+| **E3** | Los medios sin etiquetar suben igual y bloquean la sesión para siempre | `MedioDao.obtenerPendientes()` no mira `etiqueta`, y `reconciliar()` la usa tal cual. `medioPendienteDeEtiquetar` vive **solo en memoria**, así que tras muerte de proceso la hoja no reabre nunca, y `ArchivosScreen.CeldaArchivo` no es clickeable: no hay forma de etiquetar después. Como `contarPendientes` cuenta todo lo `!= COMPLETA`, ese medio mantiene el badge en ≥1 y el cierre de sesión deshabilitado |
+| **E4** | Disco lleno tira la app en pleno disparo | `FilesDirAlmacenArchivos.guardar` hace `writeBytes` desnudo y devuelve `String`. No hay `try/catch` en toda la cadena hasta el `viewModelScope.launch` de `capturarFoto`, y `DominioError` no tiene ningún caso de E/S |
+| **E5** | La nota de voz graba silencio o audio corrupto sin que nadie lo note | `Grabadora` no tiene `pausar`/`reanudar`, no es `suspend`, y `GrabadoraMediaRecorder` no registra `setOnErrorListener` ni `setOnInfoListener` ni usa `setMaxDuration`. `AudioScreen` no observa el ciclo de vida, `CapturaViewModel` no tiene `onCleared` y `Grabadora` es `@Singleton`, así que el micrófono queda tomado. El estado está duplicado entre ViewModel y singleton, y la UI nunca lee el segundo |
+| **E6** | En equipo compartido se quema la evidencia del custodio anterior | Ni `MedioDao.obtenerPendientes()` ni `ReporteDao.obtenerPendientesSubida()` filtran por `custodioUid`, y la segunda tampoco por fecha. `cerrarSesion` es `auth.signOut()` y nada más: no cancela trabajo ni limpia nada |
+
+### 13.2 Alcance acordado
+
+| # | Decisión |
+| --- | --- |
+| R1 | **Solo E1–E6.** Las reglas de Firebase (S3–S8) quedan fuera; no se cambia ni se despliega nada de Firebase |
+| R2 | **E5 se resuelve pausando:** al salir de la app la nota se pausa sola y el custodio la reanuda pulsando el botón al volver. Sin servicio en primer plano, sin notificación permanente y sin permisos nuevos |
+| R3 | Si el proceso muere con una nota a medias, **se avisa** en lugar de perderla en silencio |
+| R3 bis | **T5 no borra datos locales** (decidido al ejecutar, 2026-09-21). Cancela el trabajo de subida antes del `signOut` y arregla el guard de pendientes, y nada más. Razones: el aislamiento entre custodios ya lo da el filtro por uid de T3; en disco solo quedan miniaturas porque `marcarSubidaCompleta` ya borra el original; Historial lee solo de Room y no hay forma de recuperarlo del servidor, así que purgar filas borraría 30 días de historial de forma irrecuperable en la app; y si el custodio saliente tenía un viaje `ACTIVO`, el purgado se lo llevaría, que es pérdida de evidencia. El purgado pasa a Producto como decisión de **retención**, no como arreglo de bug |
+
+### 13.3 Decisiones de diseño
+
+**D1 — Los fallos de cámara se reportan por una interfaz propia, no con un log.** Se añade
+`RegistroDeFallos` en `data/` con una implementación sobre `FirebaseCrashlytics.recordException`,
+inyectada por Hilt. Razón: no queremos `FirebaseCrashlytics.getInstance()` dentro de un composable
+ni del ViewModel, y así se puede falsear en pruebas. Es una interfaz, una implementación y un
+binding. La alternativa —un `Log.w` y ya— dejaría un fallo de cámara en campo indiagnosticable,
+que es la mitad del hallazgo E2.
+
+**D2 — Los medios sin etiquetar siguen contando como pendientes.** No se sacan del badge: un medio
+sin etiquetar **es** trabajo sin terminar, y permitir cerrar sesión con evidencia sin clasificar
+sería cambiar un problema por otro. Lo que cambia es que ahora **se pueden resolver**. La queja de
+U6 (el badge mezcla tres cosas distintas) sigue abierta y fuera de alcance.
+
+**D3 — Un arreglo de una línea fuera de alcance, como prerrequisito.**
+`AjustesViewModel.solicitarCerrarSesion` lee `interno.value.pendientesSinSubir`, que nunca se
+actualiza y por tanto **siempre vale 0**: el guard es código muerto (hallazgo E7). Lo único que
+bloquea hoy es que el botón esté deshabilitado. Como T5 va a borrar los datos del custodio
+saliente, hace falta que ese guard funcione de verdad, porque es la invariante que hace segura la
+limpieza. Se declara prerrequisito, no ampliación de alcance.
+
+**Sin pausas de Sync en toda la tanda.** Ninguna tarea necesita dependencias nuevas:
+`LocalLifecycleOwner` ya se usa en `VistaCamara.kt` y `firebase-crashlytics` ya está declarado.
+Los scripts de build no se tocan.
+
+### 13.4 Tareas
+
+| # | Tarea | Estado |
+| --- | --- | --- |
+| T0 | Registrar este plan como §13 de `docs/PLAN.md` | ✅ hecha (2026-09-21) |
+| T1 | **E1 + E2** — cerrojo síncrono del obturador, flash en el toque, y `tomarFoto` que sí reporta fallos | ✅ hecha (2026-09-21) |
+| T2 | **E4** — `AlmacenArchivos.guardar` devuelve `Result`, con `DominioError.SinEspacio` nuevo | ✅ hecha (2026-09-21) |
+| T3 | **E3a + E6a + E6b** — acotar la cola por `custodioUid`, por etiqueta y por fecha | ✅ hecha (2026-09-21) |
+| T4 | **E3b** — los medios sin etiquetar se pueden etiquetar después | ✅ hecha (2026-09-21) |
+| T5 | **E6c** — cerrar sesión cancela el trabajo y limpia los datos del uid saliente | ✅ hecha (2026-09-21), con alcance recortado: ver R3 bis |
+| T6 | **E5** — pausa y reanudación de la nota de voz, más listeners de error | ✅ hecha (2026-09-22) |
+| T7 | Cierre: estado en §13, marcas en `AUDIT.md` y entrada de `CHANGELOG.md` | ✅ hecha (2026-09-22) |
+
+**Por qué E1 y E2 van juntas:** están acopladas. El cerrojo del obturador solo se puede liberar de
+forma fiable si `tomarFoto` sabe reportar un fallo; sin E2, un error dejaría el disparador muerto
+para siempre.
+
+**Por qué T3 agrupa tres cosas:** los filtros por uid, por etiqueta y por fecha tocan los mismos
+DAO, los mismos repositorios y la misma suite de contrato. Separarlos multiplicaría el churn sin
+ganar nada.
+
+**Dependencias:** T3 habilita T4 y T5. T1, T2 y T6 son independientes entre sí.
+
+### 13.5 Pruebas de caracterización que van a fallar, a propósito
+
+La tanda de §12 dejó tres pruebas que fijan defectos aceptados (decisión D2 de §12). Dos de ellas
+cubren hallazgos que **esta** tanda arregla, así que van a fallar y hay que convertirlas:
+
+- `caracterizacion_E3_reconciliar_encola_medios_SIN_etiquetar` → pasa a afirmar que un medio sin
+  etiqueta **no** se encola. ✅ convertida en T3 (`reconciliar_no_encola_los_medios_SIN_etiquetar`).
+- `caracterizacion_E6_la_cola_no_filtra_por_custodio` → pasa a afirmar que la cola trae **solo** lo
+  del custodio en sesión. ✅ convertida en T3
+  (`reconciliar_solo_encola_evidencia_del_custodio_pedido`).
+- `caracterizacion_C4_encolar_de_nuevo_REEMPLAZA_el_trabajo_anterior` **se queda como está**,
+  porque C4 sigue fuera de alcance.
+
+Que fallen es la señal de que el mecanismo funcionó: se escribieron sin `@Ignore` precisamente para
+que obligaran a una actualización consciente.
+
+### 13.6 Fuera de alcance — no dar por resuelto
+
+Sigue abierto: **C1, C2, C3, C4, C6** (integridad del dato — los más urgentes después de esta
+tanda), C5, C7, C8, C9, **E8** (medios pegados en
+`EN_PROGRESO` que no se pueden reintentar a mano, aunque T3 toque la misma consulta), E9, E10, E11,
+E12, **todo S3–S14** (reglas de Firestore y Storage, permisos, `ModoEmulador`, Crashlytics), **todo
+el grupo R** (rendimiento), **todo U** (fricción de uso), **todo A** (accesibilidad) y T1–T15.
+
+**E7 salió de esta lista:** entró como prerrequisito de una línea (D3) y acabó cerrado del todo en
+T5, con el guard revalidado también al confirmar y cuatro pruebas que antes no existían.
+
+### 13.7 Riesgos
+
+1. **T3 cambia cuatro firmas públicas de repositorio.** El compilador encuentra todos los
+   llamadores y la suite de contrato de §12 obliga a que Room y los fakes se muevan juntos, así que
+   el riesgo real es bajo — pero el diff es ancho.
+2. **T5 borra datos.** Es la única tarea de la tanda que destruye información. Solo se ejecuta sin
+   pendientes y solo del uid saliente; las pruebas con dos custodios son el control de que no se
+   lleva lo ajeno. Requiere confirmación explícita antes de activar el borrado.
+   → **Resuelto al ejecutar: el borrado no se hizo.** Ver R3 bis en §13.2. Al pedir la confirmación
+   quedó claro que el purgado no aportaba (T3 ya aísla por uid, y en disco solo quedan miniaturas) y
+   sí podía llevarse el historial y un viaje `ACTIVO`. El usuario eligió la opción sin borrado.
+3. **T6 es la tarea con más superficie de ciclo de vida,** y el caso de muerte de proceso **no se
+   puede arreglar, solo avisar**: `pause()` no cierra el índice del `.m4a`, así que si Android mata
+   el proceso el archivo es irrecuperable. Queda dicho de antemano para que no parezca que quedó a
+   medias.
+
+### 13.8 Resultado y verificación
+
+Las siete tareas quedaron hechas y E1–E7 están marcados `✅ ATENDIDO` en `docs/AUDIT.md`, cada uno
+con una nota de **cómo** quedó atendido y qué sigue abierto, porque tres se cerraron con un alcance
+distinto al que proponía el hallazgo.
+
+| Medida | Antes de §13 | Después |
+| --- | --- | --- |
+| Pruebas unitarias | 114 | 142 |
+| Pruebas instrumentadas | 23 | 30 (verificado en dispositivo, 2026-09-22) |
+| Errores de `lintDebug` | 0 | 0 |
+
+**Verificado:** `assembleDebug`, `testDebugUnitTest` (142/0), `lintDebug` (0 errores, 36 avisos —
+todos preexistentes) y `compileDebugAndroidTestKotlin`.
+
+**Sin verificar todavía en el momento del cierre de T7:** las siete pruebas instrumentadas nuevas (dos de cancelación de trabajo en `ReconciliacionColaTest`, cinco en `GrabadoraMediaRecorderTest`) no se habían ejecutado en un equipo — el teléfono se desconectó a media T5. **Verificado después, 2026-09-22 11:37:** con el teléfono reconectado, `connectedDebugAndroidTest` corrió completo — 30 pruebas / 0 fallos en CPH2769, incluidas las 7 nuevas.
+
+**Dos cosas que aparecieron al ejecutar y no estaban en el plan:**
+
+1. `FakeMedioRepository.observarDelReporte` devolvía un `StateFlow` recién creado con un snapshot y
+   **nunca reemitía**, mientras el de Room está vivo. Dos pruebas de T4 fallaron por eso y no por el
+   código de producción. La suite de contrato de §12 no lo detectaba porque comparaba lecturas
+   puntuales, no emisiones; ahora hay una prueba de contrato que sí, y se comprobó que falla al
+   revertir el fake.
+2. `observarSinEtiquetaDelReporte`, añadido al DAO en T3 pensando en T4, quedó sin llamadas cuando
+   T4 resultó más simple derivando la lista del estado. Se **retiró**: una query de DAO sin uso es
+   peor que no tenerla.

@@ -11,13 +11,14 @@ import com.ai27.app.custodio.domain.model.ResumenMedios
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import java.time.Instant
+import kotlinx.coroutines.tasks.await
 
 class FirebaseReporteRemoto(
     private val firestore: FirebaseFirestore,
 ) : ReporteRemoto {
 
     override suspend fun obtenerCiclo(reporteId: String): Result<Ciclo?> = ejecutarRemoto {
-        val doc = firestore.collection(REPORTES).document(reporteId).get().esperar()
+        val doc = firestore.collection(REPORTES).document(reporteId).get().await()
         if (doc.exists()) {
             Ciclo.valueOf(doc.getString("ciclo") ?: error("Documento de reporte sin ciclo"))
         } else {
@@ -26,12 +27,12 @@ class FirebaseReporteRemoto(
     }
 
     override suspend fun crear(reporte: Reporte): Result<Unit> = ejecutarRemoto {
-        firestore.collection(REPORTES).document(reporte.id).set(reporte.aDocumentoFirestore()).esperar()
+        firestore.collection(REPORTES).document(reporte.id).set(reporte.aDocumentoFirestore()).await()
         Unit
     }
 
     override suspend fun cerrar(reporte: Reporte): Result<Unit> = ejecutarRemoto {
-        firestore.collection(REPORTES).document(reporte.id).update(mapaCierre(reporte).sinNulos()).esperar()
+        firestore.collection(REPORTES).document(reporte.id).update(mapaCierre(reporte).sinNulos()).await()
         Unit
     }
 
@@ -41,7 +42,7 @@ class FirebaseReporteRemoto(
             "motivoDescarte" to reporte.motivoDescarte,
             "closedAt" to reporte.closedAt?.let { Timestamp(it.epochSecond, it.nano) },
         ).sinNulos()
-        firestore.collection(REPORTES).document(reporte.id).update(update).esperar()
+        firestore.collection(REPORTES).document(reporte.id).update(update).await()
         Unit
     }
 
@@ -57,7 +58,7 @@ class FirebaseReporteRemoto(
             "completo" to completo,
         )
         // Solo estas llaves: es lo que las reglas permiten avanzar en un reporte CERRADO.
-        firestore.collection(REPORTES).document(reporteId).update(update).esperar()
+        firestore.collection(REPORTES).document(reporteId).update(update).await()
         Unit
     }
 

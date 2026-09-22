@@ -21,9 +21,24 @@ class RoomMedioRepository(
     private val dao = database.medioDao()
 
     override suspend fun guardar(medio: Medio, contenido: ByteArray, miniatura: ByteArray?): Result<Medio> {
-        val ruta = almacenArchivos.guardar(medio.id, contenido)
-        val rutaMiniatura = miniatura?.let {
-            almacenArchivos.guardar("${medio.id}-min", it)
+        // Si el disco está lleno se corta aquí, sin fila en Room y sin archivo a medias
+        // (hallazgo E4). Antes la IOException escapaba y tiraba la app en el disparo.
+        val ruta = when (val r = almacenArchivos.guardar(medio.id, contenido)) {
+            is Result.Success -> r.value
+            is Result.Failure -> return r
+        }
+        val rutaMiniatura = if (miniatura != null) {
+            when (val r = almacenArchivos.guardar("${medio.id}-min", miniatura)) {
+                is Result.Success -> r.value
+                is Result.Failure -> {
+                    // El original ya está escrito: sin fila que lo referencie sería un
+                    // huérfano invisible que nadie recolecta.
+                    almacenArchivos.borrar(ruta)
+                    return r
+                }
+            }
+        } else {
+            null
         }
         val entidad = medio
             .copy(localPath = ruta, thumbnailPath = rutaMiniatura)
@@ -97,8 +112,8 @@ class RoomMedioRepository(
         return Result.Success(dao.obtenerPorId(medioId)!!.aDominio())
     }
 
-    override suspend fun obtenerPendientes(): List<Medio> =
-        dao.obtenerPendientes().map { it.aDominio() }
+    override suspend fun obtenerPendientes(custodioUid: String): List<Medio> =
+        dao.obtenerPendientes(custodioUid).map { it.aDominio() }
 
     override suspend fun borrarPendiente(medioId: String): Result<Medio> {
         val medio = dao.obtenerPorId(medioId)

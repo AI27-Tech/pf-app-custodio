@@ -7,6 +7,7 @@ import com.ai27.app.custodio.domain.model.Reporte
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import kotlinx.coroutines.tasks.await
 
 class FirebaseMedioRemoto(
     private val storage: FirebaseStorage,
@@ -21,11 +22,11 @@ class FirebaseMedioRemoto(
     ): Result<RutasRemotas> = ejecutarRemoto {
         val rutas = RutasStorage.de(medio)
         val metadatos = StorageMetadata.Builder().setContentType(medio.contentType).build()
-        storage.reference.child(rutas.media).putBytes(contenido, metadatos).esperar()
+        storage.reference.child(rutas.media).putBytes(contenido, metadatos).await()
         // Las rutas repetidas sobrescriben: el reintento es idempotente (PLAN §5.4).
         rutas.miniatura?.let { ruta ->
             if (miniatura != null) {
-                storage.reference.child(ruta).putBytes(miniatura, metadatos).esperar()
+                storage.reference.child(ruta).putBytes(miniatura, metadatos).await()
             }
         }
         rutas
@@ -37,10 +38,10 @@ class FirebaseMedioRemoto(
         rutas: RutasRemotas,
     ): Result<Unit> = ejecutarRemoto {
         val doc = firestore.collection(MEDIOS).document(medio.id)
-        if (!doc.get().esperar().exists()) {
+        if (!doc.get().await().exists()) {
             // create-only en reglas: si la red se cae a mitad reescribimos el mismo id.
             val documento = medio.copy(storagePath = rutas.media, thumbnailPath = rutas.miniatura)
-            doc.set(documento.aDocumentoFirestore(reporte, rutas)).esperar()
+            doc.set(documento.aDocumentoFirestore(reporte, rutas)).await()
         }
         Unit
     }

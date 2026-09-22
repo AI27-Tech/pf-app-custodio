@@ -1,5 +1,7 @@
 package com.ai27.app.custodio.ui.viaje
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -41,10 +44,12 @@ import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.TipoMedio
 import com.ai27.app.custodio.ui.captura.CapturaUiState
+import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.DialogoConfirmacion
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
+import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.previews.DatosDemo
 import java.io.File
@@ -53,8 +58,13 @@ import java.io.File
  * Rejilla de archivos del reporte abierto (`archivos_del_reporte`), en 3 columnas.
  *
  * Las acciones que la pantalla única tenía inline se conservan: borrado sólo pre-subida
- * (PENDIENTE, con confirmación) y reintento manual de la subida fallida. El etiquetado
- * pendiente ya no puede quedar huérfano: esta pantalla se abre desde el resumen.
+ * (PENDIENTE, con confirmación) y reintento manual de la subida fallida.
+ *
+ * Desde §13 esta pantalla es también **la salida** de la evidencia que quedó sin
+ * clasificar (hallazgo E3): la hoja de etiquetado vive en memoria, así que si el custodio
+ * la cierra con la X o el proceso muere con ella abierta, el medio queda sin etiqueta y
+ * sin etiqueta no se sube. Aquí esas celdas se marcan, se pueden tocar para etiquetarlas,
+ * y una franja arriba dice cuántas faltan.
  */
 @Composable
 fun ArchivosScreen(
@@ -62,16 +72,32 @@ fun ArchivosScreen(
     onAtras: () -> Unit,
     onBorrarPendiente: (medioId: String) -> Unit,
     onReintentar: (medioId: String) -> Unit,
+    onRetomarEtiquetado: (medioId: String) -> Unit,
+    onGuardarEtiqueta: (medioId: String, etiquetaId: String) -> Unit,
+    onUbicacionTextoCambio: (String) -> Unit,
+    onCerrarHoja: () -> Unit,
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var medioABorrar by remember { mutableStateOf<Medio?>(null) }
+    val sinEtiquetar = estado.mediosSinEtiquetar.size
 
     Column(modifier.fillMaxSize()) {
         BarraSuperior(
             titulo = stringResource(R.string.archivos_con_conteo, estado.medios.size),
             onAtras = onAtras,
         )
+
+        if (sinEtiquetar > 0) {
+            FranjaAviso(
+                texto = pluralStringResource(
+                    R.plurals.archivos_aviso_sin_etiquetar,
+                    sinEtiquetar,
+                    sinEtiquetar,
+                ),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
 
         if (estado.medios.isEmpty()) {
             Box(
@@ -97,6 +123,7 @@ fun ArchivosScreen(
                         medio = medio,
                         onConfirmarBorrar = { medioABorrar = medio },
                         onReintentar = { onReintentar(medio.id) },
+                        onEtiquetar = { onRetomarEtiquetado(medio.id) },
                     )
                 }
             }
@@ -116,6 +143,14 @@ fun ArchivosScreen(
             onCancelar = { medioABorrar = null },
         )
     }
+    estado.medioPendienteDeEtiquetar?.let {
+        HojaEtiqueta(
+            estado = estado,
+            onGuardar = onGuardarEtiqueta,
+            onUbicacionTextoCambio = onUbicacionTextoCambio,
+            onCerrar = onCerrarHoja,
+        )
+    }
     estado.error?.let { error ->
         DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
@@ -126,21 +161,48 @@ private fun CeldaArchivo(
     medio: Medio,
     onConfirmarBorrar: () -> Unit,
     onReintentar: () -> Unit,
+    onEtiquetar: () -> Unit,
 ) {
+    val faltaEtiqueta = medio.etiqueta == null
+    val etiquetarAhora = stringResource(R.string.archivos_etiquetar_ahora)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f),
     ) {
         Surface(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                // Sin etiqueta la celda es el botón: tocarla reabre la hoja de etiquetado.
+                // Es la única forma de rescatar evidencia que quedó sin clasificar (E3).
+                // Solo se hace clickeable cuando hay algo que hacer: una celda ya
+                // etiquetada no debe anunciarse a TalkBack como un botón deshabilitado.
+                .then(
+                    if (faltaEtiqueta) {
+                        Modifier.clickable(
+                            onClickLabel = etiquetarAhora,
+                            onClick = onEtiquetar,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
             shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
+            border = if (faltaEtiqueta) {
+                BorderStroke(2.dp, MaterialTheme.colorScheme.tertiary)
+            } else {
+                null
+            },
         ) {
             if (medio.tipo == TipoMedio.FOTO) {
                 AsyncImage(
                     model = medio.thumbnailPath?.let { File(it) },
-                    contentDescription = stringResource(R.string.comun_miniatura),
+                    contentDescription = if (faltaEtiqueta) {
+                        etiquetarAhora
+                    } else {
+                        stringResource(R.string.comun_miniatura)
+                    },
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                 )
@@ -148,7 +210,11 @@ private fun CeldaArchivo(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         painterResource(R.drawable.ic_mic),
-                        contentDescription = stringResource(R.string.archivos_nota),
+                        contentDescription = if (faltaEtiqueta) {
+                            etiquetarAhora
+                        } else {
+                            stringResource(R.string.archivos_nota)
+                        },
                         tint = MaterialTheme.colorScheme.outline,
                     )
                 }
@@ -215,6 +281,23 @@ private fun CeldaArchivo(
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
+        } else {
+            // El hueco donde va la etiqueta no puede quedar vacío: un hueco vacío se lee
+            // como "ya está" y el custodio nunca vuelve. Se dice qué falta (E3).
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(4.dp),
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+            ) {
+                Text(
+                    text = stringResource(R.string.archivos_sin_etiqueta),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
         }
     }
 }
@@ -233,6 +316,10 @@ private fun ArchivosVistaClaro() {
             onAtras = {},
             onBorrarPendiente = {},
             onReintentar = {},
+            onRetomarEtiquetado = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
             onConsumirError = {},
         )
     }
@@ -252,6 +339,60 @@ private fun ArchivosVistaOscuro() {
             onAtras = {},
             onBorrarPendiente = {},
             onReintentar = {},
+            onRetomarEtiquetado = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Sin etiquetar · Claro")
+@Composable
+private fun ArchivosSinEtiquetarVistaClaro() {
+    Vitrina(oscuro = false) {
+        ArchivosScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje.mapIndexed { indice, medio ->
+                    if (indice < 2) medio.copy(etiqueta = null) else medio
+                },
+            ),
+            onAtras = {},
+            onBorrarPendiente = {},
+            onReintentar = {},
+            onRetomarEtiquetado = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+        )
+    }
+}
+
+@Preview(name = "Sin etiquetar · Oscuro")
+@Composable
+private fun ArchivosSinEtiquetarVistaOscuro() {
+    Vitrina(oscuro = true) {
+        ArchivosScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                etiquetas = DatosDemo.etiquetas,
+                medios = DatosDemo.mediosViaje.mapIndexed { indice, medio ->
+                    if (indice < 2) medio.copy(etiqueta = null) else medio
+                },
+            ),
+            onAtras = {},
+            onBorrarPendiente = {},
+            onReintentar = {},
+            onRetomarEtiquetado = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
             onConsumirError = {},
         )
     }

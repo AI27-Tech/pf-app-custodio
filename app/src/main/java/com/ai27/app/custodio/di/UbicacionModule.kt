@@ -23,6 +23,8 @@ object UbicacionModule {
 
     @Provides
     @Singleton
-    fun proveeProveedorUbicacion(cliente: FusedLocationProviderClient): ProveedorUbicacion =
-        FusedProveedorUbicacion(cliente)
+    fun proveeProveedorUbicacion(
+        @ApplicationContext context: Context,
+        cliente: FusedLocationProviderClient,
+    ): ProveedorUbicacion = FusedProveedorUbicacion(context, cliente)
 }

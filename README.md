@@ -19,6 +19,46 @@ Para el diseño, el contrato de datos y el roadmap completo: `docs/PLAN.md`.
 cd firebase && npm test          # reglas de Firestore/Storage contra el Emulator Suite
 ```
 
+### Pruebas instrumentadas contra el Emulator Suite
+
+`app/src/androidTest/.../data/remote/RemotoEmuladorTest.kt` ejercita `FirebaseReporteRemoto`
+y `FirebaseMedioRemoto` contra los emuladores. Es la red de regresión del hallazgo **B1** de
+`docs/AUDIT.md` (las escrituras a Firestore no funcionaban y ninguna prueba lo detectaba),
+así que conviene correrla antes de cada release.
+
+Requiere **tres pasos**, y el segundo es el que se olvida:
+
+```bash
+# 1. Levantar los emuladores en la máquina de desarrollo
+cd firebase && npx firebase emulators:start --only firestore,storage,auth
+
+# 2. Abrir los túneles al dispositivo (en otra terminal)
+adb reverse tcp:8080 tcp:8080    # Firestore
+adb reverse tcp:9199 tcp:9199    # Storage
+adb reverse tcp:9099 tcp:9099    # Auth
+
+# 3. Correr las pruebas
+./gradlew connectedDebugAndroidTest
+```
+
+**Por qué hacen falta los túneles.** `ModoEmulador.HOST` es `127.0.0.1`, y dentro de un
+teléfono eso apunta al propio teléfono, no a tu Mac. `adb reverse` hace que el puerto local
+del dispositivo salga por el cable hacia el host, así que la constante sigue sirviendo sin
+cambiarla. En un emulador de Android la alternativa sería `10.0.2.2`, pero `adb reverse`
+funciona en los dos casos y evita tener dos configuraciones. Sin los túneles las pruebas
+fallan con `SinConexion` y parece un problema de las reglas cuando no lo es.
+
+Los túneles se caen al desconectar el cable; `adb reverse --list` los muestra.
+
+Para correr una sola clase:
+
+```bash
+./gradlew connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.ai27.app.custodio.data.remote.RemotoEmuladorTest
+```
+
+(Nota: `connectedDebugAndroidTest` no acepta `--tests`; se filtra con esa propiedad.)
+
 ## Provisión de equipos y cuentas
 
 ### Prerrequisitos del carril A (consola Firebase, `custodio-906e7268`)

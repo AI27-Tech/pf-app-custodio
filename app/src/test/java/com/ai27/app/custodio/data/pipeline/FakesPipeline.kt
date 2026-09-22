@@ -94,9 +94,13 @@ class FakeMedioRemoto(
 class FakeAlmacenArchivos(
     val archivos: MutableMap<String, ByteArray> = mutableMapOf(),
 ) : AlmacenArchivos {
-    override suspend fun guardar(nombre: String, contenido: ByteArray): String {
+    /** Cuando es distinto de null, `guardar` falla con ese error (para probar E4). */
+    var fallaAlGuardar: DominioError? = null
+
+    override suspend fun guardar(nombre: String, contenido: ByteArray): Result<String> {
+        fallaAlGuardar?.let { return Result.Failure(it) }
         archivos[nombre] = contenido
-        return nombre
+        return Result.Success(nombre)
     }
 
     override suspend fun leer(ruta: String): ByteArray? = archivos[ruta]

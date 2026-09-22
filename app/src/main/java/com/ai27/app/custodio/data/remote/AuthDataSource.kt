@@ -4,16 +4,13 @@ import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
-import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.tasks.await
 
 class FirebaseAuthSesionRepositorio(
     private val auth: FirebaseAuth,
@@ -33,7 +30,7 @@ class FirebaseAuthSesionRepositorio(
 
     override suspend fun iniciarSesion(correo: String, contraseña: String): Result<Custodio> =
         try {
-            val credenciales = auth.signInWithEmailAndPassword(correo, contraseña).esperar()
+            val credenciales = auth.signInWithEmailAndPassword(correo, contraseña).await()
             val usuario = credenciales.user
                 ?: return Result.Failure(DominioError.Inesperado(IllegalStateException("Auth sin usuario")))
             Result.Success(Custodio(uid = usuario.uid, correo = usuario.email.orEmpty()))
@@ -47,20 +44,6 @@ class FirebaseAuthSesionRepositorio(
         auth.signOut()
         return Result.Success(Unit)
     }
-}
-
-internal suspend fun <T> Task<T>.esperar(): T = suspendCancellableCoroutine { cont ->
-    addOnCompleteListener(com.google.android.gms.tasks.OnCompleteListener<T> { resultado ->
-        val excepcion = resultado.exception
-        when {
-            excepcion != null -> if (cont.isActive) cont.resumeWithException(excepcion)
-            resultado.isSuccessful && resultado.result != null ->
-                if (cont.isActive) cont.resume(resultado.result)
-            else -> if (cont.isActive) {
-                cont.resumeWithException(IllegalStateException("Tarea Auth sin resultado ni error"))
-            }
-        }
-    })
 }
 
 internal fun codigoSesionAError(codigo: String): DominioError = when (codigo) {

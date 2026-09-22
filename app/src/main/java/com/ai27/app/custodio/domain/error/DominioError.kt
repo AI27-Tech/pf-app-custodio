@@ -11,6 +11,7 @@ sealed interface DominioError {
     data object MotivoDescarteVacio : DominioError
     data object LimiteDeMediosAlcanzado : DominioError
     data object SinContenido : DominioError
+    data object SinEspacioEnDispositivo : DominioError
     data object AudioExcedeCincoMinutos : DominioError
     data class EtiquetaInvalida(val etiquetaId: String) : DominioError
     data object MedioNoEncontrado : DominioError

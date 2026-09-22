@@ -27,6 +27,10 @@ class SubidaMedioProceso(
         val medio = medioRepository.obtenerPorId(medioId)
             ?: return Result.Success(Unit) // se borró antes de subir
         if (medio.estadoSubida == EstadoSubida.COMPLETA) return Result.Success(Unit)
+        // Sin etiqueta no sale: la etiqueta es obligatoria y el analista no puede filtrar
+        // evidencia sin clasificar. Es defensa en profundidad — la cola ya filtra por
+        // etiqueta— para que ningún camino futuro se la salte (hallazgo E3).
+        if (medio.etiqueta == null) return Result.Success(Unit)
         val reporte = reporteRepository.obtenerPorId(reporteId)
             ?: return Result.Success(Unit)
         if (reporte.ciclo == Ciclo.DESCARTADO) return Result.Success(Unit) // sin evidencia futura a un viaje descartado

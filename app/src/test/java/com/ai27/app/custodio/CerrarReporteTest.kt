@@ -12,6 +12,7 @@ import com.ai27.app.custodio.domain.usecase.CrearReporte
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -47,7 +48,12 @@ class CerrarReporteTest {
         val cerrado = (resultado as Result.Success).value
         assertEquals(Ciclo.CERRADO, cerrado.ciclo)
         assertEquals(3, cerrado.mediosEsperados)
-        assertEquals(3, cerrado.mediosSubidos)
+        // Cerrar fija mediosEsperados pero NO avanza mediosSubidos: los tres medios
+        // siguen PENDIENTE y la evidencia puede tardar horas en salir. Quien sube el
+        // contador es el pipeline, vía actualizarSubida(). Esta aserción decía 3 porque
+        // el fake inflaba el contador; ReporteDao.cerrar nunca tocó esa columna (P2/D3).
+        assertEquals(0, cerrado.mediosSubidos)
+        assertFalse(cerrado.completo)
         assertEquals(2, cerrado.resumenMedios.fotos)
         assertEquals(1, cerrado.resumenMedios.audios)
         assertEquals(60_000L, cerrado.resumenMedios.durationMsTotal)

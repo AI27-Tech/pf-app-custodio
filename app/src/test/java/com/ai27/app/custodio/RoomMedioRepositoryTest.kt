@@ -1,10 +1,13 @@
 package com.ai27.app.custodio
 
+import com.ai27.app.custodio.data.local.archivo.AlmacenArchivos
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
 import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.pipeline.FakeAlmacenArchivos
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
 import com.ai27.app.custodio.domain.Result
+import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
@@ -162,5 +165,75 @@ class RoomMedioRepositoryTest {
         // Devuelve el medio tal cual (sin GPS) porque la query se restringe a PENDIENTE.
         assertEquals(null, (resultado as Result.Success).value.gps)
         assertEquals(null, repoMedios.obtenerPorId(guardado.id)!!.gps)
+    }
+
+    @Test
+    fun `no deja fila ni archivo cuando el disco esta lleno`() = runBlocking {
+        // Hallazgo E4: antes, la IOException del writeBytes escapaba de la corrutina de la
+        // ViewModel y tiraba la app en el momento del disparo. Ahora debe quedar un
+        // Failure tipado, sin fila en Room y sin archivos a medias.
+        val almacen = FakeAlmacenArchivos()
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, almacen)
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (
+            crear(
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                deviceId = "d1",
+                clienteId = "c1",
+                placasCapturadas = "ABC-1234",
+            ) as Result.Success
+            ).value
+
+        almacen.fallaAlGuardar = DominioError.SinEspacioEnDispositivo
+        val resultado = repoMedios.guardar(medio(reporte.id), ByteArray(2048), ByteArray(512))
+
+        assertTrue("debe fallar en lugar de lanzar", resultado is Result.Failure)
+        assertEquals(DominioError.SinEspacioEnDispositivo, (resultado as Result.Failure).error)
+        assertTrue("no debe quedar ninguna fila", repoMedios.obtenerDelReporte(reporte.id).isEmpty())
+        assertTrue("no debe quedar ningún archivo", almacen.archivos.isEmpty())
+    }
+
+    @Test
+    fun `si falla la miniatura no deja huerfano el original`() = runBlocking {
+        // El original ya está en disco cuando la miniatura falla: sin fila que lo
+        // referencie sería un huérfano invisible que nadie recolecta nunca.
+        val almacen = AlmacenQueFallaEnLaSegundaEscritura()
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, almacen)
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (
+            crear(
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                deviceId = "d1",
+                clienteId = "c1",
+                placasCapturadas = "ABC-1234",
+            ) as Result.Success
+            ).value
+
+        val resultado = repoMedios.guardar(medio(reporte.id), ByteArray(2048), ByteArray(512))
+
+        assertTrue(resultado is Result.Failure)
+        assertTrue("no debe quedar ninguna fila", repoMedios.obtenerDelReporte(reporte.id).isEmpty())
+        assertTrue("el original debe haberse borrado", almacen.archivos.isEmpty())
+    }
+
+    /** Deja pasar la primera escritura (el original) y falla la segunda (la miniatura). */
+    private class AlmacenQueFallaEnLaSegundaEscritura : AlmacenArchivos {
+        val archivos = mutableMapOf<String, ByteArray>()
+        private var escrituras = 0
+
+        override suspend fun guardar(nombre: String, contenido: ByteArray): Result<String> {
+            escrituras++
+            if (escrituras >= 2) return Result.Failure(DominioError.SinEspacioEnDispositivo)
+            archivos[nombre] = contenido
+            return Result.Success(nombre)
+        }
+
+        override suspend fun leer(ruta: String): ByteArray? = archivos[ruta]
+
+        override suspend fun borrar(ruta: String) {
+            archivos.remove(ruta)
+        }
     }
 }

@@ -111,6 +111,6 @@ class RoomReporteRepository(
         }
     }
 
-    override suspend fun obtenerPendientesSubida(): List<Reporte> =
-        dao.obtenerPendientesSubida().map { it.aDominio() }
+    override suspend fun obtenerPendientesSubida(custodioUid: String, fechaDesde: String): List<Reporte> =
+        dao.obtenerPendientesSubida(custodioUid, fechaDesde).map { it.aDominio() }
 }

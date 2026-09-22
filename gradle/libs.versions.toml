@@ -26,6 +26,9 @@ crashlyticsPlugin = "3.0.8"
 playServicesLocation = "21.4.0"
 # Pruebas de coroutines (JVM): alineado con el coroutines-core resuelto (1.10.2)
 coroutinesTest = "1.10.2"
+# T6/§12: await() para Task de Play Services. Misma versión que el coroutines-core
+# resuelto; Firebase ya lo arrastra transitivamente, se declara para no depender de eso.
+coroutines = "1.10.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -69,6 +72,12 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 
 # Pruebas de coroutines (JVM)
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+
+# T6/§12: Task<T>.await() oficial, reemplaza al helper esperar() propio (hallazgo B1)
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
+
+# T9/§12: TestListenableWorkerBuilder y WorkManagerTestInitHelper
+androidx-work-testing = { group = "androidx.work", name = "work-testing", version.ref = "work" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

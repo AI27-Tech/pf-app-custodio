@@ -2,6 +2,7 @@ package com.ai27.app.custodio.ui.ajustes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.repository.MedioRepository
@@ -30,11 +31,11 @@ data class AjustesUiState(
 
 @HiltViewModel
 class AjustesViewModel @Inject constructor(
-    sesionRepositorio: SesionRepositorio,
+    private val sesionRepositorio: SesionRepositorio,
     medioRepository: MedioRepository,
+    private val programadorSubidas: SubidaScheduler,
 ) : ViewModel() {
 
-    private val sesionRepositorio = sesionRepositorio
     private val interno = MutableStateFlow(AjustesUiState())
 
     private val custodioYPendientes = sesionRepositorio.observarCustodio()
@@ -58,7 +59,11 @@ class AjustesViewModel @Inject constructor(
     )
 
     fun solicitarCerrarSesion() {
-        if (interno.value.pendientesSinSubir > 0) return
+        // El conteo vive en el estado combinado, no en `interno`: leer `interno` hacía que
+        // el guard valiera siempre 0, o sea, código muerto (hallazgo E7). Importa porque es
+        // la invariante que impide dejar evidencia huérfana al rotar de custodio; que el
+        // botón esté deshabilitado en la UI no basta como única defensa.
+        if (uiState.value.pendientesSinSubir > 0) return
         interno.update { it.copy(confirmacionCerrarSesion = true, error = null) }
     }
 
@@ -69,8 +74,16 @@ class AjustesViewModel @Inject constructor(
     fun confirmarCerrarSesion() {
         interno.update { it.copy(confirmacionCerrarSesion = false) }
         if (interno.value.cerrandoSesion) return
+        // Se revalida aquí porque entre solicitar y confirmar hay un diálogo de por medio,
+        // y en ese hueco pueden entrar medios nuevos desde otra pestaña.
+        if (uiState.value.pendientesSinSubir > 0) return
         viewModelScope.launch {
             interno.update { it.copy(cerrandoSesion = true, error = null) }
+            // Cancelar ANTES del signOut (E6): un worker que siga corriendo con el token
+            // del custodio saliente mientras entra el siguiente ve sus escrituras
+            // denegadas por las reglas y deja la fila en FALLIDA. Lo que quede en
+            // EN_PROGRESO lo rescata reconciliar() cuando ese custodio vuelva.
+            programadorSubidas.cancelarTodo()
             when (val resultado = sesionRepositorio.cerrarSesion()) {
                 is Result.Success -> interno.update { it.copy(cerrandoSesion = false) }
                 is Result.Failure -> interno.update {

@@ -2,6 +2,711 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:22 11:37
+
+**Resumen:** Se ejecutó la verificación instrumentada de §13 que había quedado pendiente: el teléfono se reconectó y `connectedDebugAndroidTest` corrió completo contra el Emulator Suite. Sin cambios de código.
+
+**Resultado:** 30 pruebas / 0 fallos en CPH2769 (API 36), incluidas las 7 nuevas de esta tanda — las 5 de `GrabadoraMediaRecorderTest` (barrido de notas huérfanas, estado inicial, pausar/reanudar sin grabación) y las 2 de cancelación en `ReconciliacionColaTest` (`cancelarTodo_cancela_los_trabajos_de_subida_encolados` y `reconciliar_rescata_lo_que_cancelo_el_cierre_de_sesion`). Las 23 previas de §12 siguen en verde.
+
+Con esto, §13 queda verificada por completo: `assembleDebug`, `testDebugUnitTest` (142/0), `lintDebug` (0 errores) y ahora `connectedDebugAndroidTest` (30/0).
+
+**Archivos modificados:** ninguno.
+
+## 2026:09:22 09:43
+
+**Resumen:** Cierre de la tanda de §13. Los seis hallazgos de pérdida de evidencia (E1–E6) más el E7 quedan marcados `✅ ATENDIDO` en `docs/AUDIT.md`, y §13 de `docs/PLAN.md` queda cerrada con su sección de resultado. Es la tarea T7.
+
+**Por qué las marcas llevan nota.** Tres hallazgos se cerraron con un alcance distinto al que proponía el propio hallazgo, y dar por resuelto sin decirlo dejaría el documento mintiendo. Cada marca explica **cómo** quedó atendido y qué sigue abierto:
+
+- **E3**: la lista de medios sin etiquetar se deriva del estado en lugar de consultarse aparte, y el badge **sigue contándolos** a propósito (un medio sin clasificar es trabajo sin terminar; lo que cambia es que ahora se resuelve con un toque en lugar de borrando). La queja de U6 sobre el badge sigue abierta.
+- **E5**: la nota **se pausa**, no se graba en segundo plano — eso exigiría un servicio en primer plano. Y una nota interrumpida por muerte del proceso **sigue siendo irrecuperable**: `pause()` no escribe el índice del MPEG-4. Lo que cambia es que se avisa. El estado sigue duplicado entre ViewModel y singleton: queda como deuda, no como defecto activo.
+- **E6**: **no se borran datos locales**, a diferencia de lo que sugería el hallazgo. El purgado pasa a Producto como decisión de retención, con el razonamiento completo anotado.
+
+**Resultado de la tanda:** 114 → 142 pruebas unitarias, 23 → 30 instrumentadas, 0 errores de lint antes y después.
+
+**Dos cosas que aparecieron al ejecutar y no estaban en el plan,** ambas registradas en §13.8:
+
+1. Una divergencia de fakes que la suite de contrato de §12 no podía ver, porque comparaba lecturas puntuales y no emisiones de `Flow`. Ya hay prueba de contrato que la cubre.
+2. Una query de DAO añadida en T3 que quedó sin uso al simplificarse T4; se retiró.
+
+**Verificación pendiente, y queda dicho en el plan:** las siete pruebas instrumentadas nuevas (dos de cancelación de trabajo, cinco del barrido de notas) **no se han ejecutado en un equipo** — el teléfono se desconectó a media T5 y no volvió. Falta `./gradlew connectedDebugAndroidTest` con el dispositivo conectado y los túneles `adb reverse` puestos. Lo demás está verde: `assembleDebug`, `testDebugUnitTest` 142/0, `lintDebug` 0 errores, `compileDebugAndroidTestKotlin`.
+
+**Archivos modificados:**
+
+- `docs/AUDIT.md`
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:22 01:11
+
+**Resumen:** Se corrigió el hallazgo E5: la nota de voz podía grabar silencio o audio corrupto sin que nadie lo notara, y el micrófono quedaba tomado al salir. Ahora la nota **se pausa sola** al pasar la app a segundo plano y se reanuda con el mismo botón, el grabador reporta sus fallos, el tope de 5 minutos lo impone él mismo, y una nota que se perdió por muerte del proceso **se avisa** en lugar de desaparecer callada. Es la tarea T6 del plan de §13, con las decisiones R2 y R3.
+
+**Por qué la nota salía en silencio:** `Grabadora` no tenía `pausar`/`reanudar`, `GrabadoraMediaRecorder` no registraba `setOnErrorListener` ni `setOnInfoListener`, `AudioScreen` no observaba el ciclo de vida y `CapturaViewModel` no tenía `onCleared`. Al salir de la app el `MediaRecorder` seguía nominalmente grabando; cuando el sistema le quitaba el micrófono, el resultado era un `.m4a` en silencio o truncado que la app entregaba como evidencia válida. Y como `Grabadora` es `@Singleton`, el grabador quedaba tomado y la grabación siguiente fallaba sin explicación.
+
+**Cambios en el contrato:**
+
+- `data/local/media/Grabadora.kt`: `pausar()`, `reanudar()`, `pausada`, `barrerNotasHuerfanas()` y un `Flow<EventoGrabacion>` con `LimiteAlcanzado` y `Fallo(codigo)`. Las operaciones pasan a `suspend`: `prepare`, `start`, `stop` y la lectura del `.m4a` tocan disco, y en el hilo principal eso son ANR en un equipo de campo.
+- `data/local/media/GrabadoraMediaRecorder.kt`: `pause()`/`resume()` reales, duración **por segmentos** (`acumuladoMs` + tramo en curso) para que el cronómetro no cuente el tiempo en segundo plano, `setMaxDuration(AUDIO_MAX_MS)` para que el tope lo imponga el grabador y no la corrutina del timer, los dos listeners cableados al `Flow`, y todo bajo `Dispatchers.IO`. El `SharedFlow` es `replay = 1` porque el grabador avisa desde su propio hilo y el evento puede llegar antes de que la UI se suscriba.
+
+**Cambios en el ViewModel:**
+
+- `pausarGrabacionDeAudio()` / `reanudarGrabacionDeAudio()`, ambas idempotentes: `ON_STOP` puede llegar más de una vez.
+- El cronómetro se extrajo a `arrancarCronometro()` y ya **no** comprueba el tope: eso lo hace el grabador.
+- Se recogen los eventos: `LimiteAlcanzado` guarda la nota (llegar al tope no es un fallo), `Fallo` la descarta, avisa al custodio y la manda a Crashlytics con el contexto `grabacion_audio`.
+- `onCleared()` suelta el micrófono con un scope propio, porque `viewModelScope` ya está cancelado ahí.
+- Al arrancar se barre la caché: si hay un `.m4a` suelto, se enciende `avisoNotaPerdida`.
+- `detenerGrabacionDeAudio` ya no se calla cuando el grabador no devuelve audio usable (archivo vacío o duración cero). Era un `return` mudo: la nota se esfumaba y el custodio se iba creyendo que la había dejado grabada — el mismo defecto que E5 vino a cerrar, escondido dos líneas más abajo.
+
+**Cambios en la UI:**
+
+- `ui/viaje/AudioScreen.kt`: `DisposableEffect` con `LifecycleEventObserver` que pausa en `ON_STOP`. En pausa el cronómetro se atenúa, aparece `EN PAUSA` con la indicación de tocar para continuar, el botón redondo **reanuda**, y el guardado pasa a un botón propio para no tener un solo control con tres significados.
+- `ui/captura/CapturaUiState.kt`: `audioPausado` y `avisoNotaPerdida`.
+- `res/values/strings.xml`: `error_grabacion_no_reanudo`, `error_grabacion_fallo`, `audio_en_pausa`, `audio_reanudar_indicacion`, `audio_detener_y_guardar`, `audio_nota_perdida`.
+
+**Sobre la nota que se pierde (R3).** Una nota **pausada** sí se puede guardar: `stop()` escribe el índice del MPEG-4 aunque venga de pausa. Una nota interrumpida por **muerte del proceso** no, porque `pause()` no lo escribe. Ese archivo suelto en caché sirve de marca: el barrido lo borra, cuenta cuántos había y la pantalla de audio lo dice. No hace falta persistir nada aparte.
+
+**Pruebas nuevas:**
+
+- `ui/captura/CapturaViewModelTest.kt`, diez pruebas: pausar conserva lo grabado y no descarta; reanudar continúa la misma nota; pausar dos veces no cuenta doble; una nota pausada se detiene y se guarda; un fallo del grabador la descarta, lo avisa y lo registra; el tope de 5 minutos **guarda** la nota; una huérfana en caché se avisa al arrancar y el aviso se consume; sin huérfanas no se avisa; si el grabador no puede reanudar se avisa y la nota sigue pausada sin perderse; y una nota que el grabador devuelve vacía se avisa en lugar de desaparecer.
+- `res/values/strings.xml` suma `error_grabacion_vacia`.
+- `androidTest/.../GrabadoraMediaRecorderTest.kt`, nuevo: el barrido borra y cuenta los `.m4a` de nota, no toca otros archivos de caché, devuelve 0 sin nada, el estado inicial es limpio, y pausar/reanudar sin grabación fallan limpio. No graba: eso exige micrófono y permiso en tiempo de ejecución.
+
+**Detalle de las pruebas que conviene recordar:** con `runTest`, dejar una prueba terminada mientras el cronómetro sigue vivo cuelga la suite — su `delay` en bucle nunca acaba en tiempo virtual. Las pruebas que dejan la nota grabando la cierran al final a propósito.
+
+**Limpieza:** se retiró `super.onCleared()` (lint `EmptySuperCall`: el de `ViewModel` está vacío) y el string `audio_reanudar`, que quedó sin uso porque el botón redondo ya cumple esa función.
+
+**Verificación:** `testDebugUnitTest` 142 pruebas / 0 fallos; `lintDebug` 0 errores (36 avisos, todos preexistentes); `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. **Pendiente:** las instrumentadas de T5 y T6 no se han ejecutado — el teléfono lleva desconectado desde media T5.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/Grabadora.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/GrabadoraMediaRecorder.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaUiState.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/AudioScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/GrabadoraMediaRecorderTest.kt`
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 18:37
+
+**Resumen:** Se corrigió el hallazgo E6c y el E7: cerrar sesión era `auth.signOut()` a secas —dejaba workers corriendo con el token del custodio saliente— y el guard que impedía salir con archivos sin subir era código muerto. Es la tarea T5 del plan de §13, con la decisión **A** del usuario: cancelar el trabajo, **no** borrar datos locales.
+
+**Por qué el guard estaba muerto:** `AjustesViewModel.solicitarCerrarSesion` leía `interno.value.pendientesSinSubir`, pero el conteo vive en el estado *combinado*; `interno` nunca lo recibe, así que valía 0 siempre. Lo único que bloqueaba de verdad era el botón deshabilitado en la UI. Importa porque ese guard es la invariante que impide dejar evidencia huérfana al rotar de custodio, y una sola defensa en la capa de presentación no basta.
+
+**Por qué cancelar el trabajo:** en un equipo que rotan 37 personas, un worker que sigue subiendo con el token de A mientras B inicia sesión ve sus escrituras denegadas por las reglas y deja la fila en `FALLIDA` — invisible para B, porque su badge filtra por uid. No hay pérdida: lo que quede en `EN_PROGRESO` lo rescata `reconciliar()` cuando A vuelva a entrar, que es justo lo que ya afirmaba una prueba de §12.
+
+**Cambios:**
+
+- `data/worker/SubidaScheduler.kt`: nuevo `cancelarTodo()` y constante `TAG_SUBIDA`.
+- `data/worker/WorkManagerSubidaScheduler.kt`: los dos tipos de trabajo se etiquetan con `TAG_SUBIDA` y `cancelarTodo()` usa `cancelAllWorkByTag`. Se prefiere la etiqueta a `cancelAllWork()` para no arrastrar trabajo ajeno que se añada al proyecto más adelante.
+- `ui/ajustes/AjustesViewModel.kt`: el guard lee `uiState.value`; se revalida también **al confirmar**, porque el diálogo abre un hueco en el que pueden entrar medios nuevos desde otra pestaña; y `confirmarCerrarSesion` cancela el trabajo **antes** del `signOut`.
+- `app/src/test/.../CapturaFakes.kt`: `FakeSubidaScheduler.cancelarTodo()` con contador, y `FakeSesionRepositorio.cerrarSesion()` deja de lanzar `error(...)` — ahora registra el cierre, apaga el flujo del custodio y admite fallo inyectado.
+
+**Lo que NO se hizo, y por qué (decisión A del usuario).** El plan contemplaba purgar filas y archivos del uid saliente. Investigándolo resultó innecesario y riesgoso:
+
+- El aislamiento entre custodios ya lo da el filtro por uid de T3; la app no vuelve a tocar evidencia ajena.
+- `marcarSubidaCompleta` ya borra el archivo grande al subir, así que en disco solo quedan miniaturas de 320 px.
+- Historial lee **solo** de Room y no hay código que reconstruya nada desde Firestore: borrar las filas haría desaparecer del dispositivo los 30 días de historial del custodio de forma irrecuperable *en la app*, también para él mismo al volver a entrar.
+- Si el custodio saliente tenía un viaje `ACTIVO` con todo ya subido, el guard permite salir y el borrado se llevaría el viaje abierto — o sea, pérdida de evidencia, exactamente lo que esta tanda vino a eliminar.
+
+Queda anotado para Producto como decisión de **retención de datos**, no como arreglo de bug: "borrar datos locales al rotar de custodio" necesita primero una forma de recuperar el historial desde el servidor.
+
+**Pruebas nuevas** en `ui/ajustes/AjustesViewModelTest.kt`, que antes no existía (y por eso el guard llevaba tiempo muerto sin que nada lo notara):
+
+- con archivos sin subir no se abre la confirmación de cierre — se comprobó que **falla** al revertir el guard a `interno`;
+- sin pendientes sí se abre;
+- cerrar sesión cancela el trabajo de subida y luego cierra la sesión;
+- confirmar con pendientes que llegaron después del diálogo no cierra la sesión ni cancela nada.
+
+En `androidTest/.../ReconciliacionColaTest.kt`, dos pruebas más contra WorkManager: `cancelarTodo` deja `CANCELLED` el trabajo del medio y del reporte, y `reconciliar` vuelve a poner trabajo vivo después de una cancelación.
+
+**Verificación:** `testDebugUnitTest` 132 pruebas / 0 fallos; `lintDebug` 0 errores; `compileDebugAndroidTestKotlin` verde. **Pendiente:** las dos instrumentadas nuevas no se han ejecutado — el teléfono se desconectó a mitad de la tarea.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/worker/SubidaScheduler.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/worker/WorkManagerSubidaScheduler.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/ajustes/AjustesViewModel.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/ajustes/AjustesViewModelTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/worker/ReconciliacionColaTest.kt`
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 18:30
+
+**Resumen:** Se corrigió el hallazgo E3b: la evidencia que quedaba **sin etiquetar** era un callejón sin salida. Ahora la rejilla de Archivos la señala, se etiqueta con un toque, y ninguna pantalla afirma que está "en cola" cuando no lo está. Es la tarea T4 del plan de §13.
+
+**Por qué era un callejón sin salida:** `medioPendienteDeEtiquetar` vive solo en memoria. Si el custodio cierra la hoja con la X —o si el proceso muere con la hoja abierta— el medio queda persistido con `etiqueta = null` y la hoja no reabre nunca. Desde T3 la cola además lo excluye, así que sin esta tarea el medio se quedaba invisible, sin subir, y manteniendo el badge en ≥1 y el cierre de sesión bloqueado para siempre.
+
+**Cambios:**
+
+- `ui/captura/CapturaUiState.kt`: nueva propiedad derivada `mediosSinEtiquetar`. Se calcula filtrando `medios` en lugar de consultar Room aparte: la lista ya está en el estado y está acotada a 50.
+- `ui/captura/CapturaViewModel.kt`: nuevo `retomarEtiquetado(medioId)`, que reabre la hoja de un medio ya guardado sin etiqueta. Ignora los que ya tienen etiqueta: reetiquetar no está en el alcance y la subida pudo haber salido ya.
+- `ui/viaje/ArchivosScreen.kt`: las celdas sin etiqueta llevan borde terciario y la insignia `SIN ETIQUETA`, y son **tocables** para abrir la hoja; la pantalla ahora hospeda `HojaEtiqueta` (antes solo vivía en Captura y Audio, las dos pantallas transitorias). Arriba, una `FranjaAviso` dice cuántas faltan. Solo se hace clickeable la celda que lo necesita: una celda ya etiquetada no debe anunciarse a TalkBack como botón deshabilitado, así que se usa `Modifier.clickable` condicional en lugar del `Surface(onClick = …, enabled = …)`.
+- `ui/viaje/ReporteScreen.kt`: el aviso también aparece en el hub del viaje. Enterarse solo al entrar a Archivos no sirve: nadie entra a buscar un problema que no sabe que tiene.
+- `ui/pendientes/PendientesScreen.kt`: un medio sin etiqueta ya no dice "En cola" —era mentira desde T3— sino "Falta etiqueta". Se retiró el string `pendientes_en_cola`, que quedó sin uso.
+- `ui/navigation/AppNavHost.kt`: se cablean los tres callbacks nuevos de `ArchivosScreen`.
+- `res/values/strings.xml`: `archivos_sin_etiqueta`, `archivos_etiquetar_ahora`, `pendientes_falta_etiqueta` y el plural `archivos_aviso_sin_etiquetar`.
+
+**Se retiró código de T3 que quedó sin uso:** `observarSinEtiquetaDelReporte` en `MedioDao`, `MedioRepository`, `RoomMedioRepository` y el fake. Se había añadido pensando en esta tarea, pero derivar la lista de `medios` resultó más simple y evita una segunda consulta. Una query de DAO sin llamadas es peor que ninguna.
+
+**Divergencia de fakes encontrada al implementar esto:** `FakeMedioRepository.observarDelReporte` devolvía un `MutableStateFlow` recién creado con un snapshot, así que **nunca reemitía**, mientras el `Flow` de Room está vivo. Cualquier prueba que se suscribiera antes de la primera captura veía la rejilla vacía para siempre — y dos de las pruebas nuevas fallaron por eso, no por el código de producción. Ahora el fake publica un espejo observable y reemite en toda mutación, incluidas `etiquetar` y `actualizarGps`, que antes tampoco notificaban.
+
+**Pruebas:**
+
+- `contrato/ContratoRepositoriosTest.kt`: `observarDelReporte reemite cuando entra un medio nuevo`, ejecutada contra Room y contra el fake. Es el hueco que dejó la suite de §12: el contrato comparaba lecturas puntuales, no emisiones, así que esta clase de divergencia pasaba inadvertida. Se comprobó que la prueba falla al revertir el fake.
+- `ui/captura/CapturaViewModelTest.kt`: tres pruebas nuevas — descartar el etiquetado deja el medio visible como sin etiquetar y no encola nada; retomar el etiquetado reabre la hoja, y al guardar la etiqueta la subida sí se encola; retomar sobre un medio ya etiquetado no hace nada.
+- Previews nuevas `Sin etiquetar · Claro/Oscuro` en `ArchivosScreen`.
+
+**Verificación:** `testDebugUnitTest` 128 pruebas / 0 fallos; `connectedDebugAndroidTest` 23 / 0 fallos en CPH2769 (API 36); `lintDebug` 0 errores.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaUiState.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/ArchivosScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/ReporteScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/pendientes/PendientesScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRepositoriosTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 18:18
+
+**Resumen:** Se corrigieron los hallazgos E3a y E6a/E6b: la cola de subida ya no encola evidencia **sin etiquetar** (subía al servidor sin clasificar, inservible para el analista) ni evidencia **de otro custodio** (se reintentaba con el token equivocado y quedaba FALLIDA para siempre), y la reconciliación acota su barrido a los últimos 30 días. Es la tarea T3 del plan de §13.
+
+**Por qué importaba:** `reconciliar()` encolaba todo lo que no estuviera `COMPLETA`, sin mirar etiqueta, custodio ni fecha. En un equipo de 37 personas que rotan el mismo teléfono, eso significa que al iniciar sesión el custodio B la app intentaba subir los pendientes de A con las credenciales de B: las reglas lo deniegan, el medio queda `FALLIDA` y B nunca lo ve porque su badge filtra por uid. La evidencia de A se volvía irrecuperable sin que nadie se enterara. Y sin ventana de fecha, cada arranque reencolaba todo el histórico que jamás llegó a completarse.
+
+**Cambios:**
+
+- `data/local/db/MedioDao.kt`: `obtenerPendientes` recibe `custodioUid` y hace `INNER JOIN reportes` para acotar la cola al dueño; además exige `etiqueta IS NOT NULL`.
+- `data/local/db/ReporteDao.kt`: `obtenerPendientesSubida` recibe `custodioUid` y `fechaDesde`, y filtra por ambos.
+- `domain/repository/MedioRepository.kt` y `ReporteRepository.kt`: firmas nuevas.
+- `data/repository/RoomMedioRepository.kt` y `RoomReporteRepository.kt`: implementaciones al día.
+- `data/worker/SubidaScheduler.kt` y `WorkManagerSubidaScheduler.kt`: `reconciliar` recibe el uid de la sesión y acota la ventana reutilizando `fechaDesdeUltimos30Dias` de `domain/util/Fechas.kt`, el mismo helper que ya usaba el historial — así la cola y la pantalla de Historial no pueden discrepar sobre qué es "reciente".
+- `ui/captura/CapturaViewModel.kt`: la reconciliación del arranque espera al custodio (`custodioFlow.filterNotNull().first().uid`) en un `launch` propio, para no bloquear la observación del reporte activo.
+- `ui/pendientes/PendientesViewModel.kt`: `recargar()` resuelve el uid de la sesión antes de reconciliar; si no hay sesión, no hace nada.
+- `data/pipeline/SubidaMedioProceso.kt`: guard de defensa en profundidad — un medio sin etiqueta devuelve `Success` sin subir nada, para que ningún camino futuro se salte el filtro de la cola.
+
+**Nota sobre los medios sin etiquetar:** no se pierden ni se esconden. Siguen en Room, siguen contando en el badge de pendientes (es trabajo sin terminar) y T4 los volverá resolubles con un toque desde la rejilla de Archivos. Lo que cambia es que ya no se suben a medio clasificar.
+
+**Pruebas:**
+
+- `contrato/ContratoRepositoriosTest.kt`: cuatro pruebas nuevas, ejecutadas contra Room **y** contra los fakes — la cola excluye medios sin etiqueta, la cola solo trae medios del custodio pedido, `obtenerPendientesSubida` solo trae reportes del custodio pedido, y excluye los anteriores a la fecha pedida. `nuevoReporte`/`reporteGuardado` aceptan `fechaLocal` para poder probar la ventana.
+- `contrato/ContratoFakesTest.kt`: implementa el gancho `registrarDuenoDelReporte` (el fake de medios no tiene JOIN, así que se le declara la relación medio → custodio; Room no lo necesita).
+- `data/pipeline/SubidaMedioProcesoTest.kt`: prueba nueva del guard — un medio sin etiqueta no se sube, no se marca `FALLIDA` y su archivo local no se toca. El medio del fixture gana `etiqueta = "dano"`.
+- `androidTest/.../data/worker/ReconciliacionColaTest.kt`: las dos caracterizaciones de E3 y E6 pasan a afirmar el comportamiento **correcto** (`reconciliar_no_encola_los_medios_SIN_etiquetar` y `reconciliar_solo_encola_evidencia_del_custodio_pedido`). La de C4 queda intacta: sigue fuera de alcance.
+
+**Verificación:** `testDebugUnitTest` 123 pruebas / 0 fallos; `connectedDebugAndroidTest` 23 / 0 fallos en CPH2769 (API 36) contra el Emulator Suite vía `adb reverse`; `lintDebug` 0 errores.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/ReporteDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/ReporteRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomReporteRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/worker/SubidaScheduler.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/worker/WorkManagerSubidaScheduler.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProceso.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/pendientes/PendientesViewModel.kt`
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRepositoriosTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoFakesTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeReporteRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProcesoTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/worker/ReconciliacionColaTest.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 18:06
+
+**Resumen:** Se corrigió el hallazgo E4: con el disco lleno, la app se cerraba **en el momento del disparo**. `FilesDirAlmacenArchivos.guardar` hacía un `writeBytes` desnudo y no había un solo `try/catch` en toda la cadena hasta el `viewModelScope.launch` de `capturarFoto`, así que la `IOException` escapaba de la corrutina y tumbaba el proceso. Ahora el error está tipado, llega a la pantalla con un mensaje accionable, y no deja basura. Es la tarea T2 del plan de §13.
+
+**Por qué el escenario es realista y no teórico:** nada purga `filesDir/medios` hasta que los archivos suben. Con 50 medios por viaje, varios viajes al día y un equipo que rotan 37 custodios, llenar el almacenamiento es cuestión de tiempo — y el síntoma era que la app muriera justo al capturar evidencia.
+
+**Cambios:**
+
+- `domain/error/DominioError.kt`: nuevo caso `SinEspacioEnDispositivo`.
+- `data/local/archivo/AlmacenArchivos.kt`: `guardar` pasa de devolver `String` a `Result<String>`. El KDoc explica por qué, citando E4.
+- `data/local/archivo/FilesDirAlmacenArchivos.kt`: `guardar` comprueba el espacio **antes** de escribir y devuelve `SinEspacioEnDispositivo` si no cabe, para poder dar un mensaje concreto en lugar de un "algo salió mal". Si aun así falla con `IOException`, **borra el archivo a medias** antes de reportar: una fila de Room apuntando a un JPEG truncado se subiría como evidencia válida. Se exige un margen de 2 MB además del tamaño del archivo, porque el sistema de archivos necesita espacio para metadatos y quedarse al filo vuelve a fallar en la captura siguiente.
+- `data/repository/RoomMedioRepository.kt`: `guardar` propaga el fallo sin insertar fila. Si la que falla es la **miniatura**, borra el original antes de salir: ya estaba escrito, y sin fila que lo referencie quedaría como huérfano invisible que nadie recolecta.
+- `ui/error/DominioErrorRecurso.kt`: mapeo a `error_sin_espacio`, el string añadido en T1, que dice qué hacer ("espera a que suban los archivos pendientes o cierra el viaje") y no solo que falló.
+- `app/src/test/.../data/pipeline/FakesPipeline.kt`: `FakeAlmacenArchivos` se adapta a la firma nueva y gana `fallaAlGuardar`, para poder simular el disco lleno.
+
+**Pruebas nuevas** en `RoomMedioRepositoryTest`, contra Room real:
+
+- `no deja fila ni archivo cuando el disco esta lleno`: el resultado es `Failure(SinEspacioEnDispositivo)`, no hay fila y no hay archivos.
+- `si falla la miniatura no deja huerfano el original`: con un almacén que deja pasar la primera escritura y falla la segunda, se comprueba que el original **sí** se borra. Es el caso que el hallazgo E9 describe como fuente de huérfanos permanentes; aquí queda cubierto el camino de la miniatura.
+
+**Verificación:**
+
+- `./gradlew assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL, **114 pruebas, 0 fallos** (112 previas + 2 nuevas).
+- `./gradlew lintDebug` → **0 errores**.
+- El cambio de firma lo encontró el compilador en un solo sitio más (`FakeAlmacenArchivos`), lo que confirma que el almacén tenía un único punto de escritura.
+- Sin verificar en dispositivo: el comportamiento con el almacenamiento realmente lleno. Las pruebas simulan el fallo del almacén, no agotan el disco del teléfono.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioError.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/archivo/AlmacenArchivos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/archivo/FilesDirAlmacenArchivos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/error/DominioErrorRecurso.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/FakesPipeline.kt`
+- `app/src/test/java/com/ai27/app/custodio/RoomMedioRepositoryTest.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 18:02
+
+**Resumen:** Se corrigieron los hallazgos E1 y E2 de la auditoría, que van juntos porque están acoplados. El disparador descartaba fotos en silencio al doble toque, y cualquier fallo de cámara o de procesamiento de imagen se perdía en un `catch` vacío: el custodio tocaba, no pasaba nada, y no quedaba rastro para diagnosticarlo. Es la tarea T1 del plan de §13.
+
+**Por qué el doble toque perdía fotos:** `disparoHabilitado` dependía de `estado.capturando`, y ese flag solo se pone en `true` dentro del callback de éxito de CameraX, **después** de decodificar, rotar y comprimir el JPEG — cientos de milisegundos más tarde. En esa ventana el disparador seguía habilitado, así que el segundo y tercer toque lanzaban capturas que luego morían en un `return` mudo del ViewModel. El flash también se dibujaba en ese callback, así que el toque no producía **ninguna** señal inmediata: eso es precisamente lo que hace que el custodio vuelva a tocar.
+
+**Cambios:**
+
+- `data/diagnostico/RegistroDeFallos.kt` (nuevo): interfaz de una sola función para registrar fallos no fatales, con el `contexto` como etiqueta de agrupación. El KDoc advierte que el contexto no debe llevar datos del custodio ni del cliente.
+- `data/diagnostico/RegistroDeFallosCrashlytics.kt` (nuevo): implementación sobre `FirebaseCrashlytics.recordException`, con el contexto como clave personalizada para que la consola agrupe por tipo de excepción y siga siendo filtrable. No añade PII, según la política de S13.
+- `di/DiagnosticoModule.kt` (nuevo): el binding de Hilt.
+- `ui/captura/VistaCamara.kt`: `tomarFoto` gana el parámetro `alFallar`. El `catch` vacío pasa a `catch (causa: Throwable)` —`Throwable` porque ahí es donde revienta un `OutOfMemoryError` al recomprimir el bitmap—, `onError` deja de estar vacío, y la llamada a `takePicture` se envuelve porque puede lanzar de forma sincrónica si la cámara no está lista. Los dos callbacks son excluyentes y **siempre se invoca exactamente uno**, que es de lo que depende el cerrojo.
+- `ui/viaje/CapturaEvidenciaScreen.kt`: cerrojo `disparoEnCurso` que se pone en `true` **de forma sincrónica en el toque** y entra en `disparoHabilitado`; se libera en los dos callbacks. El flash se movió **antes** de disparar, para que el toque tenga confirmación inmediata. Nuevo parámetro `onFallaDeCaptura`.
+- `ui/captura/CapturaViewModel.kt`: nuevo `fallaDeCaptura(causa)` que suelta `capturando`, pone el mensaje en el estado y manda la causa al registro como no fatal. Se inyecta `RegistroDeFallos`.
+- `ui/navigation/AppNavHost.kt`: cablea `onFallaDeCaptura = viewModel::fallaDeCaptura`.
+- `res/values/strings.xml`: `error_captura_fallo` nuevo. Se añadió también `error_sin_espacio`, que consumirá T2.
+- Pruebas: `FakeRegistroDeFallos` en `CapturaFakes.kt`, cableado en `CapturaViewModelTest`, y una prueba nueva de que un fallo de cámara pone el mensaje en el estado, suelta `capturando` y queda registrado con el contexto `captura_foto`.
+
+**Se conservó el guard de `capturando` en el ViewModel** como defensa en profundidad. Con el cerrojo ya no debería alcanzarse desde la UI, pero sigue protegiendo si alguien llama a `capturarFoto` por otra vía.
+
+**Verificación:**
+
+- `./gradlew assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL, **112 pruebas, 0 fallos** (111 previas + 1 nueva).
+- `./gradlew lintDebug` → **0 errores**, el gate cerrado en §12 sigue en verde.
+- Sin verificar: el comportamiento del cerrojo con toques reales. Necesita una prueba de Compose con `createAndroidComposeRule` que afirme una sola invocación de `onTomarFoto` ante dos toques seguidos; queda anotada como pendiente de la tanda.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeFallos.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeFallosCrashlytics.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/DiagnosticoModule.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/VistaCamara.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:57
+
+**Resumen:** Se registró en `docs/PLAN.md` la sección §13 con el plan aprobado para eliminar los seis hallazgos de pérdida de evidencia de `docs/AUDIT.md` (E1 a E6). Es la tarea T0 de esa tanda: documento únicamente, sin cambios de código.
+
+**Cambios:**
+
+- `docs/PLAN.md`: nueva sección `## 13. Eliminación de la pérdida de evidencia (E1–E6) — aprobado 2026-09-21`, con siete subsecciones — los seis hallazgos y su evidencia en el código (§13.1), el alcance acordado (§13.2), las decisiones D1-D3 (§13.3), las ocho tareas con dependencias (§13.4), las pruebas de caracterización que van a fallar a propósito (§13.5), el fuera de alcance por ID (§13.6) y los tres riesgos (§13.7).
+- Se documenta **R2**, la decisión de producto sobre E5: la nota de voz se **pausa automáticamente** al salir de la app y el custodio la reanuda pulsando el botón al volver. Se descartaron tanto cortar la grabación como montar un servicio en primer plano; esta vía no necesita permisos nuevos ni notificación permanente y no pierde lo grabado.
+- Se documenta **R3**: si el proceso muere con una nota a medias hay que avisar, no perderla en silencio.
+- Se documenta **D1**: los fallos de cámara se reportan por una interfaz propia `RegistroDeFallos` sobre Crashlytics, en lugar de un `Log.w`, para que no queden indiagnosticables en campo y para poder falsearlos en pruebas.
+- Se documenta **D2**: los medios sin etiquetar siguen contando en el badge de pendientes, porque son trabajo sin terminar; lo que cambia es que pasan a ser resolubles.
+- Se documenta **D3**: arreglar el guard muerto de `AjustesViewModel.solicitarCerrarSesion` (hallazgo E7, fuera de alcance) entra como prerrequisito de una línea, porque es la invariante que hace segura la limpieza de datos de T5.
+- §13.5 deja registrado que dos de las tres pruebas de caracterización de la tanda anterior van a fallar y hay que convertirlas, y que la de C4 se queda como está. Que fallen es la señal de que el mecanismo de D2 de §12 funcionó.
+- §13.7 anticipa tres riesgos: el diff ancho de T3 por cambiar cuatro firmas de repositorio, que T5 es la única tarea que borra datos y necesita confirmación explícita, y que en T6 el caso de muerte de proceso **no se puede arreglar, solo avisar**, porque `pause()` no cierra el índice del `.m4a`.
+- Se deja constancia de que la tanda **no necesita ninguna pausa de Sync**: no hay dependencias nuevas y los scripts de build no se tocan.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:45
+
+**Resumen:** Se cerró la tanda de atención de los cinco hallazgos críticos de `docs/AUDIT.md`. Esta entrada es la tarea T11: solo documentación, sin cambios de código. Se marcaron las once tareas de §12 como hechas con su resultado y su verificación, se marcaron B1, B2, B3, S1 y S2 como atendidos en `docs/AUDIT.md`, y se dejó registrado qué quedó verificado por ejecución, qué sigue pendiente de comprobación manual, y qué hallazgos nuevos salieron de ejecutar el plan.
+
+**Cambios:**
+
+- `docs/PLAN.md` §12.4: las once tareas pasan a `✅ hecha`.
+- `docs/PLAN.md` §12.4.1 (nueva): tabla comparativa del estado de las pruebas antes y después, la lista de lo verificado por ejecución, las tres correcciones al plan que salieron de ejecutarlo, y los pendientes de comprobación manual.
+- `docs/AUDIT.md`: nueva sección "Estado de atención" arriba, con la tabla de los cinco hallazgos cerrados y su evidencia, el recordatorio de que los otros 90 siguen abiertos, y los dos hallazgos nuevos.
+- `docs/AUDIT.md`: los cinco encabezados de B1, B2, B3, S1 y S2 llevan `✅ ATENDIDO 2026-09-21` y una nota con qué se hizo, qué tarea lo hizo y qué queda pendiente de comprobar a mano.
+
+**Estado final de las pruebas:**
+
+| Suite | Antes | Después |
+| --- | --- | --- |
+| `testDebugUnitTest` | 71 pruebas | **111 pruebas, 0 fallos** |
+| `connectedDebugAndroidTest` | 1 (andamiaje) | **23 pruebas, 0 fallos** |
+| `lintDebug` | **141 errores** | **0 errores** |
+| `lintVitalRelease` | pasaba en verde siendo ciego | pasa, y ahora sí detiene el release |
+
+**Lo que se verificó ejecutando, no leyendo:**
+
+- **B1 en los dos sentidos:** con el helper viejo reintroducido en un solo punto de llamada, 7 de las 8 pruebas contra el Emulator Suite fallan con `IllegalStateException: Tarea Auth sin resultado ni error`; restaurado, vuelven las 8 a verde.
+- **B3 en los dos sentidos:** con el defecto de B2 reintroducido, `assembleRelease` falla con `Call requires API level 31 (current min is 26) [NewApi]`. Antes de esta tanda ese mismo APK se empaquetaba y firmaba sin una queja.
+- **S1** por búsqueda: cero referencias en `app/src`. **S2** en el manifest fusionado.
+- El APK de release sigue firmado con `CN=App Custodio, OU=AI27` y la configuration cache se sigue reutilizando.
+
+**Tres correcciones al plan, registradas para que no se repitan:**
+
+1. `abortOnError = true` **no** cerraba el gate de B3: `lintVital` solo mira severidad `Fatal`. Hay que promover los issues a `Fatal`.
+2. La decisión D1 había aceptado que no quedaría un test unitario barato para B1. Resultó que sí lo hay: `Tasks.forResult<Void>(null)` y `await()` funcionan en la JVM de host.
+3. `kotlinx-coroutines-play-services` ya estaba en el classpath por Firebase; T5 hizo explícito un transitivo, no añadió algo nuevo.
+
+**Pendiente de comprobación manual, por falta de equipo o de acceso:**
+
+- Grabar una nota de voz en un equipo con Android 8, 9, 10 u 11: el teléfono de pruebas es API 36, así que la rama del gate de B2 con el constructor antiguo **no se ejercitó**.
+- `adb shell bmgr backupnow com.ai27.app.custodio`.
+- Mirar la galería de un dispositivo tras capturar, para confirmar que `Pictures/AppCustodio` ya no recibe copias.
+- En equipos ya instalados, las copias de versiones anteriores siguen en la galería y hay que borrarlas a mano.
+
+**Sigue abierto y conviene decidirlo pronto:** arreglar B1 hizo que las subidas funcionen por primera vez, y con eso C1, C2 y C4 empezaron a producir datos incorrectos en Firestore — `sha256` nulo y no rellenable, contadores desfasados, y reintentos que cancelan subidas en vuelo. Los otros 90 hallazgos de la auditoría siguen sin atender, por decisión de alcance.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `docs/AUDIT.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:42
+
+**Resumen:** Se corrigió el hallazgo bloqueante B3: el gate de lint del release era ciego. `lintDebug` fallaba con 141 errores pero `assembleRelease` pasaba en verde, así que se podía empaquetar y entregar a campo un APK con un crash garantizado. Se podó la carpeta de recursos redundante que generaba el 98 % del ruido, se arregló el único error real que quedaba, y se cerró el gate de verdad. Es la tarea T10 del plan de §12.
+
+**Hallazgo importante: la receta del plan no bastaba.** El plan preveía cerrar el gate con `abortOnError = true`. Se comprobó por experimento que **eso no funciona**: `lintVitalRelease` —la tarea que corre `assembleRelease`— solo considera issues de severidad **Fatal**, y `NewApi` es severidad **Error**, así que ni se reporta. Reintroduciendo a propósito el defecto de B2 (quitar el gate de `SDK_INT` del `MediaRecorder`), `assembleRelease` seguía dando BUILD SUCCESSFUL con `abortOnError` activo. Lo que cierra el gate es **promover a Fatal** los issues que significan "esto truena o filtra en campo". Con eso, el mismo experimento hace fallar el release con el mensaje correcto.
+
+**Cambios:**
+
+- Se borró `app/src/main/res/values-es-rMX/` completa (17 claves, todas duplicados idénticos en español de `values/`, que ya es el default). Generaba **138 de los 141 errores** de lint por `MissingTranslation` y tapaba los reales. Además era una trampa: una corrección de copy en `values/` sobre una de esas 17 claves no se habría visto en ningún teléfono es-MX.
+- `data/ubicacion/ProveedorUbicacion.kt`: `FusedProveedorUbicacion` recibe ahora el `Context` y comprueba el permiso con `ContextCompat.checkSelfPermission` (aceptando `ACCESS_FINE_LOCATION` **o** `ACCESS_COARSE_LOCATION`) antes de llamar a `getCurrentLocation`. Sin permiso devuelve `null`, que es lo que hace que la UI ofrezca el campo de ubicación por texto previsto en §7 del plan, en lugar de que un `SecurityException` tumbe la captura. Esto resuelve el error `MissingPermission`, que era el único error real que quedaba.
+- `data/ubicacion/ProveedorUbicacion.kt`: se añadió `try/catch (SecurityException)` alrededor de la llamada, porque el permiso se puede revocar entre la comprobación y el uso, y se cambió `tarea.result` por `if (tarea.isSuccessful) tarea.result?.aGps() else null`. Lo segundo era un segundo defecto latente en las mismas tres líneas: `Task.getResult()` lanza `RuntimeExecutionException` si la tarea falló, y aquí se leía sin comprobar nada.
+- `di/UbicacionModule.kt`: el provider pasa el `@ApplicationContext` al constructor.
+- `app/build.gradle.kts`: bloque `lint { }` nuevo con `checkReleaseBuilds = true`, `abortOnError = true`, `warningsAsErrors = false` y, sobre todo, `fatal += setOf("NewApi", "InlinedApi", "MissingPermission", "CoarseFineLocation", "MissingTranslation", "Recycle", "WrongThread")`. El comentario del bloque documenta por qué `abortOnError` solo no alcanza, para que nadie lo simplifique después.
+
+**Sin baseline, a propósito:** no se generó `lint-baseline.xml`. Tras las dos correcciones lint quedó en **cero errores**, así que un baseline vacío solo serviría para esconder los próximos. Los 35 issues restantes son warnings e informativos (13 `GradleDependency`, 7 `ModifierParameter`, 4 `NewerVersionAvailable`, 3 `UnusedResources`, 2 `UseKtx`, y uno cada uno de `UseOfNonLambdaOffsetOverload`, `PluralsCandidate`, `HardwareIds`, `DiscouragedApi`, `AutoboxingStateCreation`, `AndroidGradlePluginVersion`), ninguno bloqueante y todos ya inventariados en T15 de `docs/AUDIT.md`.
+
+**Verificación:**
+
+- `./gradlew lintDebug` → BUILD SUCCESSFUL, **cero errores** (antes: 141).
+- `./gradlew lintVitalRelease` → BUILD SUCCESSFUL.
+- `./gradlew testDebugUnitTest` → **111 pruebas, 0 fallos**.
+- `./gradlew assembleRelease` → BUILD SUCCESSFUL, APK de 23 208 770 B, y `apksigner verify` confirma que sigue firmado con `CN=App Custodio, OU=AI27`.
+- **Gate comprobado en los dos sentidos:** con el defecto de B2 reintroducido, `assembleRelease` **falla** con `Error: Call requires API level 31 (current min is 26) [NewApi]`; con el arreglo restaurado, vuelve a pasar. Antes de esta tarea ese mismo defecto se empaquetaba sin una sola queja.
+- Compatibilidad con configuration-cache conservada: `Reusing configuration cache` en la segunda corrida de `assembleDebug`.
+
+**Archivos modificados:**
+
+- `app/src/main/res/values-es-rMX/strings.xml` (eliminado, y la carpeta con él)
+- `app/src/main/java/com/ai27/app/custodio/data/ubicacion/ProveedorUbicacion.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/UbicacionModule.kt`
+- `app/build.gradle.kts`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:36
+
+**Resumen:** Se cubrió con pruebas la capa `data/worker`, que no tenía **ninguna** y es la que decide si la evidencia se reintenta o se abandona. Son 14 pruebas instrumentadas: la escalera de reintentos del worker de subida y el comportamiento de `reconciliar()`, la rutina que repone la cola al reabrir la app. Es la tarea T9 del plan de §12, con la decisión D2.
+
+**Cambios:**
+
+- `app/src/androidTest/.../data/worker/WorkerSubidaMedioTest.kt` (nuevo, 6 pruebas): escalera de reintentos con `TestListenableWorkerBuilder`. Verifica que los intentos 1 a 3 devuelven `retry()`, que el intento 4 (`MAX_INTENTOS`) devuelve `failure()` y **deja el medio en `FALLIDA`** para el reintento manual, que una subida exitosa lo marca `COMPLETA` con su `sha256`, que sin datos de entrada falla sin reintentar, que un medio ya `COMPLETA` no se vuelve a subir, y que no se sube evidencia a un reporte descartado localmente.
+- `app/src/androidTest/.../data/worker/ReconciliacionColaTest.kt` (nuevo, 8 pruebas): usa `WorkManagerTestInitHelper` con `SynchronousExecutor`. Verifica que `encolarSubidaMedio` crea un trabajo único por medio, que `reconciliar()` repone la cola de los pendientes y encola también el sync del reporte, que reintenta los `FALLIDA`, que **rescata los medios pegados en `EN_PROGRESO`** (importante: esos no se pueden reintentar a mano porque `ReintentarSubida` los rechaza, así que la reconciliación es su única salida) y que no vuelve a encolar los `COMPLETA`.
+
+**Decisión de diseño:** las pruebas usan **Room real** sobre un archivo temporal y el almacén de archivos real; lo único falseado es la capa remota, que son interfaces. Se tomó ese camino porque los fakes existentes viven en `app/src/test` y no están en el classpath de `androidTest`, y porque duplicarlos habría dado menos fidelidad: así el `doWork()` se ejercita de verdad, incluidas las escrituras a la base.
+
+**Tres pruebas de caracterización (decisión D2).** Documentan defectos reales que quedaron **fuera del alcance** acordado. Afirman lo que la app hace hoy, con el ID del hallazgo en el nombre y la explicación en un comentario. No llevan `@Ignore`, porque una prueba ignorada no protege nada: cuando el defecto se arregle, la prueba falla y obliga a actualizarla conscientemente.
+
+- `caracterizacion_E3_reconciliar_encola_medios_SIN_etiquetar`: `reconciliar()` encola todo lo que no esté `COMPLETA` sin mirar la etiqueta, así que un medio descartado desde la hoja de etiquetado sube sin clasificar y el analista recibe evidencia que no puede filtrar.
+- `caracterizacion_C4_encolar_de_nuevo_REEMPLAZA_el_trabajo_anterior`: con `ExistingWorkPolicy.REPLACE`, volver a encolar cancela el trabajo anterior. Como `reconciliar()` se llama desde el pull-to-refresh de Pendientes, el custodio puede cancelar sin saberlo subidas en vuelo y reiniciarlas desde cero.
+- `caracterizacion_E6_la_cola_no_filtra_por_custodio`: ni `obtenerPendientes()` ni `obtenerPendientesSubida()` filtran por `custodioUid`, así que en un equipo compartido la app reencola la evidencia del custodio anterior con el token del nuevo.
+
+**Verificación:**
+
+- `./gradlew connectedDebugAndroidTest` sobre CPH2769 (API 36) → **23 pruebas, 0 fallos, 0 errores**: 8 de `RemotoEmuladorTest`, 8 de `ReconciliacionColaTest`, 6 de `WorkerSubidaMedioTest` y 1 del `ExampleInstrumentedTest` de andamiaje.
+- `./gradlew testDebugUnitTest` sigue en **111 pruebas, 0 fallos**.
+- Confirmado por ejecución que `MAX_INTENTOS = 4` se comporta como dice el código: tres `retry` y un `failure`. Los 10 reintentos por defecto de WorkManager nunca se alcanzan, porque el tope propio dispara antes.
+
+**Archivos modificados:**
+
+- `app/src/androidTest/java/com/ai27/app/custodio/data/worker/WorkerSubidaMedioTest.kt` (nuevo)
+- `app/src/androidTest/java/com/ai27/app/custodio/data/worker/ReconciliacionColaTest.kt` (nuevo)
+- `CHANGELOG.md`
+
+## 2026:09:21 17:33
+
+**Resumen:** Se atendió el hallazgo P2 de la auditoría: los fakes de prueba divergían de las implementaciones Room en cuatro puntos, y **dos de esas divergencias estaban afirmadas como correctas en pruebas verdes**, así que la suite documentaba comportamiento que no existe en producción. Se creó una suite de contrato que corre la misma batería de aserciones contra Room y contra los fakes, se alinearon los cuatro fakes y se corrigieron las dos pruebas equivocadas. Es la tarea T8 del plan de §12, con la decisión D3.
+
+**Cambios:**
+
+- `app/src/test/.../contrato/ContratoRepositoriosTest.kt` (nuevo): clase abstracta con **18 pruebas** del contrato observable de `MedioRepository` y `ReporteRepository`. Solo comportamiento visible a través de la interfaz, nada de detalles de implementación, porque eso es justamente lo que legítimamente difiere entre Room y un fake.
+- `app/src/test/.../contrato/ContratoRoomTest.kt` (nuevo): ejecuta el contrato contra `RoomMedioRepository` y `RoomReporteRepository` sobre SQLite nativo y un directorio temporal. Es la definición de verdad.
+- `app/src/test/.../contrato/ContratoFakesTest.kt` (nuevo): ejecuta el mismo contrato contra `FakeMedioRepository` y `FakeReporteRepository`.
+
+**Las cuatro divergencias corregidas en los fakes:**
+
+1. `FakeMedioRepository.obtenerPendientes()` excluía `FALLIDA` y exigía `reporteId` no vacío; ahora filtra solo por `!= COMPLETA`, igual que `MedioDao`. Importa porque `reconciliar()` usa esa lista para reponer la cola: con el filtro viejo, un medio fallido no se reintentaría nunca al reabrir la app.
+2. `FakeMedioRepository.marcarSubidaCompleta` ponía `localPath = null`; ahora lo conserva, porque el `UPDATE` del DAO solo toca `estadoSubida`, `storagePath` y `sha256`. El archivo físico sí se borra, así que la fila real queda apuntando a una ruta inexistente — y eso es lo que ve la rejilla.
+3. `FakeReporteRepository.cerrar` fijaba `completo = true` y `mediosSubidos = mediosEsperados`; ahora no toca ninguno de los dos, como `ReporteDao.cerrar`. Cerrar un viaje no significa que la evidencia ya subió.
+4. `FakeReporteRepository.obtenerPendientesSubida` filtraba por `ciclo != DESCARTADO`; ahora filtra por `subida != COMPLETA`, igual que el DAO. Por eso un reporte descartado sigue apareciendo en la cola, que es el origen del backlog creciente descrito en E6.
+
+**Las dos pruebas corregidas (decisión D3):** no es maquillar un fallo, es lo contrario — describían comportamiento que no existe.
+
+- `CerrarReporteTest.cierra reporte agregando el resumen de medios`: afirmaba `assertEquals(3, cerrado.mediosSubidos)` con los tres medios en `PENDIENTE`. Ahora afirma `mediosSubidos == 0` y `completo == false`, con un comentario que explica que el contador lo avanza el pipeline y no el cierre.
+- `SubidaMedioProcesoTest.sube un medio y lo marca completo borrando el archivo local`: afirmaba `assertNull(subido.localPath)`. Ahora afirma `assertNotNull`, con la explicación de que el archivo se borra pero la columna se conserva. La comprobación de que el archivo físico desapareció ya estaba y se mantiene.
+
+**Cómo se validó el enfoque:** al correr el contrato antes de tocar los fakes, `ContratoRoomTest` pasó **18 de 18** y `ContratoFakesTest` falló **5** pruebas — las cuatro divergencias, con la número 4 apareciendo en dos casos distintos. Después de alinear los fakes, los dos únicos fallos de toda la suite fueron exactamente las dos aserciones equivocadas, lo que confirma que el contrato apunta a lo que debía y que no había daño colateral en ninguna otra prueba.
+
+**Verificación:**
+
+- `./gradlew testDebugUnitTest` → BUILD SUCCESSFUL, **111 pruebas, 0 fallos** (75 previas + 36 del contrato, que son 18 × 2 implementaciones).
+- El contrato pasa idéntico contra Room y contra los fakes, así que una divergencia futura rompe la compilación de la confianza en lugar de esconderse.
+
+**Nota de portabilidad para CI:** las pruebas de Room corren en la JVM con `BundledSQLiteDriver`, y eso depende de `app/src/test/jniLibs/libsqliteJni.dylib`, que es el binario nativo de **macOS arm64**. Un runner de Linux necesitará la variante `.so`. Queda anotado porque la suite de contrato multiplica la dependencia de ese binario: ahora 18 pruebas más lo necesitan.
+
+**Archivos modificados:**
+
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRepositoriosTest.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRoomTest.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoFakesTest.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeReporteRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/CerrarReporteTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProcesoTest.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:28
+
+**Resumen:** Se construyó la red de regresión del hallazgo B1, que es el hueco que permitió que el pipeline de subida estuviera roto sin que nada lo detectara: `data/remote` solo tenía una prueba (el mapeo de códigos de Auth). Son dos capas: pruebas JVM que fijan la semántica exacta que se rompió, y una prueba instrumentada contra el Emulator Suite que recorre el viaje redondo real. Es la tarea T7 del plan de §12, y **con ella B1 queda verificado de verdad, no solo compilando**.
+
+**Resultado principal: la regresión de B1 quedó demostrada empíricamente.** Al revertir *un solo* punto de llamada (`FirebaseReporteRemoto.crear`) al helper viejo y correr la prueba instrumentada en el dispositivo, **fallan 7 de las 8 pruebas**, con el mensaje exacto del defecto: `crear() debe devolver Success; era el fallo de B1. Obtuve: Failure(error=Inesperado(causa=java.lang.IllegalStateException: Tarea Auth sin resultado ni error))`. La única que sobrevive es la que no llama a `crear`. Después se restauró el arreglo y las 8 volvieron a verde. Eso confirma dos cosas: que el defecto era real y total, y que la prueba nueva lo atrapa.
+
+**Cambios:**
+
+- `app/src/test/.../data/remote/EsperaDeTareasTest.kt` (nuevo): 4 pruebas JVM que ejercitan `ejecutarRemoto` de producción con `Task`s reales de Play Services. Fijan que una `Task<Void>` exitosa produce `Success` (la forma que devuelven `set()` y `update()`, y exactamente lo que fallaba), que una `Task` con resultado no nulo sigue devolviendo su valor, y que un fallo propaga la excepción y se mapea al error de dominio correcto. Corren **sin dispositivo ni emulador**, así que sirven en CI.
+- `app/src/androidTest/.../data/remote/RemotoEmuladorTest.kt` (nuevo): 8 pruebas de integración contra los emuladores. Construyen los remotos a mano (sin Hilt), crean una cuenta al vuelo en el emulador de Auth —las reglas exigen `request.auth.uid == custodioUid`, así que hay que estar autenticado de verdad— y cubren: `crear` + `obtenerCiclo`, `actualizarContadores`, `cerrar` con transición a `CERRADO`, `descartar` con transición a `DESCARTADO`, `obtenerCiclo` de un reporte inexistente, el viaje redondo `subirArchivo` + `crearDocumentoSiNoExiste` con verificación del documento leído por llave, y la idempotencia del reintento.
+- `README.md`: nueva subsección "Pruebas instrumentadas contra el Emulator Suite" con los tres pasos y, sobre todo, la explicación de por qué hacen falta los túneles `adb reverse`.
+
+**Decisiones tomadas durante la tarea:**
+
+- **El acceso al emulador se resuelve con `adb reverse`, no cambiando `ModoEmulador.HOST`.** La prueba corrió contra un teléfono físico (CPH2769, API 36), donde `10.0.2.2` no existe: esa dirección solo funciona en el emulador de Android. `adb reverse tcp:8080|9199|9099` hace que `127.0.0.1` del dispositivo salga por el cable al host, así que la constante actual sirve sin tocarla y hay una sola configuración para teléfono y emulador. Queda documentado porque sin los túneles las pruebas fallan con `SinConexion` y parece un problema de reglas.
+- Se respetaron los quirks del Emulator Suite ya documentados en `AGENTS.md`: solo `get` por llave (nunca `list`/`runQuery`), y el documento del reporte se crea **antes** que el del medio, porque la regla de Storage hace un `get()` cruzado a `reportes/{id}` y en el emulador un `get()` a un documento inexistente revienta la regla completa.
+- Cada prueba usa UUID nuevos, así que no hay estado compartido ni dependencia del orden de ejecución — al contrario de lo que hoy pasa en `firebase/test/reglas.test.js`, señalado en S14.
+
+**Prueba de caracterización añadida (hallazgo C2, fuera de alcance):** `el_sha256_del_documento_queda_nulo_hallazgo_C2_aceptado` afirma que el documento remoto de `medios` se escribe con `sha256` nulo. Es el comportamiento actual y está **mal**, pero C2 quedó fuera del alcance acordado (§12.5). Se deja clavado a propósito, con el ID citado en el nombre y en un comentario: el día que se arregle C2, la prueba falla y obliga a actualizarla conscientemente. Es el mismo criterio de la decisión D2.
+
+**Limitación encontrada y registrada:** la rama de `FirebaseNetworkException` de `excepcionRemotoAError` **no se puede cubrir en una prueba JVM**, porque el constructor de esa excepción llama a `android.text.TextUtils.isEmpty`, que no existe fuera de Android, y falla antes de llegar al mapeo. Se cubre con `IOException`, que entra por la misma rama del `when`. Queda anotado en el propio archivo de prueba. Tampoco se pudo replicar el helper viejo en una prueba JVM para demostrar el fallo: usaba `addOnCompleteListener` sin executor, que requiere un `Looper` de hilo principal, así que revienta con `ExceptionInInitializerError` en la JVM; por eso la demostración se hizo en el dispositivo, que además es evidencia más fuerte.
+
+**Verificación:**
+
+- `./gradlew testDebugUnitTest` → BUILD SUCCESSFUL, **75 pruebas, 0 fallos** (71 previas + 4 nuevas).
+- `./gradlew connectedDebugAndroidTest` sobre CPH2769 (API 36) con los emuladores y los túneles activos → **8 pruebas, 0 fallos, 0 errores**.
+- Regresión comprobada revirtiendo `crear()` al helper viejo: **7 de 8 fallos**, con el mensaje de B1. Restaurado el arreglo, 8 de 8 en verde. Se verificó por búsqueda que no quedó ningún resto del helper temporal en `FirebaseReporteRemoto`.
+
+**Archivos modificados:**
+
+- `app/src/test/java/com/ai27/app/custodio/data/remote/EsperaDeTareasTest.kt` (nuevo)
+- `app/src/androidTest/java/com/ai27/app/custodio/data/remote/RemotoEmuladorTest.kt` (nuevo)
+- `README.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:20
+
+**Resumen:** Se corrigió el hallazgo bloqueante B1, la causa de que el pipeline de subida no pudiera funcionar contra Firebase real. El helper propio `Task<T>.esperar()` solo resolvía la corrutina cuando `resultado.result != null`, y una `Task<Void>` **exitosa** devuelve `getResult() == null`, así que toda escritura a Firestore (`set` y `update`) caía al `else` y lanzaba `IllegalStateException`. Como `asegurarReporte()` corre antes de tocar Storage, el efecto era total: ni un byte salía a Storage ni un documento a Firestore, todo medio terminaba en `FALLIDA`, el badge de pendientes nunca bajaba y el cierre de sesión quedaba bloqueado para siempre. Es la tarea T6 del plan de §12, con la decisión D1 ya confirmada.
+
+**Cambios:**
+
+- Se borró `internal suspend fun <T> Task<T>.esperar()` de `data/remote/AuthDataSource.kt` y se sustituyó por `await()` de `kotlinx-coroutines-play-services`, la implementación oficial de este contrato. Se eliminaron los imports que quedaron sin uso: `com.google.android.gms.tasks.Task`, `kotlin.coroutines.resume`, `kotlin.coroutines.resumeWithException` y `kotlinx.coroutines.suspendCancellableCoroutine`.
+- `data/remote/FirebaseReporteRemoto.kt`: los 5 usos pasan a `await()` — `obtenerCiclo` (`get`), `crear` (`set`), `cerrar` (`update`), `descartar` (`update`) y `actualizarContadores` (`update`). Los cuatro últimos son los que fallaban siempre.
+- `data/remote/FirebaseMedioRemoto.kt`: los 4 usos pasan a `await()` — los dos `putBytes` de `subirArchivo` (archivo y miniatura) y el `get` más el `set` de `crearDocumentoSiNoExiste`. El `set` era el que fallaba siempre.
+- Se añadió el import `kotlinx.coroutines.tasks.await` en los tres archivos.
+- Se conservó intacto el orden de los `catch` de `iniciarSesion`: `FirebaseAuthException` sigue capturándose **antes** del `Exception` genérico, así que `codigoSesionAError` sigue colapsando `USER_NOT_FOUND`, `WRONG_PASSWORD`, `INVALID_CREDENTIAL`, `USER_DISABLED` e `INVALID_EMAIL` en un único `CredencialesInvalidas`. Eso es lo que evita la enumeración de usuarios y está registrado como correcto en §10 de `docs/AUDIT.md`; no se tocó.
+
+**Beneficio adicional de usar la implementación oficial:** el helper propio no tenía `invokeOnCancellation`, así que al cancelarse la corrutina la `Task` seguía viva y un worker cancelado dejaba el `UploadTask` corriendo. `await()` sí propaga la cancelación. Era la segunda mitad del hallazgo B1 y queda resuelta sin trabajo extra.
+
+**Verificación:**
+
+- `./gradlew assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL, **71 pruebas, 0 fallos, 0 errores**.
+- Búsqueda en `app/src` de `esperar()` → sin resultados. El único `suspendCancellableCoroutine` que queda es el de `ProveedorUbicacion`, que es una implementación distinta y correcta (sí tiene `invokeOnCancellation`) y no entra en esta tarea.
+- Los 10 puntos de espera de `data/remote` usan `await()`.
+- **Sin verificar, y es lo importante de esta tarea:** que las escrituras a Firestore funcionen de verdad. La suite actual **no ejercita la capa remota** — `data/remote` solo tenía una prueba, la del mapeo de códigos de Auth — así que un build verde no demuestra nada sobre B1. Es exactamente el hueco que permitió que este defecto llegara a este punto sin detectarse. La red de regresión la construye la tarea T7 contra el Emulator Suite, y ahí hay que comprobar que el test **falla** si se revierte este cambio.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/remote/AuthDataSource.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirebaseReporteRemoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirebaseMedioRemoto.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:16
+
+**Resumen:** Se declararon las dos dependencias que necesitan las tareas siguientes del plan de §12: `kotlinx-coroutines-play-services` para el `Task<T>.await()` que sustituye al helper propio roto (hallazgo B1, tarea T6) y `androidx.work:work-testing` para poder probar la escalera de reintentos de los workers (tarea T9). Es la tarea T5 del plan, agrupada en una sola edición de scripts de build para que haya una única pausa de Sync.
+
+**Hallazgo relevante durante la tarea:** `kotlinx-coroutines-play-services:1.10.2` **ya estaba en el classpath**, arrastrado transitivamente por Firebase (se resuelve desde `1.7.3` y `1.9.0` vía el BOM de coroutines). Es decir, `await()` ya era alcanzable sin añadir nada. Se declara explícitamente de todos modos, porque `data/remote` va a usarlo de forma directa y depender de un transitivo significa que una actualización de Firebase podría quitarlo y romper la compilación sin aviso.
+
+**Cambios:**
+
+- `gradle/libs.versions.toml`: nueva versión `coroutines = "1.10.2"`, alineada con el `kotlinx-coroutines-core` que realmente se resuelve en el classpath (verificado con `:app:dependencies`). Se dejó `coroutinesTest` como estaba para no tocar lo que ya funciona; el comentario explica la relación entre ambas.
+- `gradle/libs.versions.toml`: nueva librería `kotlinx-coroutines-play-services` apuntando a `coroutines`, con comentario que la liga al hallazgo B1 y a la tarea T6.
+- `gradle/libs.versions.toml`: nueva librería `androidx-work-testing` apuntando a la versión `work` que ya existía (`2.11.0`), de modo que quede siempre alineada con `work-runtime-ktx` y no puedan desincronizarse.
+- `app/build.gradle.kts`: `implementation(libs.kotlinx.coroutines.play.services)` en el bloque de Firebase, con comentario explicando por qué se declara algo que ya llegaba transitivamente.
+- `app/build.gradle.kts`: `androidTestImplementation(libs.androidx.work.testing)`.
+- No se tocó nada más del build. El bloque `lint { }` va aparte, en la tarea T10, precisamente para no encadenar dos Sync seguidos.
+
+**Verificación:**
+
+- `./gradlew assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL, 71 pruebas en verde.
+- `:app:dependencies --configuration releaseRuntimeClasspath` → `kotlinx-coroutines-play-services:1.10.2` ya aparece como dependencia declarada, no solo transitiva.
+- `:app:dependencies --configuration debugAndroidTestRuntimeClasspath` → `androidx.work:work-testing:2.11.0` presente.
+- Compatibilidad con configuration-cache conservada: una segunda corrida de `assembleDebug` reporta `Reusing configuration cache` y termina en 467 ms.
+
+**Archivos modificados:**
+
+- `gradle/libs.versions.toml`
+- `app/build.gradle.kts`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:14
+
+**Resumen:** Se corrigió el hallazgo crítico S2 de la auditoría. El manifest declaraba `allowBackup="true"` apuntando a dos archivos de reglas que eran la **plantilla de Android Studio con todo comentado**, y un `<full-backup-content>` sin reglas no excluye nada: significa "respalda todo lo respaldable". Es decir, la base Room con los reportes y los medios, y las fotos con GPS y las notas de voz de `filesDir/medios`, salían hacia la cuenta de Google **del equipo compartido** y hacia la transferencia equipo a equipo. Contradecía §4 del plan, que dice explícitamente que `filesDir` está excluido de Auto Backup. Es la tarea T4 del plan de §12.
+
+**Cambios:**
+
+- `AndroidManifest.xml`: `android:allowBackup` pasa de `"true"` a `"false"`. Es la postura correcta para una app de evidencia con cadena de custodia y con su propio pipeline a Firebase: el respaldo de usuario no aporta nada y sí saca datos de cliente del control de la empresa.
+- `res/xml/backup_rules.xml` (gobierna API ≤30): se reemplazó la plantilla comentada por exclusiones explícitas de `app_custodio.db`, sus archivos `-wal` y `-shm`, y del directorio `medios` del dominio `file`.
+- `res/xml/data_extraction_rules.xml` (gobierna API ≥31): se reemplazó la plantilla comentada por las mismas cuatro exclusiones, declaradas en **los dos canales** — `cloud-backup` y `device-transfer` — porque son independientes y excluir solo uno deja el otro abierto.
+- Ambos XML llevan comentarios que explican qué se excluye, por qué, y que son defensa en profundidad: con `allowBackup="false"` no se ejecutan, pero si alguien vuelve a activar el respaldo la evidencia sigue quedando fuera. Se referencian los hallazgos S2 y E12.
+- Se incluyen los archivos WAL y SHM porque viven en el mismo dominio `database` y son archivos aparte: excluir solo el `.db` dejaría el diario dentro del respaldo.
+
+**Rutas verificadas antes de escribir las reglas:**
+
+- La base vive en `context.getDatabasePath("app_custodio.db")` (`AppCustodioDatabase.crearBaseDatos`), es decir el directorio estándar de bases → dominio `database`.
+- Los binarios viven en `File(context.filesDir, "medios")` (`DatabaseModule.proveeAlmacenArchivos`) → dominio `file`, ruta `medios`.
+
+**Consecuencia aceptada:**
+
+- La preferencia de tema nocturno (SharedPreferences `preferencias`) ya no sobrevive a una reinstalación ni a un cambio de equipo. Es un booleano con default sano (la app es dark-first), así que el costo es que el custodio vuelva a activar el tema claro si lo tenía.
+- Deja de ser posible restaurar evidencia sin subir desde un respaldo. Eso es deliberado: el hallazgo E12 explica que ese "rescate" en realidad producía filas `PENDIENTE` apuntando a archivos inexistentes, con rutas absolutas que podían señalar a otro perfil de usuario, y el custodio quedaba con evidencia fantasma imposible de subir o descartar y un badge de pendientes que nunca bajaba.
+
+**Verificación:**
+
+- `./gradlew assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL, 71 pruebas en verde.
+- Manifest fusionado de debug: `android:allowBackup="false"`, con `dataExtractionRules` y `fullBackupContent` apuntando a los dos XML nuevos. Ambos XML compilan sin error de aapt.
+- Sin verificar: `adb shell bmgr backupnow com.ai27.app.custodio` no debe respaldar datos del paquete. No hubo dispositivo disponible; queda como comprobación manual pendiente.
+
+**Archivos modificados:**
+
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/res/xml/backup_rules.xml`
+- `app/src/main/res/xml/data_extraction_rules.xml`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:12
+
+**Resumen:** Se corrigió el hallazgo crítico S1 de la auditoría eliminando por completo la copia pública de cada foto. La app escribía **siempre** una segunda copia JPEG en `Pictures/AppCustodio` vía MediaStore, sin flag ni condición de build y sin borrarla nunca: era legible por la galería, por WhatsApp, por cualquier app con `READ_MEDIA_IMAGES`, por el respaldo de Google Fotos y por el siguiente custodio que tomara el equipo compartido. Contradecía la premisa de `filesDir` privado de §4 del plan y volvía cosmético el borrado de evidencia pre-subida. Es la tarea T3 del plan de §12.
+
+**Cambios:**
+
+- Se borraron `data/local/media/FotosPublicas.kt` (interfaz) y `data/local/media/FotosPublicasMediaStore.kt` (implementación con MediaStore para API 29+ y `getExternalStoragePublicDirectory` + `MediaScannerConnection` para API 26-28).
+- `di/CapturaModule.kt`: se quitó el provider `proveeFotosPublicas` y los dos imports asociados.
+- `ui/captura/CapturaViewModel.kt`: se quitaron el import de `FotosPublicas`, el parámetro de constructor `fotosPublicas`, la llamada `copiarAPublica(...)` y el método completo. La rama `is Result.Success` del `when` se simplifica a un `it.copy(...)` directo.
+- `ui/captura/CapturaViewModel.kt`: se quitaron el import de `android.util.Log` y la constante `TAG`, que solo existían para registrar el fallo de la copia pública.
+- `AndroidManifest.xml`: se quitó `WRITE_EXTERNAL_STORAGE` (con su `maxSdkVersion="28"`), que solo existía para la copia pública en Android 8-9. Se conservaron intactos los cambios previos del usuario: `ACCESS_COARSE_LOCATION`, `screenOrientation="fullSensor"` y la ausencia de `android:label` en `MainActivity`.
+- `ui/viaje/CapturaEvidenciaScreen.kt`: `permisosSolicitados()` deja de ser un `if` sobre `SDK_INT <= P` y pasa a ser un `arrayOf` plano de cámara, micrófono y ubicación fina. Se quitó el import de `android.os.Build`, que quedó sin uso.
+- `app/src/test/.../CapturaFakes.kt`: se quitó `FakeFotosPublicas` y su import.
+- `app/src/test/.../ui/captura/CapturaViewModelTest.kt`: se quitaron el import, el campo `fotos`, su inicialización en `setUp` y el argumento `fotosPublicas` del constructor.
+
+**Efectos colaterales positivos, registrados por trazabilidad:**
+
+- Desaparece la **tercera escritura completa a disco por foto** y la retención del `ByteArray` que exigía: es parte del hallazgo R5, que por lo demás sigue abierto (la subida sigue usando `putBytes` con el archivo entero en memoria).
+- Desaparece el **único `Log.` de `app/src/main`**, que era la vía residual de PII señalada en S13.
+- Se cierra el efecto secundario que vivía **dentro del lambda de `interno.update`**, señalado en C9: `MutableStateFlow.update` puede re-ejecutar su lambda bajo contención, así que `copiarAPublica` podía dispararse más de una vez. La otra mitad de C9 (`sincronizarReporte` en la misma situación) sigue abierta.
+
+**Verificación:**
+
+- `./gradlew assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL, **71 pruebas, 0 fallos, 0 omitidas**.
+- Búsqueda en todo `app/src` de `FotosPublicas|copiarAPublica|WRITE_EXTERNAL_STORAGE|MediaStore|MediaScannerConnection` → **sin resultados**.
+- Permisos finales del manifest: `INTERNET`, `ACCESS_NETWORK_STATE`, `CAMERA`, `RECORD_AUDIO`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`.
+- Sin verificar: que la galería de un dispositivo real ya no muestre nada en `Pictures/AppCustodio` tras capturar. No hubo dispositivo disponible. Nota operativa: en equipos que ya tienen la app instalada, **las copias creadas por versiones anteriores siguen en la galería** y hay que borrarlas a mano al actualizar.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/FotosPublicas.kt` (eliminado)
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/FotosPublicasMediaStore.kt` (eliminado)
+- `app/src/main/java/com/ai27/app/custodio/di/CapturaModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:10
+
+**Resumen:** Se corrigió el hallazgo B2 de la auditoría: `GrabadoraMediaRecorder` construía `MediaRecorder(context)`, un constructor que existe desde API 31, con `minSdk = 26` y sin ningún gate de versión. En cualquier equipo con Android 8, 9, 10 u 11 el runtime lanzaba `NoSuchMethodError` y la app se cerraba al grabar una nota de voz. Es la tarea T2 del plan de §12.
+
+**Cambios:**
+
+- `GrabadoraMediaRecorder.kt`: la construcción del recorder sale a un método privado `nuevoRecorder()` que devuelve `MediaRecorder(context)` desde API 31 (`Build.VERSION_CODES.S`) y cae al constructor sin contexto, con `@Suppress("DEPRECATION")`, en los equipos anteriores. Se documenta en KDoc por qué existe el gate y se referencia el hallazgo B2.
+- `GrabadoraMediaRecorder.kt`: el `catch (_: Exception)` de `iniciar()` pasa a `catch (_: Throwable)`. El motivo queda comentado: un constructor ausente lanza `NoSuchMethodError`, que es `Error` y no `Exception`, así que el `catch` anterior no lo atrapaba y la app moría en lugar de devolver `false`.
+- `GrabadoraMediaRecorder.kt`: se añade el import de `android.os.Build`.
+- No se tocó nada más del ciclo de vida del recorder: el hallazgo E5 (sin `setOnErrorListener`, sin observador de ciclo de vida, sin `onCleared`, sin servicio en primer plano) queda fuera del alcance acordado y sigue abierto.
+
+**Verificación:**
+
+- `./gradlew assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL, 71 pruebas en verde.
+- `./gradlew lintDebug` → el error `NewApi` **desaparece** del reporte (141 → 139 errores; los otros dos que bajaron son `NewApi` y `CoarseFineLocation`, este último por el `ACCESS_COARSE_LOCATION` que ya estaba declarado en el manifest). Los 139 restantes son 138 `MissingTranslation` y 1 `MissingPermission`.
+- Sin verificar: que grabar una nota de voz en un equipo real con Android 9 ya no cierre la app. No hubo dispositivo disponible; un test unitario del gate exigiría Robolectric, que no está en el proyecto.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/GrabadoraMediaRecorder.kt`
+- `CHANGELOG.md`
+
+## 2026:09:21 17:08
+
+**Resumen:** Se registró en `docs/PLAN.md` la sección §12 con el plan aprobado para atender los cinco hallazgos críticos de `docs/AUDIT.md` (B1, B2, B3, S1, S2). Es la tarea T1 del plan: documento únicamente, sin cambios de código.
+
+**Cambios:**
+
+- `docs/PLAN.md`: nueva sección `## 12. Atención de hallazgos críticos de la auditoría (2026-09-21)` con seis subsecciones — los cinco hallazgos y por qué son críticos (§12.1), el alcance acordado con el usuario (§12.2), las tres decisiones de diseño D1-D3 (§12.3), las once tareas con estado y dependencias (§12.4), el fuera de alcance citando los 90 hallazgos que siguen abiertos por ID (§12.5) y el aviso de riesgo para Producto (§12.6).
+- Se documenta D1: B1 se arregla sustituyendo el `Task<T>.esperar()` propio por `await()` de `kotlinx-coroutines-play-services`, con la consecuencia aceptada de que la red de regresión pasa a ser el test de integración contra el emulador en lugar de un test unitario barato.
+- Se documenta D2: los tests de `work-testing` que se topan con C4 y E3 se escriben como tests de caracterización que citan el ID de auditoría, sin `@Ignore`, para que fallen conscientemente el día que esos defectos se arreglen.
+- Se documenta D3: la corrección de `CerrarReporteTest` y `SubidaMedioProcesoTest` es para que dejen de afirmar comportamiento inexistente en producción, no para ocultar un fallo.
+- §12.6 deja por escrito que T6 hace funcionar las subidas por primera vez y que en ese momento C1, C2 y C4 empiezan a producir datos incorrectos en Firestore (`sha256` nulo no rellenable, contadores desfasados, reintentos que cancelan subidas en vuelo), para que Producto lo sepa antes de entregar a los 37 custodios.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:21 16:25
+
+**Resumen:** Se levantó una auditoría técnica y de experiencia de uso de toda la app y se documentó en `docs/AUDIT.md`. No se modificó código de producción: el documento solo registra hallazgos, con severidad, `ruta:línea` y estado de verificación. El hallazgo principal es que el pipeline de subida no puede funcionar contra Firebase real, porque el helper `Task<T>.esperar()` lanza excepción ante una `Task<Void>` exitosa (que devuelve `getResult() == null`), de modo que toda escritura a Firestore falla y ningún medio llega a subir.
+
+**Cambios:**
+
+- Se creó `docs/AUDIT.md` con 70 hallazgos agrupados en 11 secciones: bloqueantes, pérdida de evidencia, consistencia de datos, seguridad y privacidad, rendimiento contra el estándar de 5 segundos, fricción de uso en campo, accesibilidad y contraste, build y proceso, cobertura de pruebas, lo que está bien y no conviene tocar, y un orden de atención sugerido en 7 grupos.
+- Se distinguen tres bloqueantes de entrega: el helper `esperar()` con `Task<Void>`; `MediaRecorder(context)` usado con `minSdk 26` cuando el constructor es de API 31 (crash garantizado en Android 8-11, con el `NoSuchMethodError` escapando del `catch (_: Exception)`); y `lintVitalRelease` pasando en verde pese a los 141 errores que reporta `lintDebug`, 138 de ellos ruido de `MissingTranslation` provocado por la carpeta redundante `res/values-es-rMX/`.
+- Se documentan los ratios WCAG calculados sobre los hex reales de `ui/theme/Color.kt`, con los dos patrones de fondo: `colorScheme.outline` usado como color de texto en 8 sitios, y la receta de chips y `FranjaAviso` fallando en tema claro donde el oscuro pasa.
+- Se registran también las limitaciones de la auditoría: no se ejecutó la app en dispositivo ni emulador Android, no se corrió `firebase && npm test`, no se midió nada con instrumentación, y no se comparó ninguna pantalla contra los `screen.png` de los mockups.
+- `app/src/main/AndroidManifest.xml` quedó con los cambios que hizo el autor del proyecto durante la auditoría (se declara `ACCESS_COARSE_LOCATION`, `screenOrientation` pasa de `portrait` a `fullSensor` y se retira el `android:label` redundante de `MainActivity`). El documento incorpora ese delta: S8 queda medio resuelto (falta pedir el permiso en runtime), A9 sube de riesgo latente en tablets a comportamiento activo en todos los equipos —lo que vuelve obligatorios el `verticalScroll` de cuatro pantallas y el `rememberSaveable` del formulario de cierre— y el punto de `RedundantLabel` en T15 queda cerrado.
+
+**Archivos modificados:**
+
+- `docs/AUDIT.md`
+- `CHANGELOG.md`
+
 ## 2026:09:21 15:50
 
 **Resumen:** La app queda bloqueada en orientación Portrait todo el tiempo: la cámara, la grabadora y las hojas de etiquetado se diseñaron para lectura vertical, así que se fija `screenOrientation="portrait"` en la única Activity.

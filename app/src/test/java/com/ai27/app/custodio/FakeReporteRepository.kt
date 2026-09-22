@@ -73,10 +73,11 @@ class FakeReporteRepository(
             closedAt = closedAt,
             comentario = comentario,
             hayNovedad = hayNovedad,
-            completo = true,
             mediosEsperados = mediosEsperados,
-            mediosSubidos = mediosEsperados,
             resumenMedios = resumen,
+            // mediosSubidos y completo NO se tocan: el UPDATE de ReporteDao.cerrar no
+            // los incluye, y hace bien — al cerrar, la evidencia puede seguir en la cola.
+            // Quien los avanza es el pipeline vía actualizarSubida().
         )
         reportes[indice] = cerrado
         return Result.Success(cerrado)
@@ -121,6 +122,13 @@ class FakeReporteRepository(
         return Result.Success(actualizado)
     }
 
-    override suspend fun obtenerPendientesSubida(): List<Reporte> =
-        reportes.filter { it.custodioUid.isNotBlank() && it.ciclo != Ciclo.DESCARTADO }
+    override suspend fun obtenerPendientesSubida(custodioUid: String, fechaDesde: String): List<Reporte> =
+        // Mismo filtro que ReporteDao.obtenerPendientesSubida: del custodio, subida sin
+        // terminar y dentro de la ventana de fechas. El ciclo no se mira, así que un
+        // reporte DESCARTADO sigue apareciendo (hallazgo E6 de docs/AUDIT.md).
+        reportes.filter {
+            it.custodioUid == custodioUid &&
+                it.subida != com.ai27.app.custodio.domain.model.EstadoSubida.COMPLETA &&
+                it.fechaLocal >= fechaDesde
+        }
 }

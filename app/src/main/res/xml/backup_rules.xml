@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+   Reglas de Auto Backup para API <= 30 (en API >= 31 gobierna data_extraction_rules.xml).
+
+   Hoy el manifest declara android:allowBackup="false", así que nada de esto se ejecuta.
+   Estas exclusiones son defensa en profundidad: si alguien vuelve a activar el respaldo,
+   la evidencia sigue quedando fuera.
+
+   Qué se excluye y por qué (hallazgo S2 de docs/AUDIT.md):
+   - app_custodio.db y sus archivos WAL/SHM: contienen los reportes y los medios con
+     custodioUid. Auto Backup no garantiza consistencia entre la base y los binarios, así
+     que un restore puede dejar filas PENDIENTE apuntando a archivos que no existen
+     (hallazgo E12): evidencia fantasma que el custodio no puede subir ni descartar.
+   - El directorio "medios" de filesDir: son las fotos con GPS y las notas de voz. Es
+     evidencia de cadena de custodia de un cliente y no debe salir del equipo hacia la
+     cuenta de Google del dispositivo compartido.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="database" path="app_custodio.db" />
+    <exclude domain="database" path="app_custodio.db-wal" />
+    <exclude domain="database" path="app_custodio.db-shm" />
+    <exclude domain="file" path="medios" />
 </full-backup-content>

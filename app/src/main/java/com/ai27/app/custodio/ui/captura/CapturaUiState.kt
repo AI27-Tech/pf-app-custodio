@@ -18,14 +18,30 @@ data class CapturaUiState(
     val descartandoViaje: Boolean = false,
     val pendientesSinSubir: Int = 0,
     val grabandoAudio: Boolean = false,
+    val audioPausado: Boolean = false,
     val segundosAudio: Long = 0L,
     val medioPendienteDeEtiquetar: Medio? = null,
     val ubicacionTextoEscrita: String = "",
     val avisoEncolado: Int = 0,
+    /** Se encontró una nota a medias de un proceso que murió: hay que decirlo (R3 de §13). */
+    val avisoNotaPerdida: Boolean = false,
     @StringRes val error: Int? = null,
 ) {
     val limiteAlcanzado: Boolean
         get() = medios.size >= LIMITE_MEDIOS_REJILLA
+
+    /**
+     * Evidencia capturada que quedó **sin clasificar** (hallazgo E3).
+     *
+     * Ocurre cuando el custodio cierra la hoja de etiquetado con la X, o cuando el proceso
+     * muere con la hoja abierta: el medio ya está persistido pero sin etiqueta. Desde §13
+     * la cola de subida excluye esos medios —subirlos daría al analista evidencia que no
+     * puede filtrar—, así que la app tiene que enseñarlos y dejar etiquetarlos después.
+     * Se deriva de [medios] en lugar de consultar Room aparte: la lista ya está aquí y
+     * está acotada a 50.
+     */
+    val mediosSinEtiquetar: List<Medio>
+        get() = medios.filter { it.etiqueta == null }
 
     companion object {
         const val LIMITE_MEDIOS_REJILLA = 50

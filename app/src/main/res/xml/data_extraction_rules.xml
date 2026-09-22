@@ -1,19 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+   Reglas de extracción de datos para API >= 31 (en API <= 30 gobierna backup_rules.xml).
+
+   Hoy el manifest declara android:allowBackup="false", así que nada de esto se ejecuta.
+   Estas exclusiones son defensa en profundidad: si alguien vuelve a activar el respaldo,
+   la evidencia sigue quedando fuera.
+
+   Se cubren los DOS canales, porque son independientes:
+   - cloud-backup: respaldo a la cuenta de Google del dispositivo.
+   - device-transfer: copia directa equipo a equipo al cambiar de teléfono.
+
+   Excluir solo la base sería peor que no excluir nada: quedarían los binarios sin las
+   filas que los describen, o al revés. Ver S2 y E12 en docs/AUDIT.md.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="database" path="app_custodio.db" />
+        <exclude domain="database" path="app_custodio.db-wal" />
+        <exclude domain="database" path="app_custodio.db-shm" />
+        <exclude domain="file" path="medios" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="database" path="app_custodio.db" />
+        <exclude domain="database" path="app_custodio.db-wal" />
+        <exclude domain="database" path="app_custodio.db-shm" />
+        <exclude domain="file" path="medios" />
     </device-transfer>
-    -->
 </data-extraction-rules>

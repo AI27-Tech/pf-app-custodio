@@ -11,31 +11,43 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonGrabacion
+import com.ai27.app.custodio.ui.components.BotonPrimario
 import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.previews.DatosDemo
 import com.ai27.app.custodio.ui.theme.TabularNumberStyle
+import kotlinx.coroutines.delay
 
 /**
  * Pantalla de grabación de nota de voz (`grabaci_n_de_audio_nota_de_voz`).
  *
  * El botón redondo ([BotonGrabacion]) alterna iniciar/detener; el cronómetro usa el
- * estilo tabular del sistema y se detiene solo a los 5 minutos. Al terminar, el medio
- * abre [HojaEtiqueta] con su etiqueta obligatoria.
+ * estilo tabular del sistema y el tope de 5 minutos lo impone el propio grabador. Al
+ * terminar, el medio abre [HojaEtiqueta] con su etiqueta obligatoria.
+ *
+ * Al pasar la app a segundo plano (`ON_STOP`) la nota **se pausa sola**: seguir grabando
+ * exigiría un servicio en primer plano, y dejarla corriendo sin él termina en audio en
+ * silencio cuando el sistema le quita el micrófono (hallazgo E5). Al volver, el custodio
+ * la reanuda con el mismo botón.
  */
 @Composable
 fun AudioScreen(
@@ -43,13 +55,25 @@ fun AudioScreen(
     onAtras: () -> Unit,
     onIniciarAudio: () -> Unit,
     onDetenerAudio: () -> Unit,
+    onPausarAudio: () -> Unit,
+    onReanudarAudio: () -> Unit,
     onDescartarAudio: () -> Unit,
     onGuardarEtiqueta: (medioId: String, etiquetaId: String) -> Unit,
     onUbicacionTextoCambio: (String) -> Unit,
     onCerrarHoja: () -> Unit,
     onConsumirError: () -> Unit,
+    onConsumirAvisoNotaPerdida: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val duenoDelCiclo = LocalLifecycleOwner.current
+    DisposableEffect(duenoDelCiclo, estado.grabandoAudio) {
+        val observador = LifecycleEventObserver { _, evento ->
+            if (evento == Lifecycle.Event.ON_STOP) onPausarAudio()
+        }
+        duenoDelCiclo.lifecycle.addObserver(observador)
+        onDispose { duenoDelCiclo.lifecycle.removeObserver(observador) }
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(modifier.fillMaxSize()) {
             BarraSuperior(titulo = stringResource(R.string.nota_de_voz), onAtras = onAtras)
@@ -61,25 +85,50 @@ fun AudioScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
+                if (estado.avisoNotaPerdida) {
+                    FranjaAviso(texto = stringResource(R.string.audio_nota_perdida))
+                    Spacer(Modifier.height(12.dp))
+                }
                 FranjaAviso(texto = stringResource(R.string.audio_aviso))
                 Spacer(Modifier.height(32.dp))
 
                 if (estado.grabandoAudio) {
+                    val pausada = estado.audioPausado
                     Text(
                         text = formatearDuracion(estado.segundosAudio),
                         style = TabularNumberStyle.copy(
                             fontSize = MaterialTheme.typography.headlineMedium.fontSize,
                         ),
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error,
+                        color = if (pausada) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = stringResource(R.string.audio_grabando),
+                        text = if (pausada) {
+                            stringResource(R.string.audio_en_pausa)
+                        } else {
+                            stringResource(R.string.audio_grabando)
+                        },
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error,
+                        color = if (pausada) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
                         fontWeight = FontWeight.SemiBold,
                     )
+                    if (pausada) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.audio_reanudar_indicacion),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 } else if (estado.capturando) {
                     Text(
                         text = stringResource(R.string.audio_guardando),
@@ -96,13 +145,26 @@ fun AudioScreen(
 
                 Spacer(Modifier.height(32.dp))
 
+                // En pausa el botón redondo reanuda; el guardado pasa a un botón aparte
+                // para que no haya un solo control con tres significados.
                 BotonGrabacion(
-                    grabando = estado.grabandoAudio,
-                    onClick = if (estado.grabandoAudio) onDetenerAudio else onIniciarAudio,
+                    grabando = estado.grabandoAudio && !estado.audioPausado,
+                    onClick = when {
+                        !estado.grabandoAudio -> onIniciarAudio
+                        estado.audioPausado -> onReanudarAudio
+                        else -> onDetenerAudio
+                    },
                 )
 
                 if (estado.grabandoAudio) {
                     Spacer(Modifier.height(24.dp))
+                    if (estado.audioPausado) {
+                        BotonPrimario(
+                            texto = stringResource(R.string.audio_detener_y_guardar),
+                            onClick = onDetenerAudio,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
                     BotonSecundario(
                         texto = stringResource(R.string.comun_cancelar),
                         onClick = onDescartarAudio,
@@ -135,7 +197,17 @@ fun AudioScreen(
     estado.error?.let { error ->
         DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
+    // El aviso de nota perdida se consume al entrar aquí: es el lugar donde tiene sentido
+    // y no debe seguir apareciendo en cada visita.
+    LaunchedEffect(estado.avisoNotaPerdida) {
+        if (estado.avisoNotaPerdida) {
+            delay(AVISO_NOTA_PERDIDA_MS)
+            onConsumirAvisoNotaPerdida()
+        }
+    }
 }
+
+private const val AVISO_NOTA_PERDIDA_MS = 8_000L
 
 private fun formatearDuracion(segundos: Long): String {
     val min = segundos / 60
@@ -157,11 +229,14 @@ private fun AudioVistaClaro() {
             onAtras = {},
             onIniciarAudio = {},
             onDetenerAudio = {},
+            onPausarAudio = {},
+            onReanudarAudio = {},
             onDescartarAudio = {},
             onGuardarEtiqueta = { _, _ -> },
             onUbicacionTextoCambio = {},
             onCerrarHoja = {},
             onConsumirError = {},
+            onConsumirAvisoNotaPerdida = {},
         )
     }
 }
@@ -180,11 +255,93 @@ private fun AudioVistaOscuro() {
             onAtras = {},
             onIniciarAudio = {},
             onDetenerAudio = {},
+            onPausarAudio = {},
+            onReanudarAudio = {},
             onDescartarAudio = {},
             onGuardarEtiqueta = { _, _ -> },
             onUbicacionTextoCambio = {},
             onCerrarHoja = {},
             onConsumirError = {},
+            onConsumirAvisoNotaPerdida = {},
+        )
+    }
+}
+
+@Preview(name = "En pausa · Claro")
+@Composable
+private fun AudioPausadoVistaClaro() {
+    Vitrina(oscuro = false) {
+        AudioScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                grabandoAudio = true,
+                audioPausado = true,
+                segundosAudio = 187L,
+            ),
+            onAtras = {},
+            onIniciarAudio = {},
+            onDetenerAudio = {},
+            onPausarAudio = {},
+            onReanudarAudio = {},
+            onDescartarAudio = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+            onConsumirAvisoNotaPerdida = {},
+        )
+    }
+}
+
+@Preview(name = "En pausa · Oscuro")
+@Composable
+private fun AudioPausadoVistaOscuro() {
+    Vitrina(oscuro = true) {
+        AudioScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                grabandoAudio = true,
+                audioPausado = true,
+                segundosAudio = 187L,
+            ),
+            onAtras = {},
+            onIniciarAudio = {},
+            onDetenerAudio = {},
+            onPausarAudio = {},
+            onReanudarAudio = {},
+            onDescartarAudio = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+            onConsumirAvisoNotaPerdida = {},
+        )
+    }
+}
+
+@Preview(name = "Nota perdida · Oscuro")
+@Composable
+private fun AudioNotaPerdidaVistaOscuro() {
+    Vitrina(oscuro = true) {
+        AudioScreen(
+            estado = CapturaUiState(
+                custodio = DatosDemo.custodio,
+                reporte = DatosDemo.reporteActivo,
+                avisoNotaPerdida = true,
+            ),
+            onAtras = {},
+            onIniciarAudio = {},
+            onDetenerAudio = {},
+            onPausarAudio = {},
+            onReanudarAudio = {},
+            onDescartarAudio = {},
+            onGuardarEtiqueta = { _, _ -> },
+            onUbicacionTextoCambio = {},
+            onCerrarHoja = {},
+            onConsumirError = {},
+            onConsumirAvisoNotaPerdida = {},
         )
     }
 }

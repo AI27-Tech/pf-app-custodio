@@ -177,6 +177,7 @@ fun AppNavHost() {
                         estado = estado,
                         onAtras = { navController.popBackStack() },
                         onTomarFoto = viewModel::capturarFoto,
+                        onFallaDeCaptura = viewModel::fallaDeCaptura,
                         onGuardarEtiqueta = { medioId, etiquetaId ->
                             viewModel.guardarEtiqueta(medioId, etiquetaId)
                         },
@@ -198,6 +199,8 @@ fun AppNavHost() {
                         onAtras = { navController.popBackStack() },
                         onIniciarAudio = viewModel::iniciarGrabacionDeAudio,
                         onDetenerAudio = viewModel::detenerGrabacionDeAudio,
+                        onPausarAudio = viewModel::pausarGrabacionDeAudio,
+                        onReanudarAudio = viewModel::reanudarGrabacionDeAudio,
                         onDescartarAudio = viewModel::descartarAudio,
                         onGuardarEtiqueta = { medioId, etiquetaId ->
                             viewModel.guardarEtiqueta(medioId, etiquetaId)
@@ -205,6 +208,7 @@ fun AppNavHost() {
                         onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
                         onCerrarHoja = viewModel::descartarEtiquetado,
                         onConsumirError = viewModel::consumirError,
+                        onConsumirAvisoNotaPerdida = viewModel::consumirAvisoNotaPerdida,
                         modifier = Modifier
                             .fillMaxSize()
                             .statusBarsPadding(),
@@ -220,6 +224,12 @@ fun AppNavHost() {
                         onAtras = { navController.popBackStack() },
                         onBorrarPendiente = viewModel::borrarPendiente,
                         onReintentar = viewModel::reintentar,
+                        onRetomarEtiquetado = viewModel::retomarEtiquetado,
+                        onGuardarEtiqueta = { medioId, etiquetaId ->
+                            viewModel.guardarEtiqueta(medioId, etiquetaId)
+                        },
+                        onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
+                        onCerrarHoja = viewModel::descartarEtiquetado,
                         onConsumirError = viewModel::consumirError,
                         modifier = Modifier
                             .fillMaxSize()

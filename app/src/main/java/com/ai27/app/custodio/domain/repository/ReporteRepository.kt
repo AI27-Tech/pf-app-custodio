@@ -29,5 +29,10 @@ interface ReporteRepository {
         mediosSubidos: Int,
         completo: Boolean,
     ): Result<Reporte>
-    suspend fun obtenerPendientesSubida(): List<Reporte>
+    /**
+     * Reportes del custodio con la subida sin terminar, acotados por fecha. El filtro por
+     * custodio evita reencolar la evidencia de quien usó el equipo antes, y la cota de
+     * fecha evita que el backlog histórico se reencole en cada arranque (hallazgo E6).
+     */
+    suspend fun obtenerPendientesSubida(custodioUid: String, fechaDesde: String): List<Reporte>
 }

@@ -57,8 +57,17 @@ interface MedioDao {
     )
     fun observarPendientesDe(custodioUid: String): Flow<List<MedioEntity>>
 
-    @Query("SELECT * FROM medios WHERE estadoSubida != 'COMPLETA' ORDER BY createdAtDevice ASC")
-    suspend fun obtenerPendientes(): List<MedioEntity>
+    @Query(
+        """
+        SELECT m.* FROM medios m
+        INNER JOIN reportes r ON m.reporteId = r.id
+        WHERE r.custodioUid = :custodioUid
+          AND m.estadoSubida != 'COMPLETA'
+          AND m.etiqueta IS NOT NULL
+        ORDER BY m.createdAtDevice ASC
+        """,
+    )
+    suspend fun obtenerPendientes(custodioUid: String): List<MedioEntity>
 
     @Query("DELETE FROM medios WHERE id = :id AND estadoSubida = 'PENDIENTE'")
     suspend fun borrarPendiente(id: String): Int

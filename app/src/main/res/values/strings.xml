@@ -91,7 +91,12 @@
     <!-- Errores de validación de las pantallas -->
     <string name="error_escribe_placa">Escribe la placa para iniciar el viaje.</string>
     <string name="error_grabacion_no_inicio">No se pudo iniciar la grabación.</string>
+    <string name="error_grabacion_no_reanudo">No se pudo reanudar la nota. Detenla para guardar lo grabado.</string>
+    <string name="error_grabacion_fallo">La grabación falló y la nota se descartó. Vuelve a intentarlo.</string>
+    <string name="error_grabacion_vacia">La nota quedó vacía y no se guardó. Vuelve a grabarla.</string>
     <string name="error_etiqueta_obligatoria">La etiqueta es obligatoria.</string>
+    <string name="error_captura_fallo">No se pudo tomar la foto. Vuelve a intentarlo.</string>
+    <string name="error_sin_espacio">No queda espacio en el teléfono. Espera a que suban los archivos pendientes o cierra el viaje.</string>
 
     <!-- DialogoDescarte -->
     <string name="descarte_titulo">¿Descartar el viaje?</string>
@@ -141,6 +146,10 @@
     <string name="audio_grabando">GRABANDO</string>
     <string name="audio_guardando">Guardando nota…</string>
     <string name="audio_toca_para_iniciar">Toca el botón para iniciar</string>
+    <string name="audio_en_pausa">EN PAUSA</string>
+    <string name="audio_reanudar_indicacion">La nota se pausó al salir de la app. Toca para continuar.</string>
+    <string name="audio_detener_y_guardar">Detener y guardar</string>
+    <string name="audio_nota_perdida">Una nota de voz quedó a medias y no se pudo recuperar. Vuelve a grabarla.</string>
 
     <!-- Viaje: Archivos -->
     <string name="archivos_sin_evidencias">Sin evidencias</string>
@@ -152,6 +161,12 @@
     <string name="archivos_borrar_captura">Borrar captura</string>
     <string name="archivos_reintentar_subida">Reintentar subida</string>
     <string name="archivos_fallida">FALLIDA</string>
+    <string name="archivos_sin_etiqueta">SIN ETIQUETA</string>
+    <string name="archivos_etiquetar_ahora">Etiquetar este archivo</string>
+    <plurals name="archivos_aviso_sin_etiquetar">
+        <item quantity="one">%1$d archivo espera etiqueta. Tócalo para clasificarlo; sin etiqueta no se sube.</item>
+        <item quantity="other">%1$d archivos esperan etiqueta. Tócalos para clasificarlos; sin etiqueta no se suben.</item>
+    </plurals>
 
     <!-- Viaje: Cierre -->
     <string name="cierre_resumen">Resumen del viaje</string>
@@ -203,7 +218,7 @@
     <string name="pendientes_ninguno">No hay archivos pendientes\nen esta sesión.</string>
     <string name="pendientes_subida_fallida">Subida fallida</string>
     <string name="pendientes_enviando">Enviando…</string>
-    <string name="pendientes_en_cola">En cola</string>
+    <string name="pendientes_falta_etiqueta">Falta etiqueta</string>
 
     <!-- Ajustes -->
     <string name="ajustes_entorno">Entorno y visualización</string>

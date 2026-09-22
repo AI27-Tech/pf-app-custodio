@@ -70,6 +70,35 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // El gate de lint del release era ciego: lintVitalRelease —lo que corre assembleRelease—
+    // solo considera issues de severidad **Fatal**, así que los de severidad Error pasaban
+    // y se podía empaquetar un APK con un crash garantizado (hallazgo B3 de docs/AUDIT.md).
+    //
+    // Verificado por experimento: con solo `abortOnError = true` el release SIGUE pasando
+    // con un NewApi presente. Lo que cierra el gate de verdad es promover a Fatal los issues
+    // que significan "esto truena o filtra en campo".
+    //
+    // No hay archivo de baseline a propósito: al podar values-es-rMX/ y arreglar el
+    // MissingPermission de ProveedorUbicacion, lint quedó en CERO errores. Un baseline vacío
+    // solo serviría para esconder los próximos.
+    lint {
+        checkReleaseBuilds = true
+        abortOnError = true
+        warningsAsErrors = false
+        // Cada uno de estos ya causó o pudo causar un fallo de campo en este proyecto:
+        // NewApi fue B2 (crash al grabar en Android 8-11) y MissingPermission era el
+        // SecurityException del GPS por archivo.
+        fatal += setOf(
+            "NewApi",
+            "InlinedApi",
+            "MissingPermission",
+            "CoarseFineLocation",
+            "MissingTranslation",
+            "Recycle",
+            "WrongThread",
+        )
+    }
 }
 
 dependencies {
@@ -118,12 +147,18 @@ dependencies {
     implementation(libs.firebase.storage)
     implementation(libs.firebase.crashlytics)
 
+    // Task<T>.await() para las escrituras de Firestore/Storage (hallazgo B1).
+    // Firebase ya lo arrastra transitivamente; se declara explícito porque el código
+    // de data/remote lo usa de forma directa y no debe depender de eso.
+    implementation(libs.kotlinx.coroutines.play.services)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.work.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
