@@ -34,5 +34,8 @@ fun DominioError.aRecurso(): Int = when (this) {
     DominioError.MedioYaSubido -> R.string.error_medio_ya_subido
     DominioError.CredencialesInvalidas -> R.string.error_credenciales
     DominioError.SinConexion -> R.string.error_sin_conexion
+    DominioError.ServidorIndisponible -> R.string.error_sin_conexion
+    DominioError.PermisoDenegado -> R.string.error_inesperado
+    DominioError.ArchivoLocalAusente -> R.string.error_inesperado
     is DominioError.Inesperado -> R.string.error_inesperado
 }

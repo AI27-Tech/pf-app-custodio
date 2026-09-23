@@ -270,19 +270,16 @@ class ReconciliacionColaTest {
     }
 
     @Test
-    fun caracterizacion_C4_encolar_de_nuevo_REEMPLAZA_el_trabajo_anterior() = runBlocking {
-        // CARACTERIZACIÓN del hallazgo C4, FUERA del alcance acordado (§12.5).
+    fun C4_encolar_de_nuevo_NO_reemplaza_el_trabajo_en_vuelo() = runBlocking {
+        // Hallazgo C4, cerrado en §15.
         //
-        // El scheduler usa ExistingWorkPolicy.REPLACE, así que volver a encolar el mismo
-        // medio cancela el trabajo anterior. Con `reconciliar()` llamándose desde el
-        // pull-to-refresh de Pendientes, el custodio puede cancelar sin saberlo las
-        // subidas en vuelo y reiniciarlas desde el byte cero — y `putBytes` no es
-        // reanudable, así que con 26-50 MB por viaje sobre mala cobertura eso puede no
-        // terminar nunca.
-        //
-        // Se fija el comportamiento actual: el trabajo viejo queda CANCELLED y solo hay un
-        // trabajo vivo. El arreglo sería ExistingWorkPolicy.KEEP para el re-encolado de
-        // reconciliación y reintento; cuando se haga, esta prueba falla.
+        // El scheduler usa ExistingWorkPolicy.KEEP en subida y sync, así que volver a
+        // encolar el mismo medio no cancela la subida en vuelo. `reconciliar()`, el
+        // pull-to-refresh de Pendientes y el reintento manual dejan de reiniciar desde el
+        // byte cero una subida que ya iba por 26-50 MB (putBytes no es reanudable). KEEP
+        // sustituye además al guard explícito "no re-encolar EN_PROGRESO con worker vivo":
+        // comprobar primero con getWorkInfosForUniqueWork sería una carrera check-then-act;
+        // KEEP decide atómicamente dentro de WorkManager.
         val reporte = crearReporte()
         val medio = crearMedio(reporte.id)
 
@@ -292,16 +289,16 @@ class ReconciliacionColaTest {
         scheduler.encolarSubidaMedio(reporte.id, medio.id)
 
         val trabajos = trabajosDeMedio(medio.id)
-        val vivos = trabajos.filterNot { it.state == WorkInfo.State.CANCELLED }
-        assertEquals(
-            "C4 sigue abierto: REPLACE deja un solo trabajo vivo porque cancela el anterior",
-            1,
-            vivos.size,
-        )
         assertFalse(
-            "El trabajo original ya no es el que sobrevive: fue reemplazado",
-            vivos.single().id == primeroId && trabajos.size > 1,
+            "re-encolar no debe cancelar el trabajo anterior",
+            trabajos.any { it.state == WorkInfo.State.CANCELLED },
         )
+        assertEquals(
+            "sigue habiendo exactamente un trabajo y es el original",
+            1,
+            trabajos.size,
+        )
+        assertEquals(primeroId, trabajos.single().id)
     }
 
     @Test

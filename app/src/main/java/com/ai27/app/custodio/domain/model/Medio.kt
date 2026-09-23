@@ -24,4 +24,8 @@ data class Medio(
     val sizeBytes: Long? = null,
     val durationMs: Long? = null,
     val sha256: String? = null,
+    /** Último error persistido al fallar la subida (hallazgo C5); null si nunca falló. */
+    val ultimoError: String? = null,
+    /** Intentos de subida transcurridos cuando quedó FALLIDA. */
+    val intentosSubida: Int = 0,
 )

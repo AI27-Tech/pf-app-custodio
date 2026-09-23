@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
+import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
 import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
 import com.ai27.app.custodio.data.pipeline.ReporteSyncProceso
@@ -39,11 +40,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Escalera de reintentos de [WorkerSubidaMedio], con `work-testing`.
+ * Decisión de reintentos de [WorkerSubidaMedio], con `work-testing`.
  *
  * Cubre el hueco de `data/worker`, que no tenía **ninguna** prueba (hallazgo P2 y tabla de
  * cobertura de `docs/AUDIT.md` §9). Es la capa que decide si la evidencia se reintenta o
  * se abandona, así que un error aquí se traduce directamente en evidencia que no llega.
+ *
+ * Desde el hallazgo C5 la decisión es por clasificación y no por tope de intentos:
+ * transitorio (`SinConexion`/`ServidorIndisponible`) se reintenta solo sin tope;
+ * permanente (permiso denegado, archivo ausente, inesperado) falla de inmediato, persiste
+ * la causa y se reporta a Crashlytics.
  *
  * Usa Room **real** sobre un archivo temporal y el almacén de archivos **real**; lo único
  * falseado es la capa remota, que son interfaces. Así la prueba ejercita el `doWork()` de
@@ -60,7 +66,7 @@ class WorkerSubidaMedioTest {
     private lateinit var medios: MedioRepository
     private val instante: Instant = Instant.parse("2026-09-21T15:00:00Z")
 
-    /** Remoto que siempre falla, para forzar la escalera de reintentos. */
+    /** Remoto que siempre falla de forma transitoria (sin red). */
     private class RemotoReporteQueFalla : ReporteRemoto {
         override suspend fun obtenerCiclo(reporteId: String): Result<Ciclo?> =
             Result.Failure(DominioError.SinConexion)
@@ -80,6 +86,36 @@ class WorkerSubidaMedioTest {
             mediosSubidos: Int,
             completo: Boolean,
         ): Result<Unit> = Result.Failure(DominioError.SinConexion)
+    }
+
+    /** Remoto que deniega por reglas: permanente, reintentar no lo arregla. */
+    private class RemotoReporteQueDeniega : ReporteRemoto {
+        override suspend fun obtenerCiclo(reporteId: String): Result<Ciclo?> =
+            Result.Failure(DominioError.PermisoDenegado)
+
+        override suspend fun crear(reporte: Reporte): Result<Unit> =
+            Result.Failure(DominioError.PermisoDenegado)
+
+        override suspend fun cerrar(reporte: Reporte): Result<Unit> =
+            Result.Failure(DominioError.PermisoDenegado)
+
+        override suspend fun descartar(reporte: Reporte): Result<Unit> =
+            Result.Failure(DominioError.PermisoDenegado)
+
+        override suspend fun actualizarContadores(
+            reporteId: String,
+            estado: EstadoSubida,
+            mediosSubidos: Int,
+            completo: Boolean,
+        ): Result<Unit> = Result.Failure(DominioError.PermisoDenegado)
+    }
+
+    /** Registrar de fallos fake, para capturar qué y con qué contexto se reporta. */
+    private class RegistroFake : RegistroDeFallos {
+        val reportados: MutableList<Pair<String, Throwable>> = mutableListOf()
+        override fun registrar(contexto: String, causa: Throwable) {
+            reportados += contexto to causa
+        }
     }
 
     /** Remoto que responde bien: el reporte ya existe y las escrituras pasan. */
@@ -113,6 +149,8 @@ class WorkerSubidaMedioTest {
         ): Result<Unit> = Result.Success(Unit)
     }
 
+    private lateinit var registroDeFallos: RegistroFake
+
     @Before
     fun preparar() {
         archivoDb = File(context.cacheDir, "worker-${UUID.randomUUID()}.db")
@@ -120,6 +158,7 @@ class WorkerSubidaMedioTest {
         directorioMedios = File(context.cacheDir, "worker-medios-${UUID.randomUUID()}").also { it.mkdirs() }
         reportes = RoomReporteRepository(database)
         medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        registroDeFallos = RegistroFake()
     }
 
     @After
@@ -156,6 +195,8 @@ class WorkerSubidaMedioTest {
     private fun factory(proceso: SubidaMedioProceso) = CustodioWorkerFactory(
         procesoSubida = proceso,
         procesoSync = ReporteSyncProceso(reportes, medios, RemotoReporteQueFunciona()),
+        medioRepository = medios,
+        registroDeFallos = registroDeFallos,
     )
 
     private suspend fun sembrarReporteConMedio(): Pair<String, String> {
@@ -193,14 +234,17 @@ class WorkerSubidaMedioTest {
     }
 
     @Test
-    fun los_primeros_tres_intentos_piden_retry() = runBlocking {
+    fun un_fallo_transitorio_pide_retry_sin_tope() = runBlocking {
+        // C5: sin clasificar, se reintentaba 4 veces y se rendía. Un `SinConexion` es
+        // transitorio: el worker deja que WorkManager reintente con backoff exponencial
+        // sin tope (la constraint de red evita el spin) hasta que la evidencia suba.
         val (reporteId, medioId) = sembrarReporteConMedio()
         val proceso = proceso(RemotoReporteQueFalla())
 
-        for (intento in 1..3) {
+        for (intento in 1..6) {
             val resultado = worker(proceso, reporteId, medioId, intento).doWork()
             assertEquals(
-                "El intento $intento debe pedir retry: aún no se agotó el tope de ${WorkerSubidaMedio.MAX_INTENTOS}",
+                "El intento $intento debe pedir retry: no hay tope para lo transitorio",
                 ListenableWorker.Result.retry(),
                 resultado,
             )
@@ -208,27 +252,30 @@ class WorkerSubidaMedioTest {
     }
 
     @Test
-    fun el_cuarto_intento_falla_definitivamente_y_deja_el_medio_FALLIDA() = runBlocking {
+    fun un_fallo_permanente_termina_de_inmediato_sin_consumir_reintentos() = runBlocking {
+        // C5: un PermisoDenegado de las reglas no va a cambiar con más intentos. En el
+        // primer intento (runAttemptCount 0) el worker falla de inmediato, persiste la
+        // causa y el conteo para diagnóstico, y reporta el fallo a Crashlytics.
         val (reporteId, medioId) = sembrarReporteConMedio()
-        val proceso = proceso(RemotoReporteQueFalla())
+        val proceso = proceso(RemotoReporteQueDeniega())
 
-        val resultado = worker(proceso, reporteId, medioId, WorkerSubidaMedio.MAX_INTENTOS).doWork()
+        val resultado = worker(proceso, reporteId, medioId, intento = 0).doWork()
 
-        assertEquals(
-            "Al llegar a MAX_INTENTOS el worker se rinde y no vuelve a reintentar solo",
-            ListenableWorker.Result.failure(),
-            resultado,
-        )
-        assertEquals(
-            "El medio queda FALLIDA para que el custodio pueda reintentarlo a mano",
-            EstadoSubida.FALLIDA,
-            medios.obtenerPorId(medioId)!!.estadoSubida,
-        )
+        assertEquals(ListenableWorker.Result.failure(), resultado)
+        val fallido = medios.obtenerPorId(medioId)!!
+        assertEquals("El medio queda FALLIDA para el reintento manual", EstadoSubida.FALLIDA, fallido.estadoSubida)
+        assertEquals("La causa queda persistida para diagnóstico", "PermisoDenegado", fallido.ultimoError)
+        assertEquals("Este era el primer intento", 1, fallido.intentosSubida)
+        assertEquals(1, registroDeFallos.reportados.size)
+        assertEquals("subida_medio_permanente", registroDeFallos.reportados.single().first)
     }
 
     @Test
-    fun una_subida_exitosa_marca_el_medio_COMPLETA() = runBlocking {
+    fun una_subida_exitosa_marca_el_medio_COMPLETA_y_limpia_el_diagnostico() = runBlocking {
         val (reporteId, medioId) = sembrarReporteConMedio()
+        // Una falla previa deja el diagnóstico; la re-subida exitosa debe limpiarlo
+        // (el DAO los resetea al marcar COMPLETA).
+        assertTrue(medios.registrarFallo(medioId, DominioError.PermisoDenegado, 2) is Result.Success)
         val proceso = proceso(RemotoReporteQueFunciona())
 
         val resultado = worker(proceso, reporteId, medioId, intento = 1).doWork()
@@ -237,6 +284,8 @@ class WorkerSubidaMedioTest {
         val subido = medios.obtenerPorId(medioId)!!
         assertEquals(EstadoSubida.COMPLETA, subido.estadoSubida)
         assertTrue("Debe quedar el sha256 calculado", subido.sha256!!.isNotBlank())
+        assertEquals("El diagnóstico de la falla previa se limpia", null, subido.ultimoError)
+        assertEquals(0, subido.intentosSubida)
     }
 
     @Test
@@ -258,11 +307,14 @@ class WorkerSubidaMedioTest {
         val (reporteId, medioId) = sembrarReporteConMedio()
         medios.marcarSubidaCompleta(medioId, "medios/$reporteId/$medioId.jpg", "sha-previo")
 
-        // El remoto falla, pero da igual: el proceso debe cortar antes de tocarlo.
-        val resultado = worker(proceso(RemotoReporteQueFalla()), reporteId, medioId, intento = 1).doWork()
+        // Con el remoto sano, el pipeline solo propaga los contadores del reporte para
+        // sanar la divergencia (hallazgo C1); no vuelve a tocar Storage ni a reescribir
+        // el documento del medio, así que el sha original se conserva intacto.
+        val resultado = worker(proceso(RemotoReporteQueFunciona()), reporteId, medioId, intento = 1).doWork()
 
         assertEquals(ListenableWorker.Result.success(), resultado)
         assertEquals("sha-previo", medios.obtenerPorId(medioId)!!.sha256)
+        assertEquals("medios/$reporteId/$medioId.jpg", medios.obtenerPorId(medioId)!!.storagePath)
     }
 
     @Test

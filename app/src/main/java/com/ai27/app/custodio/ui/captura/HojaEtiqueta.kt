@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -72,11 +73,18 @@ fun HojaEtiqueta(
             .toSet()
     }
     val tieneSituacion = seleccionadas.any { it in idsSituacion }
+    // rememberModalBottomSheetState enruta confirmValueChange por rememberSaveable: si la
+    // lambda se re-creara en cada recomposición (su referencia cambia aunque el resultado
+    // sea el mismo), el SheetState nacería de nuevo con valor inicial Hidden y ModalBottomSheet
+    // volvería a lanzar show() — la hoja "aparecía dos veces" al elegir el primer chip de
+    // Situación. Se recuerda una lambda estable que lee el dato vivo vía rememberUpdatedState.
+    val permiteCerrar = rememberUpdatedState(tieneSituacion)
+    val confirmarCierre = remember {
+        { valor: SheetValue -> if (valor == SheetValue.Hidden) permiteCerrar.value else true }
+    }
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
-        confirmValueChange = { valor ->
-            if (valor == SheetValue.Hidden) tieneSituacion else true
-        },
+        confirmValueChange = confirmarCierre,
     )
     var avisoVisible by remember { mutableStateOf(true) }
     val etiquetasActivas = estado.etiquetas.filter { it.activo }.sortedBy { it.orden }

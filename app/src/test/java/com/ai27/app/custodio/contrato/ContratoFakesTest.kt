@@ -20,8 +20,10 @@ class ContratoFakesTest : ContratoRepositoriosTest() {
 
     @Before
     fun preparar() {
-        reportes = FakeReporteRepository()
+        // C6: el fake de reportes consulta los medios al cerrar (mismo derivación que el
+        // UPDATE atómico del DAO), así que necesita la referencia al fake de medios.
         medios = FakeMedioRepository()
+        reportes = FakeReporteRepository(mediosConsultables = medios)
     }
 
     /**

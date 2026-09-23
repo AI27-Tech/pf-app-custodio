@@ -20,10 +20,10 @@ resueltos al ver este documento.
 | Hallazgo | Estado | Evidencia |
 | --- | --- | --- |
 | B1 · el pipeline no podía subir nada | ✅ atendido | Revertir el arreglo hace fallar 7 de 8 pruebas contra el Emulator Suite |
-| B2 · crash al grabar en Android 8-11 | ✅ atendido | `lintDebug` ya no reporta `NewApi`; falta probar en un equipo con Android ≤11 |
+| B2 · crash al grabar en Android 8-11 | ✅ atendido | Corrección presente y `lintDebug` limpio; comprobación en equipo Android ≤11 **PENDIENTE-HW** (el teléfono es API 36) |
 | B3 · gate de release ciego | ✅ atendido | Con el defecto de B2 reintroducido, `assembleRelease` ahora **falla** |
-| S1 · foto publicada en la galería compartida | ✅ atendido | Cero referencias en `app/src`; pendiente mirar la galería de un equipo |
-| S2 · evidencia respaldada a Google | ✅ atendido | `allowBackup="false"` en el manifest fusionado |
+| S1 · foto publicada en la galería compartida | ✅ atendido | Cero referencias en `app/src`; **verificado en el teléfono**: 0 filas en MediaStore de `com.ai27.app.custodio` (15683 imágenes + 1033 audios) |
+| S2 · evidencia respaldada a Google | ✅ atendido | `allowBackup="false"` en el manifest fusionado; **`bmgr backupnow` en el teléfono → "Backup is not allowed"** |
 
 **Aviso que sigue vigente y que conviene no perder de vista:** arreglar B1 hizo que las subidas
 funcionen por primera vez, y en ese momento **C1, C2 y C4 empezaron a producir datos incorrectos
@@ -463,7 +463,16 @@ Estos hallazgos hacen que el panel del analista muestre algo distinto de la real
 que §1 del plan dice que el entregable es "un conjunto de datos consultable y filtrable",
 son fallas de producto, no de implementación.
 
-### C1 · El resultado de `actualizarContadores` se descarta, y el reporte sale de la reconciliación para siempre — ALTO · VERIFICADO
+### C1 · El resultado de `actualizarContadores` se descarta, y el reporte sale de la reconciliación para siempre — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-22
+
+> **Atendido (T1/T2 de `docs/PLAN.md` §15).** `SubidaMedioProceso.ejecutar` devuelve lo que
+> propage `reporteRemoto.actualizarContadores(...)`: si el remoto falla con un error
+> transitorio el worker reintenta (criterio en C5), ya no se reporta éxito falso. Y la
+> reconciliación dejó de filtrar por el flag local: `obtenerPendientesSubida` emite medios y
+> reportes por **divergencia con el remoto** (ver C3), y un reporte cuyo remoto ya está
+> `COMPLETA` pero local diverge se auto-sana propagando contadores sin re-subir (hallazgo
+> C2 del proceso; test `un_medio_ya_COMPLETA_no_se_vuelve_a_subir`). Evidencia: suite
+> `ReconciliacionColaTest` (10 pruebas, verde en emulador el 2026-09-22).
 
 `data/pipeline/SubidaMedioProceso.kt:119` llama `reporteRemoto.actualizarContadores(...)`
 **sin mirar su `Result`**, y `ejecutar` devuelve `Result.Success` igual. Si esa escritura
@@ -479,7 +488,13 @@ con toda la evidencia ya en Storage.
 completar cada medio, y basar la reconciliación en "divergencia con el remoto" en lugar del
 flag local.
 
-### C2 · El `sha256` nunca llega al servidor, y no se puede rellenar después — ALTO · VERIFICADO
+### C2 · El `sha256` nunca llega al servidor, y no se puede rellenar después — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-22
+
+> **Atendido (T1 de `docs/PLAN.md` §15).** El sha se calcula antes de construir el documento
+> y viaja en él: es la red de regresión `DocumentoMappersTest` (3 pruebas JVM) y
+> `RemotoEmuladorTest.el_sha256_viaja_en_el_documento_del_medio` contra el Emulator Suite
+> (verde el 2026-09-22). Se conserva la regla create-only: el sha queda persistido en el
+> primer `set()`.
 
 `data/pipeline/SubidaMedioProceso.kt:47` calcula `sha`, pero `:56` llama
 `crearDocumentoSiNoExiste(reporte, medio, rutas)` pasando el `medio` leído de Room **antes**
@@ -491,7 +506,16 @@ Para evidencia de cadena de custodia, el documento remoto queda sin integridad v
 
 **Dirección:** calcular el sha antes de construir el documento y pasarlo al mapper.
 
-### C3 · Carrera de lost-update en los contadores — ALTO · ANALIZADO
+### C3 · Carrera de lost-update en los contadores — ALTO · ANALIZADO · ✅ ATENDIDO 2026-09-22
+
+> **Atendido (T2 de `docs/PLAN.md` §15).** `FirebaseReporteRemoto.actualizarContadores`
+> escribe en una **transacción de Firestore** un merge monótono: `subida` solo avanza
+> (COMPLETA es terminal), `mediosSubidos` usa `max(actual, solicitado)` y `completo` nunca
+> vuelve a `false`. El write es remote-first: el medio sube primero (doc remoto) y los
+> contadores se calculan sobre lo que el remoto confirma, no sobre una fotografía de Room.
+> `obtenerPendientesSubida` pasó a depender de la divergencia con el remoto (subida de C1).
+> Evidencia: `RemotoEmuladorTest.actualizarContadores_es_monotono_ante_escrituras_intercaladas`
+> contra el Suite (verde el 2026-09-22).
 
 Cada medio tiene su propio unique work, así que WorkManager los corre en paralelo.
 `actualizarContadores` no usa `FieldValue.increment` ni transacción: recomputa el valor
@@ -505,7 +529,16 @@ recalcular el valor absoluto. El problema es el inverso.
 **Dirección:** transacción de Firestore, escritura monótona (solo avanzar), o serializar los
 contadores en un único worker de sync encolado tras cada medio.
 
-### C4 · `ExistingWorkPolicy.REPLACE` cancela subidas en vuelo — ALTO · VERIFICADO
+### C4 · `ExistingWorkPolicy.REPLACE` cancela subidas en vuelo — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-22
+
+> **Atendido (T4 de `docs/PLAN.md` §15).** `WorkManagerSubidaScheduler` usa
+> `ExistingWorkPolicy.KEEP` tanto en `encolarSubidaMedio` como en `sincronizarReporte`: el
+> re-encolado de reconciliación (Pull-to-refresh de Pendientes, arranque) ya no mata la
+> ejecución en curso. KEEP decide atómicamente en el enqueue, así que el guard previo de
+> `getWorkInfosForUniqueWork` (un check-then-act con su propia carrera) se eliminó.
+> Caracterización volteada en `ReconciliacionColaTest.C4_encolar_de_nuevo_NO_reemplaza_el_trabajo_en_vuelo`:
+> sin `CANCELLED` y queda exactamente 1 trabajo, el original (verde en emulador el
+> 2026-09-22).
 
 `data/worker/WorkManagerSubidaScheduler.kt:31` y `:40`. Encolar el mismo `medioId` mata la
 ejecución en curso. Y `reconciliar()` re-encola **todos** los pendientes, incluidos los
@@ -520,7 +553,18 @@ que quema datos sin terminar nunca.
 **Dirección:** `ExistingWorkPolicy.KEEP` para el re-encolado de reconciliación y reintento;
 reservar `REPLACE`, si acaso, para cambios reales de input.
 
-### C5 · Tope de 4 intentos en ~70 s, sin clasificar permanente vs transitorio — ALTO · VERIFICADO
+### C5 · Tope de 4 intentos en ~70 s, sin clasificar permanente vs transitorio — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-22
+
+> **Atendido (T5 de `docs/PLAN.md` §15).** Se quitó `MAX_INTENTOS` y se clasifica por kind:
+> `ErroresRemoto.excepcionRemotoAError` mapea `IOException`/`FirebaseNetworkException` →
+> `SinConexion` y `"UNAVAILABLE"`/`"DEADLINE_EXCEEDED"` → `ServidorIndisponible` (transitorios:
+> `Result.retry()` sin tope, la constraint de red evita el spin); `"PERMISSION_DENIED"` →
+> `PermisoDenegado` y archivo ausente → `ArchivoLocalAusente` (permanentes: `Result.failure()`
+> inmediato, `registrarFallo` persiste `ultimoError`/`intentosSubida` en `medios` —migración
+> Room 2→3— y `RegistroDeFallos` manda la causa a Crashlytics). La celda FALLIDA ya no es
+> ciega: se reintenta a mano desde Pendientes. La clasificación JVM prueba por código de
+> error en string (`FirebaseFirestoreException`/`Code` no se instancian fuera del device),
+> rama de device en `WorkerSubidaMedioTest` (6, verde el 2026-09-22).
 
 `MAX_INTENTOS = 4` con `BackoffPolicy.EXPONENTIAL, 10s` ≈ 10+20+40 s. Un bache de cobertura
 de dos minutos agota los intentos en ~70 s y el medio queda `FALLIDA` hasta que alguien lo
@@ -538,7 +582,17 @@ fila. La celda solo dice `FALLIDA`, así que el soporte queda a ciegas y no pued
 red ya evita el spin); para errores permanentes, `Result.failure()` inmediato. Persistir
 `ultimoError`/`intentos` en `medios` y mandar la excepción a Crashlytics.
 
-### C6 · El cierre no es transaccional: un reporte puede marcarse completo sin estarlo — ALTO · VERIFICADO
+### C6 · El cierre no es transaccional: un reporte puede marcarse completo sin estarlo — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-22
+
+> **Atendido (T3 de `docs/PLAN.md` §15).** El cierre es ahora un **solo `UPDATE` atómico del
+> DAO** que deriva los conteos del estado presente de `medios` en el mismo statement
+> (`SELECT COUNT(*)` + `SUM(subido)` en subconsultas, `completo = subidos >= esperados`):
+> un solo statement de SQLite es igual o más atómico que `@Transaction`, y elimina la ventana
+> entre "leer lista" y "marcar CERRADO". Contrato determinista nuevo en
+> `ContratoRepositoriosTest`: `cerrar cuenta los medios presentes al momento del UPDATE, no
+> una lectura previa` (siembra 2 medios, cierra, y el `resumenMedios`/`completo` reflejan la
+> fotografía del UPDATE, no una previa). `ContratoFakesTest` y `CerrarReporteTest` corren el
+> mismo contrato con `mediosConsultables`.
 
 `domain/usecase/CerrarReporte.kt:32-49` lee la lista de medios y **después** llama
 `dao.cerrar`; `CapturarMedio.kt:37-72` valida `ciclo == ACTIVO` y **después** inserta. Son
@@ -607,6 +661,28 @@ Storage y el documento reporten éxito.
   re-ejecutar el lambda bajo contención → encolado duplicado. Hoy es inocuo por `REPLACE`,
   pero es un efecto secundario en un lambda que debe ser puro.
 
+### C10 · La migración 1→2/2→3 crashea en una base v1 real por el índice parcial manual — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-22
+
+> **Atendido.** Cada migración ahora empieza con `DROP INDEX IF EXISTS
+> ux_reportes_activo_por_custodio`; la validación de Room ve `indices = {}` y pasa, y el
+> `onOpen` (que corre después del migration+validation) lo recrea. Regresión cubierta en
+> `MigracionIndiceActivoTest` (2 pruebas): la nueva prueba **falla** sin las dos líneas de
+> `DROP` (comprobado revertiéndolas en el momento) y **pasa** con ellas. Descubierto en el
+> teléfono de prueba (CPH2769): la base real v1 migró a v3 en vivo (`user_version 1→3` por
+> WAL) y la app abrió sin FATAL.
+
+`AppCustodioDatabase.kt:65-100` (MIGRACION_1_2/2_3 + `INDICE_UNICO_ACTIVO`). El índice único
+parcial `ux_reportes_activo_por_custodio` se crea a mano (`onCreate`/`onOpen`, no declarable
+en Room 3 porque `androidx.room3.Index` no tiene `where`). La validación post-migración
+compara `indices` de `reportes` contra lo que las entidades declaran —**vacío**—, así que
+**cualquier base v1 real** (con el índice persistido por un `onOpen` anterior) reventaba al
+abrir en §14 con `IllegalStateException: Migration didn't properly handle: reportes`. Los
+tests de migración de host no lo vieron: sus fixtures v1 nunca incluían el índice. En el
+teléfono la DB estaba en `user_version = 1` (nunca migró) con el índice en disco.
+
+La prueba config del driver (sqlite-bundled) arroja `getText == ""` para NULL, no `null`;
+los tests de migración normalizan con `takeIf { it.isNotEmpty() }`.
+
 ---
 
 ## 4. Seguridad y privacidad
@@ -624,6 +700,11 @@ en la copia pública de la evidencia y en la falta de limpieza al rotar de custo
 > referencias en `app/src`. De paso desaparecieron la tercera escritura a disco por foto (parte de
 > R5), el único `Log.` de `main/` (S13) y el efecto secundario dentro del lambda de
 > `interno.update` (parte de C9).
+> **Verificado en dispositivo (2026-09-22, teléfono CPH2769).** Con el teléfono conectado se
+> comprobó sobre MediaStore real: la app guarda la evidencia en `files/medios` (privado) y la
+> galería pública tiene **0 filas** que referencien `com.ai27.app.custodio` entre 15683
+> imágenes y 1033 audios indexados. Las únicas entradas públicas son de otras apps
+> (`Pictures/Reddit`, `Pictures/Instagram`, `Music/...`).
 > **Aviso operativo:** en equipos ya instalados, las copias de versiones anteriores **siguen** en
 > `Pictures/AppCustodio` y hay que borrarlas a mano al actualizar.
 
@@ -657,7 +738,11 @@ el medio local.
 > `device-transfer`. Las exclusiones son defensa en profundidad: con `allowBackup="false"` no se
 > ejecutan, pero si alguien reactiva el respaldo la evidencia sigue fuera.
 > **Consecuencia aceptada:** la preferencia de tema nocturno ya no sobrevive a una reinstalación.
-> **Pendiente manual:** `adb shell bmgr backupnow com.ai27.app.custodio`.
+> **Verificado en dispositivo (2026-09-22).** En el teléfono conectado, `adb shell bmgr
+> enable true; adb shell bmgr backupnow com.ai27.app.custodio` responde *"Package
+> com.ai27.app.custodio with result: Backup is not allowed"* y el transport termina con
+> *"Backup finished with result: Success"*: el device transport confirma que el paquete está
+> excluido del Auto Backup (allowBackup `false`).
 
 `AndroidManifest.xml:19-22` declara `allowBackup="true"` con `dataExtractionRules` y
 `fullBackupContent`, pero **ambos XML son la plantilla de Android Studio con todo
@@ -1366,6 +1451,25 @@ donde vino en vez de ofrecer el atajo a la cámara.
 - `CajasEstado.kt:75`: `private val CajasEstadoOscura: Boolean = true` no se usa.
 - `AudioScreen.kt:59-60`: `modifier` se aplica dos veces (al `Box` y al `Column` interno), así
   que el `statusBarsPadding` que pasa el host se aplica doble.
+
+### U17 · La hoja de etiquetado se vuelve a mostrar al elegir la primera Situación — ALTO · SOLUCIONADO 2026-09-22
+
+- Reportado en campo: tras capturar una foto o nota de voz, la hoja de etiquetado "aparecía dos
+  veces" — se volvía a animar desde abajo en cuanto se elegía la primera etiqueta de Situación.
+  Afectaba a cualquier recomposición mientras la hoja estaba abierta (chip, GPS que llega, tecla
+  del campo de ubicación), no solo a esa elección.
+- Causa raíz (reproducida leyendo las fuentes de Material3 1.4.0): `rememberModalBottomSheetState`
+  enruta `confirmValueChange` por `rememberSaveable` (`SheetDefaults.rememberSheetState`); al
+  construirse una lambda nueva en cada recomposición, su referencia cambia y el `SheetState` se
+  regenera con valor inicial `Hidden`. El `LaunchedEffect(sheetState) { sheetState.show() }` de
+  `ModalBottomSheet.kt:213` se relanza y la hoja vuelve a entrar. `HojaInferior` no se veía
+  afectada porque su `confirmValueChange` por defecto (`{ true }`) es un singleton estable.
+- Fix en `HojaEtiqueta.kt`: se recuerda una lambda estable (`remember`) que lee el flag vivo con
+  `rememberUpdatedState(tieneSituacion)`; el `SheetState` ya no se regenera por recomposición.
+- Regresión: `HojaEtiquetaTest` (androidTest) congela el reloj de Compose, elige la primera
+  Situación y mide el borde de la hoja durante los 8 fotogramas siguientes: sin el fix se
+  desplazaba **706 px** (RED); con él, 0 px (GREEN) en dispositivo real CPH2769. Verificación
+  completa: `testDebugUnitTest` 174/0, `lintDebug` y `assembleDebug` en 0 errores.
 
 ---
 

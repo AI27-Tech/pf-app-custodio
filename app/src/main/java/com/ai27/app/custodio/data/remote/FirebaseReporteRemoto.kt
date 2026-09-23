@@ -8,14 +8,28 @@ import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.ResumenMedios
+import com.google.android.gms.tasks.Task
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Transaction
 import java.time.Instant
 import kotlinx.coroutines.tasks.await
 
 class FirebaseReporteRemoto(
     private val firestore: FirebaseFirestore,
 ) : ReporteRemoto {
+
+    /** Orden de avance del rango de `subida`: once COMPLETA, nunca se retrocede. */
+    private fun rangoSubida(estado: EstadoSubida): Int = when (estado) {
+        EstadoSubida.PENDIENTE -> 0
+        EstadoSubida.EN_PROGRESO -> 1
+        EstadoSubida.FALLIDA -> 2
+        EstadoSubida.COMPLETA -> 3
+    }
+
+    private fun maxRango(anterior: EstadoSubida?, nuevo: EstadoSubida): EstadoSubida =
+        if (anterior != null && rangoSubida(anterior) > rangoSubida(nuevo)) anterior else nuevo
 
     override suspend fun obtenerCiclo(reporteId: String): Result<Ciclo?> = ejecutarRemoto {
         val doc = firestore.collection(REPORTES).document(reporteId).get().await()
@@ -52,13 +66,37 @@ class FirebaseReporteRemoto(
         mediosSubidos: Int,
         completo: Boolean,
     ): Result<Unit> = ejecutarRemoto {
-        val update = mapOf(
-            "subida" to estado.name,
-            "mediosSubidos" to mediosSubidos,
-            "completo" to completo,
-        )
-        // Solo estas llaves: es lo que las reglas permiten avanzar en un reporte CERRADO.
-        firestore.collection(REPORTES).document(reporteId).update(update).await()
+        // Transacción de lectura+escritura con merge monótono (hallazgo C3): los medios
+        // suben en paralelo (unique work por medio) y una escritura absoluta sin
+        // transacción perdía la que llegara antes — `mediosSubidos` retrocedía y
+        // `completo` quedaba en false para siempre (C1). Aquí nada de estas tres un puede
+        // retroceder: subida solo avanza de rango, mediosSubidos toma el máximo y
+        // completo es un OR con el valor anterior. Solo se escriben estas tres llaves:
+        // es lo que las reglas permiten avanzar en un reporte CERRADO.
+        val ref = firestore.collection(REPORTES).document(reporteId)
+        val transaccion: Task<Unit> = firestore.runTransaction(Transaction.Function<Unit> { transaccion ->
+            val ancla = transaccion.get(ref)
+            if (!ancla.exists()) {
+                throw FirebaseFirestoreException(
+                    "Reporte sin documento para avanzar contadores: $reporteId",
+                    FirebaseFirestoreException.Code.NOT_FOUND,
+                )
+            }
+            val anterior: EstadoSubida? = ancla.getString("subida")
+                ?.let { runCatching { EstadoSubida.valueOf(it) }.getOrNull() }
+            val mediosPrevios = (ancla.getLong("mediosSubidos") ?: 0L).toInt()
+            val completoPrevio = ancla.getBoolean("completo") ?: false
+            transaccion.update(
+                ref,
+                mapOf(
+                    "subida" to maxRango(anterior, estado).name,
+                    "mediosSubidos" to maxOf(mediosSubidos, mediosPrevios),
+                    "completo" to (completo || completoPrevio),
+                ),
+            )
+            Unit
+        })
+        transaccion.await()
         Unit
     }
 

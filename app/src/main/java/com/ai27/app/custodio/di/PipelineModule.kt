@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.WorkManager
 import com.ai27.app.custodio.data.pipeline.ReporteSyncProceso
 import com.ai27.app.custodio.data.pipeline.SubidaMedioProceso
+import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.remote.FirebaseMedioRemoto
 import com.ai27.app.custodio.data.remote.FirebaseReporteRemoto
 import com.ai27.app.custodio.data.remote.MedioRemoto
@@ -92,5 +93,12 @@ object PipelineModule {
     fun proveeWorkerFactory(
         procesoSubida: SubidaMedioProceso,
         procesoSync: ReporteSyncProceso,
-    ): CustodioWorkerFactory = CustodioWorkerFactory(procesoSubida, procesoSync)
+        medioRepository: MedioRepository,
+        registroDeFallos: RegistroDeFallos,
+    ): CustodioWorkerFactory = CustodioWorkerFactory(
+        procesoSubida,
+        procesoSync,
+        medioRepository,
+        registroDeFallos,
+    )
 }

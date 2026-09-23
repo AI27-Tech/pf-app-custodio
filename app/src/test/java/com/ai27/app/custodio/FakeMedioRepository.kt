@@ -1,5 +1,6 @@
 package com.ai27.app.custodio
 
+import com.ai27.app.custodio.data.remote.aTextoPersistible
 import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.EstadoSubida
@@ -131,13 +132,34 @@ class FakeMedioRepository(
             estadoSubida = EstadoSubida.COMPLETA,
             storagePath = storagePath,
             sha256 = sha256,
+            ultimoError = null,
+            intentosSubida = 0,
             // localPath NO se limpia: el UPDATE del DAO solo toca estadoSubida,
-            // storagePath y sha256. El archivo grande se borra del disco, pero la
-            // columna conserva la ruta. Ver el contrato en ContratoRepositoriosTest.
+            // storagePath, sha256 y el diagnóstico (ultimoError/intentosSubida). El
+            // archivo grande se borra del disco, pero la columna conserva la ruta. Ver
+            // el contrato en ContratoRepositoriosTest.
         )
         medios[indice] = actualizado
         // El archivo físico sí desaparece, como en RoomMedioRepository.
         archivosGuardados.remove(anterior.localPath)
+        actualizarPendientes()
+        return Result.Success(actualizado)
+    }
+
+    override suspend fun registrarFallo(
+        medioId: String,
+        error: com.ai27.app.custodio.domain.error.DominioError,
+        intentos: Int,
+    ): Result<Medio> {
+        val indice = medios.indexOfFirst { it.id == medioId }
+        if (indice == -1) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
+        }
+        val actualizado = medios[indice].copy(
+            ultimoError = error.aTextoPersistible(),
+            intentosSubida = intentos,
+        )
+        medios[indice] = actualizado
         actualizarPendientes()
         return Result.Success(actualizado)
     }

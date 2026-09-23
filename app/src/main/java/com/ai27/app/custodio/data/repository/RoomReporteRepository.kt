@@ -7,7 +7,6 @@ import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
-import com.ai27.app.custodio.domain.model.ResumenMedios
 import com.ai27.app.custodio.domain.repository.ReporteRepository
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -55,18 +54,12 @@ class RoomReporteRepository(
         closedAt: Instant,
         comentario: String?,
         hayNovedad: Boolean,
-        resumen: ResumenMedios,
-        mediosEsperados: Int,
     ): Result<Reporte> {
         val filas = dao.cerrar(
             id = reporteId,
             closedAt = closedAt.toEpochMilli(),
             comentario = comentario,
             hayNovedad = hayNovedad,
-            mediosEsperados = mediosEsperados,
-            fotos = resumen.fotos,
-            audios = resumen.audios,
-            durationMsTotal = resumen.durationMsTotal,
         )
         val actualizado = dao.obtenerPorId(reporteId)
         return if (filas == 1 && actualizado != null) {

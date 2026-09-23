@@ -27,7 +27,6 @@ class SubidaMedioProceso(
     suspend fun ejecutar(reporteId: String, medioId: String): Result<Unit> {
         val medio = medioRepository.obtenerPorId(medioId)
             ?: return Result.Success(Unit) // se borró antes de subir
-        if (medio.estadoSubida == EstadoSubida.COMPLETA) return Result.Success(Unit)
         // Sin etiqueta de Situación no sale: el criterio de subida es "tiene al menos una
         // Situación" (PLAN §14, decisión A) y el analista no puede filtrar evidencia sin
         // clasificar. Es defensa en profundidad — la cola ya filtra por tieneSituacion—
@@ -36,6 +35,12 @@ class SubidaMedioProceso(
         val reporte = reporteRepository.obtenerPorId(reporteId)
             ?: return Result.Success(Unit)
         if (reporte.ciclo == Ciclo.DESCARTADO) return Result.Success(Unit) // sin evidencia futura a un viaje descartado
+        if (medio.estadoSubida == EstadoSubida.COMPLETA) {
+            // C1: un reintento encuentra el medio ya COMPLETA (la subida se hizo pero el
+            // avance de contadores quedó fallido/descartado). No se vuelve a subir: solo
+            // se recalculan los contadores del reporte para sanar la divergencia.
+            return propagarContadores(reporteId)
+        }
 
         val aseguro = asegurarReporte(reporte)
         when (aseguro) {
@@ -51,15 +56,19 @@ class SubidaMedioProceso(
             ?: return fracasoSinContenido(medioId)
         val miniatura = medio.thumbnailPath?.let { almacenArchivos.leer(it) }
         val sha = Sha256.digestHex(contenido)
+        // El documento remoto se construye con el sha ya calculado: sin esto, el medio que
+        // se escribió en Firestore lleva `sha256 = null` y, como `medios` es create-only
+        // en las reglas, el valor queda irrellenable para siempre (hallazgo C2).
+        val conSha = medio.copy(sha256 = sha)
 
-        val rutas = when (val r = medioRemoto.subirArchivo(reporte, medio, contenido, miniatura)) {
+        val rutas = when (val r = medioRemoto.subirArchivo(reporte, conSha, contenido, miniatura)) {
             is Result.Success -> r.value
             is Result.Failure -> {
                 marcarFallida(medioId)
                 return r
             }
         }
-        when (val r = medioRemoto.crearDocumentoSiNoExiste(reporte, medio, rutas)) {
+        when (val r = medioRemoto.crearDocumentoSiNoExiste(reporte, conSha, rutas)) {
             is Result.Success -> Unit
             is Result.Failure -> {
                 marcarFallida(medioId)
@@ -75,8 +84,9 @@ class SubidaMedioProceso(
             }
         }
 
-        actualizarContadores(reporteId)
-        return Result.Success(Unit)
+        // El resultado se PROPAGA: si la escritura remota de contadores falla, el worker
+        // reintenta y el reporte no queda marcado COMPLETA localmente sin el remoto (C1).
+        return propagarContadores(reporteId)
     }
 
     // Devuelve false cuando el ciclo remoto impide subir (reporte descartado).
@@ -109,19 +119,25 @@ class SubidaMedioProceso(
 
     private suspend fun fracasoSinContenido(medioId: String): Result<Unit> {
         marcarFallida(medioId)
-        return Result.Failure(
-            DominioError.Inesperado(IllegalStateException("Archivo local ausente para el medio $medioId")),
-        )
+        // Permanente (C5): el archivo no va a reaparecer, reintentar no tiene sentido.
+        return Result.Failure(DominioError.ArchivoLocalAusente)
     }
 
-    private suspend fun actualizarContadores(reporteId: String) {
-        val reporte = reporteRepository.obtenerPorId(reporteId) ?: return
-        if (reporte.ciclo == Ciclo.DESCARTADO) return
+    // Recalcula los contadores del reporte y los propaga remoto-primero. Firestore hace un
+    // merge monótono (C3), así que las escrituras concurrentes de otros medios no se pisan.
+    // Solo si la escritura remota gana se refleja el estado en Room: Room nunca queda
+    // adelantado respecto al servidor (C1) — si falla, el worker reintenta en la rama
+    // COMPLETA de `ejecutar`.
+    private suspend fun propagarContadores(reporteId: String): Result<Unit> {
+        val reporte = reporteRepository.obtenerPorId(reporteId) ?: return Result.Success(Unit)
+        if (reporte.ciclo == Ciclo.DESCARTADO) return Result.Success(Unit)
         val medios = medioRepository.obtenerDelReporte(reporteId)
         val estado = SubidaReporte.computarEstado(medios)
         val subidos = SubidaReporte.mediosSubidos(medios)
         val completo = SubidaReporte.completo(reporte, medios)
+        val remoto = reporteRemoto.actualizarContadores(reporteId, estado, subidos, completo)
+        if (remoto is Result.Failure) return remoto
         reporteRepository.actualizarSubida(reporteId, estado, subidos, completo)
-        reporteRemoto.actualizarContadores(reporteId, estado, subidos, completo)
+        return Result.Success(Unit)
     }
 }

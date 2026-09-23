@@ -2,6 +2,73 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:22 17:00
+
+**Resumen:** Hallazgo de campo **U17** — la hoja de etiquetado "aparecía dos veces": se volvía a animar desde abajo en cuanto se elegía la primera etiqueta de Situación (y en cualquier recomposición con la hoja abierta). Arreglado con su regresión instrumentada (RED 706 px → GREEN 0 px en el teléfono CPH2769) y el catalogo de espreso subido a 3.7.0, necesario para correr cualquier test de UI en dispositivos Android 16+.
+
+**Cambios:**
+
+- **U17 (bug real de UI):** `rememberModalBottomSheetState` enruta `confirmValueChange` por `rememberSaveable`; la lambda re-creada en cada recomposición cambiaba de referencia y regeneraba el `SheetState` con valor inicial `Hidden`, relanzando el `LaunchedEffect(sheetState) { sheetState.show() }` de `ModalBottomSheet.kt:213`. El fix recuerda una lambda estable (`remember` + `rememberUpdatedState`) que lee `tieneSituacion` vivo; ya no hay re-show.
+- **Regresión:** `HojaEtiquetaTest` (androidTest, `createComposeRule`) congela el reloj de Compose, elige la primera Situación y muestrea el borde de la hoja durante 8 fotogramas. Sin el fix el borde se desplazaba **706,28 px** (RED, `AssertionError`); con él, **0 px** (GREEN). Corrido en el teléfono real (CPH2769).
+- **Infra de pruebas de UI:** `espresso-core` 3.5.1 → **3.7.0**. Espresso ≤ 3.6.1 refleja en la API oculta `InputManager.getInstance()`, eliminada en Android 16 (API 36); sin esto ningún `connectedDebugAndroidTest` arrancaba en AVD API 37 ni en el teléfono API 36 (`NoSuchMethodException`). Documentado en el catálogo.
+- **Verificación:** `testDebugUnitTest` 174/0, `lintDebug` y `assembleDebug` en 0 errores; `connectedDebugAndroidTest` del caso amarrado en CPH2769.
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt` (fix del `confirmValueChange` estable)
+- `app/src/androidTest/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt` (nueva regresión)
+- `gradle/libs.versions.toml` (espressoCore 3.7.0 con motivo documentado)
+- `docs/AUDIT.md` (U17), `CHANGELOG.md`
+
+## 2026:09:22 16:10
+
+**Resumen:** Cierre de los pendientes de dispositivo de §15 en el teléfono real (CPH2769): S1 (galería pública) y S2 (`bmgr backupnow`) verificados en Hardware, y hallazgo nuevo **C10** — la migración 1→2/2→3 de Room crasheaba al abrir cualquier base v1 real por el índice único parcial manual — arreglado con su regresión. El teléfono era una instalación v1 previa a §14; B2 (Android ≤11) sigue `PENDIENTE-HW`.
+
+**Cambios:**
+
+- **C10 (bug real de migración):** `MIGRACION_1_2` y `MIGRACION_2_3` empiezan con `DROP INDEX IF EXISTS ux_reportes_activo_por_custodio`; la validación post-migración de Room compara `indices` contra las entidades (vacío) y el índice manual —creado en `onOpen` por versiones anteriores, persistido en disco— la hacía fallar con `IllegalStateException: Migration didn't properly handle: reportes`. Tras la validación, `onOpen` (que corre después del migration+validation) recrea el índice, preservando el invariante de un solo reporte ACTIVO por custodio.
+- **Regresión:** `MigracionIndiceActivoTest` (2 pruebas) siembra una base v1 real del dispositivo —`reportes` con el índice parcial + `medios` con `etiqueta`— y abre la base con la configuración de producción. Verificado RED sin el fix (misma excepción de dispositivo) y GREEN con él.
+- **Verificación de dispositivo (CPH2769):** la instalación v1 migró a v3 en vivo (vía WAL, `user_version 1→3`) y la app abrió sin FATAL conservando el viaje ACTIVO `123ABC` y los reportes CERRADO. S1: la evidencia vive en `files/medios` y MediaStore público tiene **0 filas** de `com.ai27.app.custodio` (15683 imágenes + 1033 audios; el resto son de otras apps). S2: `bmgr backupnow com.ai27.app.custodio` → *"Backup is not allowed"* + *"Backup finished with result: Success"* (el transport confirma `allowBackup="false"`).
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/AppCustodioDatabase.kt` (drop del índice en las dos migraciones + docs del porqué)
+- `app/src/test/java/com/ai27/app/custodio/data/local/db/MigracionIndiceActivoTest.kt` (nueva regresión)
+- `docs/PLAN.md` (§15.1 y §15.5bis: S1/S2 cerrados, C10 documentado), `docs/AUDIT.md` (C10 + notas de dispositivo en S1/S2 y tabla de estado)
+
+## 2026:09:22 15:40
+
+**Resumen:** §15 ejecutado (Grupo 1 — integridad del dato, hallazgos C1–C6 de la auditoría): verificación de §12/§13 confirmada contra el código, checklist manual con lo que queda `PENDIENTE-DISPOSITIVO`/`PENDIENTE-HW`, y los seis hallazgos de consistencia atendidos con su red de regresión unitaria y de emulador. `assembleDebug` y `testDebugUnitTest` (171 pruebas, 26 suites) verdes; `connectedDebugAndroidTest` (31 pruebas en emulador Pixel 9a) verde.
+
+**Cambios:**
+
+- **C2/C6 (sha + cierre):** el `sha256` se calcula antes de construir el documento y se persiste en el remoto (create-only se conserva); el cierre es ahora un solo `UPDATE` atómico del DAO cuyos conteos (`COUNT(*)`, `SUM(subido)`, `completo = subidos >= esperados`) se derivan del estado de `medios` en el mismo statement, sin ventana leer/escribir. `ContratoFakesTest`/`CerrarReporteTest` cableados con `mediosConsultables` y contrato determinista nuevo: `cerrar cuenta los medios presentes al momento del UPDATE, no una lectura previa`.
+- **C1+C3 (contadores):** `SubidaMedioProceso` propaga el `Failure` de `actualizarContadores` (retry si transitorio); `actualizarContadores` de Firestore es un merge monótono en transacción (`subida` solo avanza, `mediosSubidos` con `max`, `completo` no vuelve a `false`); la reconciliación se basa en divergencia real y un reporte `COMPLETA` remoto-distinto se auto-sana sin re-subir.
+- **C4 (re-encolado):** `ExistingWorkPolicy.KEEP` en `encolarSubidaMedio` y `sincronizarReporte`; se eliminó el guard de `getWorkInfosForUniqueWork` (KEEP decide atómicamente); caracterización volteada en `ReconciliacionColaTest.C4_encolar_de_nuevo_NO_reemplaza_el_trabajo_en_vuelo`.
+- **C5 (errores):** `DominioError` gana `ServidorIndisponible`/`PermisoDenegado`/`ArchivoLocalAusente`; `ErroresRemoto` clasifica por kind (`SinConexion`/`ServidorIndisponible` → reintento sin tope; permanente → `Result.failure()` inmediato); se persisten `ultimoError`+`intentosSubida` en `medios` (primera migración 2→3 para diagnóstico, suma `ALTER TABLE` de dos columnas) y la causa va a Crashlytics vía `RegistroDeFallos`. La clasificación JVM se prueba por código de error en string (`FirebaseFirestoreException` no se instancia fuera del device).
+- **Regresión:** `DocumentoMappersTest` (sha), `ErroresRemotoTest`, `MigracionDiagnosticoSubidaTest` (2→3), `WorkerSubidaMedioTest` reescrito (transitorio sin tope, permanente inmediato + persistencia + Crashlytics), `RoomMedioRepositoryTest` (registrarFallo); `RemotoEmuladorTest` gana la marcha del sha y la prueba monotónica de contadores intercalados.
+- **Emulador:** el Suite se levantó con `--project custodio-906e7268` (sin ello la regla de Storage falla por cross-project `get()`); requisito documentado en la cabecera de `RemotoEmuladorTest`.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md` (§15.5bis resultado y estado de tareas), `docs/AUDIT.md` (C1–C6 → `✅ ATENDIDO 2026-09-22`), `CHANGELOG.md`
+- `app/src/main/java/com/ai27/app/custodio/` dominio: `domain/error/DominioError.kt`, `domain/model/Medio.kt`, `domain/repository/MedioRepository.kt`, `domain/error/DominioErrorRecurso.kt`; datos: `data/local/db/ReporteDao.kt`, `AppCustodioDatabase.kt`, `MedioDao.kt`, `MedioEntity.kt`, `data/mapper/MedioMappers.kt`, `data/repository/RoomMedioRepository.kt`, `data/remote/FirebaseReporteRemoto.kt`, `data/remote/ErroresRemoto.kt`; pipeline/worker: `data/pipeline/SubidaMedioProceso.kt`, `data/worker/WorkerSubidaMedio.kt`, `WorkManagerSubidaScheduler.kt`, `CustodioWorkerFactory.kt`, `di/PipelineModule.kt`
+- Tests: `app/src/test/java/com/ai27/app/custodio/` (`FakeMedioRepository.kt`, `FakeReporteRepository.kt`, `contrato/ContratoRepositoriosTest.kt`, `data/remote/ErroresRemotoTest.kt`, `data/local/db/MigracionDiagnosticoSubidaTest.kt`, `RoomMedioRepositoryTest.kt`); `app/src/androidTest/java/com/ai27/app/custodio/` (`data/worker/WorkerSubidaMedioTest.kt`, `data/worker/ReconciliacionColaTest.kt`, `data/remote/RemotoEmuladorTest.kt`)
+
+## 2026:09:22 14:20
+
+**Resumen:** Se agregaron las secciones §16 y §17 a `docs/PLAN.md` con el plan de las tandas restantes de la auditoría: §16 detalla el Grupo 2 (Privacidad y reglas, S3–S14) en modo TDD, y §17 deja secuenciados los Grupos 3–6 (uso en campo, rendimiento, accesibilidad, proceso) a nivel de tanda. Cambio solo de documentación.
+
+**Cambios:**
+
+- Nueva sección **§16** (Grupo 2): hallazgos S3–S14 confirmados contra el código (reglas de Firestore/Storage, permisos, `ModoEmulador`, Crashlytics), decisiones D1–D6, tabla de tareas G2-0…G2-9 con dependencias y pausas de Sync.
+- Nueva sección **§17** (Grupos 3–6): metas, clústeres de tarea, criterios de cierre, mapa de dependencias entre tandas, solapes a explotar, y las decisiones de Producto que ninguna tanda toma.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
 ## 2026:09:22 13:56
 
 **Resumen:** Se agregó la sección §15 a `docs/PLAN.md` con el plan de la tercera tanda sobre la auditoría: verificación exhaustiva de §12/§13, cierre de los pendientes de comprobación manual, y la tanda de **integridad del dato (Grupo 1: C1–C6)** en modo TDD, más un roadmap de una línea para los Grupos 2–6. Cambio solo de documentación; aún no se toca código.

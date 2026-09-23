@@ -42,23 +42,32 @@ class ReporteSyncProceso(
     private suspend fun transicionarDesdeActivo(reporte: Reporte): Result<Unit> = when (reporte.ciclo) {
         Ciclo.ACTIVO -> Result.Success(Unit) // ya quedó creado arriba o remoto, nada que hacer
         Ciclo.CERRADO -> {
-            val sincronizado = conContadores(reporte)
-            reporteRemoto.cerrar(sincronizado)
+            val conContadores = when (val sincr = sincronizarContadores(reporte)) {
+                is Result.Success -> sincr.value
+                is Result.Failure -> return sincr
+            }
+            reporteRemoto.cerrar(conContadores)
         }
         Ciclo.DESCARTADO -> reporteRemoto.descartar(reporte)
     }
 
     private suspend fun sincronizarContadoresSiCerrado(reporte: Reporte): Result<Unit> {
         if (reporte.ciclo != Ciclo.CERRADO) return Result.Success(Unit)
-        val (estado, subidos, completo) = contadoresDe(reporte)
-        reporteRepository.actualizarSubida(reporte.id, estado, subidos, completo)
-        return reporteRemoto.actualizarContadores(reporte.id, estado, subidos, completo)
+        return when (val sincr = sincronizarContadores(reporte)) {
+            is Result.Success -> Result.Success(Unit)
+            is Result.Failure -> sincr
+        }
     }
 
-    private suspend fun conContadores(reporte: Reporte): Reporte {
+    // Remoto-primero (C3): Firestore hace merge monótono y solo si la escritura gana se
+    // refleja el estado local. Así Room nunca se adelanta a Firestore y una escritura
+    // remota fallida devuelve Failure para que el intento se repita (C1).
+    private suspend fun sincronizarContadores(reporte: Reporte): Result<Reporte> {
         val (estado, subidos, completo) = contadoresDe(reporte)
+        val remoto = reporteRemoto.actualizarContadores(reporte.id, estado, subidos, completo)
+        if (remoto is Result.Failure) return remoto
         reporteRepository.actualizarSubida(reporte.id, estado, subidos, completo)
-        return reporte.copy(subida = estado, mediosSubidos = subidos, completo = completo)
+        return Result.Success(reporte.copy(subida = estado, mediosSubidos = subidos, completo = completo))
     }
 
     private suspend fun contadoresDe(reporte: Reporte): Triple<EstadoSubida, Int, Boolean> {

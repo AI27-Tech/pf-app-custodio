@@ -218,6 +218,38 @@ class RoomMedioRepositoryTest {
         assertTrue("el original debe haberse borrado", almacen.archivos.isEmpty())
     }
 
+    @Test
+    fun `registrarFallo persiste la causa y los intentos y marcarSubidaCompleta los limpia`() = runBlocking {
+        // C5: un fallo permanente deja `ultimoError`/`intentosSubida` para diagnóstico;
+        // una re-subida exitosa los resetea (marca el medio COMPLETA y borra el rastro).
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (
+            crear(
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                deviceId = "d1",
+                clienteId = "c1",
+                placasCapturadas = "ABC-1234",
+            ) as Result.Success
+            ).value
+        val guardado = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
+
+        val fallo = repoMedios.registrarFallo(guardado.id, DominioError.PermisoDenegado, intentos = 3)
+
+        assertTrue(fallo is Result.Success)
+        assertEquals("PermisoDenegado", (fallo as Result.Success).value.ultimoError)
+        assertEquals(3, fallo.value.intentosSubida)
+        // Persistió en la fila, no solo en la respuesta:
+        assertEquals("PermisoDenegado", repoMedios.obtenerPorId(guardado.id)!!.ultimoError)
+        assertEquals(3, repoMedios.obtenerPorId(guardado.id)!!.intentosSubida)
+
+        val subido = repoMedios.marcarSubidaCompleta(guardado.id, "medios/r/${guardado.id}.jpg", "sha-1")
+        assertTrue(subido is Result.Success)
+        assertEquals("el diagnóstico se limpia al subir", null, (subido as Result.Success).value.ultimoError)
+        assertEquals(0, subido.value.intentosSubida)
+    }
+
     /** Deja pasar la primera escritura (el original) y falla la segunda (la miniatura). */
     private class AlmacenQueFallaEnLaSegundaEscritura : AlmacenArchivos {
         val archivos = mutableMapOf<String, ByteArray>()

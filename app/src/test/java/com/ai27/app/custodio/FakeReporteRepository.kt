@@ -2,8 +2,11 @@ package com.ai27.app.custodio
 
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.Ciclo
+import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.ResumenMedios
+import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.repository.ReporteRepository
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -11,6 +14,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 class FakeReporteRepository(
     val reportes: MutableList<Reporte> = mutableListOf(),
+    // C6: el fake deriva los conteos del cierre igual que el UPDATE atómico del DAO
+    // (SELECT sobre medios). Sin esta referencia, el fake no sabe cuántos medios hay.
+    private val mediosConsultables: MedioRepository? = null,
 ) : ReporteRepository {
 
     override suspend fun obtenerActivo(custodioUid: String): Reporte? =
@@ -51,8 +57,6 @@ class FakeReporteRepository(
         closedAt: Instant,
         comentario: String?,
         hayNovedad: Boolean,
-        resumen: ResumenMedios,
-        mediosEsperados: Int,
     ): Result<Reporte> {
         val indice = reportes.indexOfFirst { it.id == reporteId }
         if (indice == -1) {
@@ -68,12 +72,20 @@ class FakeReporteRepository(
                 },
             )
         }
+        // Misma derivación que el UPDATE atómico del DAO (hallazgo C6): los conteos salen
+        // de los medios del reporte al momento del cierre, no de parámetros del llamador.
+        val medios = mediosConsultables?.obtenerDelReporte(reporteId).orEmpty()
+        val resumen = ResumenMedios(
+            fotos = medios.count { it.tipo == TipoMedio.FOTO },
+            audios = medios.count { it.tipo == TipoMedio.AUDIO },
+            durationMsTotal = medios.sumOf { it.durationMs ?: 0L },
+        )
         val cerrado = actual.copy(
             ciclo = Ciclo.CERRADO,
             closedAt = closedAt,
             comentario = comentario,
             hayNovedad = hayNovedad,
-            mediosEsperados = mediosEsperados,
+            mediosEsperados = medios.size,
             resumenMedios = resumen,
             // mediosSubidos y completo NO se tocan: el UPDATE de ReporteDao.cerrar no
             // los incluye, y hace bien — al cerrar, la evidencia puede seguir en la cola.
@@ -123,12 +135,14 @@ class FakeReporteRepository(
     }
 
     override suspend fun obtenerPendientesSubida(custodioUid: String, fechaDesde: String): List<Reporte> =
-        // Mismo filtro que ReporteDao.obtenerPendientesSubida: del custodio, subida sin
-        // terminar y dentro de la ventana de fechas. El ciclo no se mira, así que un
-        // reporte DESCARTADO sigue apareciendo (hallazgo E6 de docs/AUDIT.md).
+        // Mismo filtro que ReporteDao.obtenerPendientesSubida (hallazgo C1 del AUDIT):
+        // "pendiente" es no haber terminado la subida O estar en divergencia (subida
+        // COMPLETA pero con mediosEsperados definidos y completo = false). El ciclo no se
+        // mira, así que un reporte DESCARTADO sigue apareciendo (hallazgo E6).
         reportes.filter {
             it.custodioUid == custodioUid &&
-                it.subida != com.ai27.app.custodio.domain.model.EstadoSubida.COMPLETA &&
-                it.fechaLocal >= fechaDesde
+                it.fechaLocal >= fechaDesde &&
+                (it.subida != EstadoSubida.COMPLETA ||
+                    (it.mediosEsperados != null && !it.completo))
         }
 }

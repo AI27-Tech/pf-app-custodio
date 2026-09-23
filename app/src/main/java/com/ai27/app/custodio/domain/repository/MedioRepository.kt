@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.domain.repository
 
 import com.ai27.app.custodio.domain.Result
+import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
@@ -17,6 +18,13 @@ interface MedioRepository {
     suspend fun actualizarGps(medioId: String, gps: Gps): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
     suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>
+
+    /**
+     * Persiste la causa y los intentos de un fallo permanente de subida (hallazgo C5).
+     * El medio ya quedó `FALLIDA` por el pipeline; aquí solo se registra el diagnóstico
+     * para poder mostrarlo y entender fallos que no se reintentan solos.
+     */
+    suspend fun registrarFallo(medioId: String, error: DominioError, intentos: Int): Result<Medio>
     suspend fun borrarPendiente(medioId: String): Result<Medio>
 
     /**

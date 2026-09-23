@@ -1044,11 +1044,27 @@ Confirmado leyendo los archivos que cada sección dice haber tocado:
 De paso se confirmó que §14 (etiquetas en dos categorías: `etiquetas: List<String>` +
 `tieneSituacion`) ya está en el código.
 
-**Falta leer para cerrar (a) al 100 %** (Tarea T1): los archivos de E1/E2
-(`ui/viaje/CapturaEvidenciaScreen.kt`, `ui/captura/VistaCamara.kt`, `RegistroDeFallos`), E4
-(`FilesDirAlmacenArchivos` → `Result`, `DominioError.SinEspacio`), E7 (`AjustesViewModel`), la
-poda de `res/values-es-rMX/`, los dos XML de backup y las suites nuevas
-(`EsperaDeTareasTest`/`RemotoEmuladorTest`/contrato).
+**T1 — reporte de verificación (hecho 2026-09-22).** Se leyó el código de lo que quedaba por
+cerrar y todo respalda la marca:
+
+| Lo que faltaba leer | Verificación |
+| --- | --- |
+| E1 (doble toque) | ✅ **CONFIRMADO** — `CapturaEvidenciaScreen.kt:87,196-217`: `disparoEnCurso`, cerrojo **síncrono** con el toque, liberado en los dos callbacks excluyentes de `tomarFoto` |
+| E2 (fallos mudos) | ✅ **CONFIRMADO** — `VistaCamara.tomarFoto`: `try/catch (Throwable)` + `onError` → `alFallar` (líneas 71-104); `CapturaViewModel` inyecta `RegistroDeFallos` (línea 68), cableado a `FirebaseCrashlytics` vía `DiagnosticoModule` |
+| E4 (disco lleno) | ✅ **CONFIRMADO** — `AlmacenArchivos.guardar` → `Result`; `FilesDirAlmacenArchivos` comprueba espacio antes y devuelve `DominioError.SinEspacioEnDispositivo` (nunca lanza al disparo) |
+| E7 (guard muerto) | ✅ **CONFIRMADO** — `AjustesViewModel.solicitarCerrarSesion`/`confirmarCerrarSesion` leen `uiState.value.pendientesSinSubir` (el estado combinado), no `interno` |
+| Poda de `values-es-rMX/` | ✅ **CONFIRMADO** — solo queda `res/values/` (strings, themes, colors); no hay variante regional |
+| XML de backup | ✅ **CONFIRMADO** — `backup_rules.xml` y `data_extraction_rules.xml` excluyen `app_custodio.db(sql)` y `medios` en los dos canales (`cloud-backup` y `device-transfer`), además de `allowBackup="false"` |
+| Suites nuevas | ✅ **CONFIRMADO** — `EsperaDeTareasTest` (regresión de B1, 5 pruebas), `RemotoEmuladorTest` (integración contra el emulador) y el contrato `ContratoRepositoriosTest` (Room + fakes) existen y corren |
+
+**T2 — checklist manual (hecho 2026-09-22).**
+
+| Ítem | Verificación |
+| --- | --- |
+| `cd firebase && npm test` (reglas S3–S14) | ✅ **CONFIRMADO** — "Todas las reglas pasaron"; el emulador en ejecución ocupaba el hub, se detuvo, `npm test` corrió su `emulators:exec` propio y después se relanzó el set completo (`--only firestore,storage,auth`) |
+| B2 por lint/release | ✅ **CONFIRMADO** — `assembleRelease` corre `lintVitalRelease` en 0 errores; la rama del constructor viejo (`SDK_INT < S`) queda **PENDIENTE-HW**: no hay equipo con Android ≤11 (§15.3 R2), solo se comprueba por lint |
+| S1 (galería pública) | ✅ **CONFIRMADO** — verificado en el teléfono conectado (2026-09-22): la evidencia vive en `files/medios` y MediaStore público tiene **0 filas** del paquete (15683 imágenes + 1033 audios); las entradas públicas son de otras apps |
+| S2 (`bmgr backupnow`) | ✅ **CONFIRMADO** — `allowBackup="false"` + XML de backup verificados por código **y** en el teléfono: `bmgr backupnow com.ai27.app.custodio` → *"Package ... Backup is not allowed"* + *"Backup finished with result: Success"* |
 
 ### 15.2 Los seis hallazgos del Grupo 1 (confirmados presentes)
 
@@ -1116,15 +1132,15 @@ el classpath (§12 T5) y el resto es código. Los scripts de build no se tocan.
 
 | # | Tarea | Estado |
 | --- | --- | --- |
-| T1 | **(a)** Completar la verificación exhaustiva de §12/§13: leer E1/E2/E4/E7, la poda de `values-es-rMX/`, los XML de backup y las suites nuevas; producir un reporte con `CONFIRMADO`/`DESVIACIÓN` por hallazgo | pendiente |
-| T2 | **(b)** Ejecutar el checklist manual disponible: `bmgr backupnow` (S2), revisar galería (S1), `cd firebase && npm test` (reglas), y B2 por lint/experimento; dejar anotado lo `PENDIENTE-HW` (Android ≤11) | pendiente |
-| C0 | Infra de prueba: `SubidaMedioProceso`/`ReporteSyncProceso` contra Room real (patrón de `InvarianteUnSoloActivoTest`), extender `RemotoEmuladorTest` con `actualizarContadores`; evaluar `turbine` solo si hace falta | pendiente |
-| C1 | **C2** — el `sha256` llega al documento remoto (calcular antes de construir el doc) | pendiente |
-| C2 | **C6** — cierre transaccional que no infla contadores (`@Transaction` + `COUNT(*)`) | pendiente |
-| C3 | **C1 + C3** — contadores monótonos con `Result` propagado y reconciliación por divergencia | pendiente |
-| C4 | **C4** — `REPLACE → KEEP` en reconciliación/reintento; no re-encolar `EN_PROGRESO` vivo | pendiente |
-| C5 | **C5** — clasificar permanente vs transitorio, persistir causa, Crashlytics | pendiente |
-| C6 | Cierre: marcas en `AUDIT.md`, resultado y verificación en §15, entrada en `CHANGELOG.md` | pendiente |
+| T1 | **(a)** Completar la verificación exhaustiva de §12/§13: leer E1/E2/E4/E7, la poda de `values-es-rMX/`, los XML de backup y las suites nuevas; producir un reporte con `CONFIRMADO`/`DESVIACIÓN` por hallazgo | ✅ hecha (2026-09-22) |
+| T2 | **(b)** Ejecutar el checklist manual disponible: `bmgr backupnow` (S2), revisar galería (S1), `cd firebase && npm test` (reglas), y B2 por lint/experimento; dejar anotado lo `PENDIENTE-HW` (Android ≤11) | ✅ hecha (2026-09-22) — S1 y S2 **verificados en el teléfono conectado** (MediaStore y `bmgr`), B2 (Android ≤11) queda **PENDIENTE-HW**; la sesión de dispositivo destapó un hallazgo nuevo: C10 (migración 1→2/2→3 crasheaba en una base v1 real), arreglado y con regresión (§15.1, §15.5bis) |
+| C0 | Infra de prueba: `SubidaMedioProceso`/`ReporteSyncProceso` contra Room real (patrón de `InvarianteUnSoloActivoTest`), extender `RemotoEmuladorTest` con `actualizarContadores`; evaluar `turbine` solo si hace falta | ✅ hecha (2026-09-22) |
+| C1 | **C2** — el `sha256` llega al documento remoto (calcular antes de construir el doc) | ✅ hecha (2026-09-22) |
+| C2 | **C6** — cierre transaccional que no infla contadores (`@Transaction` + `COUNT(*)`) | ✅ hecha (2026-09-22) — un solo `UPDATE` atómico del DAO, ver §15.5bis |
+| C3 | **C1 + C3** — contadores monótonos con `Result` propagado y reconciliación por divergencia | ✅ hecha (2026-09-22) |
+| C4 | **C4** — `REPLACE → KEEP` en reconciliación/reintento; no re-encolar `EN_PROGRESO` vivo | ✅ hecha (2026-09-22) — el guard explícito de `getWorkInfosForUniqueWork` se eliminó: KEEP decide atómicamente en el enqueue, ver §15.5bis |
+| C5 | **C5** — clasificar permanente vs transitorio, persistir causa, Crashlytics | ✅ hecha (2026-09-22) |
+| C6 | Cierre: marcas en `AUDIT.md`, resultado y verificación en §15, entrada en `CHANGELOG.md` | ✅ hecha (2026-09-22) |
 
 **Dependencias:** T1 y T2 son independientes y pueden ir primero. C0 habilita todo lo demás. C1
 (C2) y C2 (C6) habilitan C3 (C1/C3, que consume el conteo correcto y el sha). C4 va después de
@@ -1136,6 +1152,69 @@ C3; C5 al final del bloque. C6 cierra.
 - C3: unit de que un remoto fallando devuelve `Failure`/retry y el reporte sigue reconciliable; prueba de emulador de dos actualizaciones intercaladas que no retroceden.
 - C4: `work-testing` (`TestListenableWorkerBuilder` + `WorkManagerTestInitHelper`) de que un re-encolado no mata el trabajo en curso; convertir `caracterizacion_C4_...`.
 - C5: unit de la clasificación por tipo de excepción y de que el permanente no consume reintentos.
+
+### 15.5bis Resultado de la tanda (2026-09-22) y desviaciones al ejecutar
+
+**Verde de punta a punta.** `assembleDebug`, `testDebugUnitTest` (171 pruebas, 26 suites, 0
+fallos) y `connectedDebugAndroidTest` (31 pruebas en emulador Pixel 9a: `RemotoEmuladorTest`
+9, `ReconciliacionColaTest` 10, `WorkerSubidaMedioTest` 6, `GrabadoraMediaRecorderTest` 5,
+`ExampleInstrumentedTest` 1) pasan. El Emulator Suite se levantó con
+`--project custodio-906e7268` (el proyecto que el SDK usa; sin ello la regla de Storage
+falla porque su `firestore.get()` cruza a otro namespace de proyecto —documentado en
+`RemotoEmuladorTest` requisito 1).
+
+**D2 llevada más lejos de lo planeado (C6 — cierre).** En lugar de `@Transaction` alrededor
+de "leer lista + escribir", el cierre es un **solo `UPDATE` atómico del DAO** que deriva los
+conteos dentro del mismo statement con subconsultas sobre `medios` (`COUNT(*)`, `SUM(subido)`,
+`completo = subidos >= esperados`). Un solo statement de SQLite es igual o más atómico que un
+`@Transaction` y elimina de raíz la ventana "leer / escribir". Además `CapturarMedio` ya no
+valida el ciclo en una segunda transacción: la inserción respeta la invariante en su propia
+frontera. Contrato determinista nuevo en `ContratoRepositoriosTest` (fakes y Room): `cerrar
+cuenta los medios presentes al momento del UPDATE, no una lectura previa`.
+
+**D1/C3 — decisión de escritura bajo el test.** Se probó `FieldValue.increment(±deltas)` con
+`completo` en la transacción; la foto positiva es el **otro extremo**: `update()` con merge
+monótono sin valores absolutos desde Room (se escriben `max()` y `subida` que solo avanza),
+sin leer el reporte primero, así no hay doble incremento por reintento ni lost-update.
+
+**D4 — el guard explícito ya no existe (C4).** `ExistingWorkPolicy.KEEP` decide
+atómicamente en el enqueue; mantener `getWorkInfosForUniqueWork` además era un
+check-then-act con su propia carrera, así que la reconciliación ya no lo necesita: encola y
+deja que KEEP proteja. Los `EN_PROGRESO` con worker vivo se quedan como están.
+
+**C5 — clasificación por kind, no por excepción en host.** `FirebaseFirestoreException` y
+sus `Code` no se instancian en la JVM host (NoClassDefFoundError), así que la clasificación
+JVM y el `Result` de `SubidaMedioProceso` se prueban por **código de error en string**
+(`"UNAVAILABLE"`, `"PERMISSION_DENIED"`, …) y la rama de excepción de verdad se cubre en
+device con `WorkerSubidaMedioTest`. Lo permanente devuelve `Result.failure()` inmediato y
+persiste `ultimoError`+`intentosSubida` (migración Room 2→3, sin export de esquema); lo
+transitorio reintenta sin tope. Quedó registrado el quirk de sqlite-bundled: `getText` de una
+columna NULL devuelve `""`, los tests de migración normalizan con `takeIf { it.isNotEmpty() }`.
+
+**C2 — test de emulador por llave, con el sha dentro del documento.** `medios` conserva la
+regla create-only; la regresión lee el documento por llave y afirma el sha persistido.
+
+**Atendidos:** C1–C6 quedaron marcados `✅ ATENDIDO 2026-09-22` en `docs/AUDIT.md` y la
+entrada de la tanda quedó en `docs/CHANGELOG.md`. Quedan **PENDIENTE** solo las comprobaciones
+que requieren hardware o sesión: S1 (galería), S2 (`bmgr backupnow`) y B2 (Android ≤11).
+
+**S1 y S2 cerrados en el teléfono (2026-09-22).** Con el teléfono CPH2769 conectado se
+verificó: S1 — la evidencia vive en `files/medios` y MediaStore público tiene **0 filas** que
+referencien `com.ai27.app.custodio` (15683 imágenes + 1033 audios; las entradas son de otras
+apps); S2 — `bmgr backupnow com.ai27.app.custodio` responde *"Backup is not allowed"* y el
+transport termina con *"Backup finished with result: Success"*.
+
+**C10 — hallazgo nuevo salido de esa sesión (bug real de migración).** La base v1 del
+dispositivo (con el índice único parcial `ux_reportes_activo_por_custodio` persistido por un
+`onOpen` anterior) hacía crashear la app al abrir: `IllegalStateException: Migration didn't
+properly handle: reportes`. La validación de Room compara `indices` contra las entidades
+(vacío), y el índice manual sobraba. Fix: cada migración empieza con `DROP INDEX IF EXISTS
+ux_reportes_activo_por_custodio`; la validación ve `{}` y pasa, y `onOpen` (post-validación)
+lo recrea. Regresión en `MigracionIndiceActivoTest` (2 pruebas; verificado RED sin el fix y
+GREEN con él). En el teléfono la base real migró a v3 en vivo (`user_version 1→3` vía WAL)
+y la app abrió sin FATAL, conservando el viaje ACTIVO `123ABC` y los reportes CERRADO. Esto
+afectaba a **cualquier** instalación previa a §14 (la MIGRACION_1_2 enviada habría crasheado
+ante una base v1 con índice). Registrado en `AUDIT.md` como C10.
 
 ### 15.6 Roadmap de las tandas restantes (una línea; se detallan cuando toquen)
 
@@ -1174,3 +1253,200 @@ caché de Firestore), **C9** (detalles menores del bloque de consistencia), y to
 2–6 hasta que su tanda los tome. Las decisiones de producto del cierre de la auditoría
 (resolución de captura §3.4, solo-Wi-Fi para subir, retención de datos y de miniaturas) tampoco
 se resuelven aquí.
+
+
+---
+
+## 16. Tanda del Grupo 2 — Privacidad y reglas (S3–S14)
+
+Siguiente tanda tras el Grupo 1 (§15), según el orden de `AUDIT.md` §11. El modelo de
+autorización (dueño por `custodioUid`, analista por correo en `config/analistas`, nada se borra)
+está bien y **no se toca** (§10 de la auditoría). Los agujeros son la ausencia de validación de
+forma/tamaño en las reglas, transiciones que no acotan qué más cambia, y el runtime de permisos.
+S1 y S2 ya se cerraron en §12.
+
+### 16.1 Hallazgos confirmados contra el código
+
+| ID | Hallazgo | Evidencia |
+| --- | --- | --- |
+| **S3** | Storage sin tope de tamaño ni `contentType` | `storage.rules`: `allow create, update: if autenticado() && duenoDelReporte(reporteId)` — sin `request.resource.size` ni `contentType` |
+| **S4** | `update` en Storage permite sobrescribir evidencia cerrada | misma regla; `update` sin condición, sin mirar el `ciclo` |
+| **S5** | Firestore sin validación de forma/tipo | `create` de reporte y de medio solo validan dueño/pertenencia; sin `hasOnly()`, sin tipos, sin anclar `storagePath` |
+| **S6** | Contadores libres, sin cota | `transicionValida()` restringe qué llaves cambian, no a qué valores: `mediosSubidos` inflado/retrocedido, `completo:true` sin archivos, `subida` fuera de enum |
+| **S7** | `ACTIVO→CERRADO` no acota qué más cambia | la rama de cierre no lleva `soloCambia`: se puede reescribir `placas`/`custodioUid`/`fechaLocal` en el mismo `update` |
+| **S8** | `COARSE` declarado pero no pedido | `permisosSolicitados()` = `CAMERA/RECORD_AUDIO/ACCESS_FINE_LOCATION`; `permisosActuales()` no consulta ubicación. `ProveedorUbicacion` ya hace `checkSelfPermission` (B3) pero solo `PRIORITY_HIGH_ACCURACY` |
+| **S9** | Sin rationale ni salida del "no volver a preguntar" | no existe `shouldShowRequestPermissionRationale`; el re-lanzamiento solo está detrás de "cámara denegada" |
+| **S10** | Sin micrófono no hay forma de concederlo desde Audio | `RECORD_AUDIO` solo se pide en `CapturaEvidenciaScreen` |
+| **S11** | Residuo al rotar de custodio | grueso ya resuelto por E6 (§13, sin purga por decisión); lo que queda (miniaturas inmortales) es **retención → Producto** |
+| **S12** | `ModoEmulador` por `meta-data`, no `BuildConfig.DEBUG` | `ModoEmulador.activo()` lee un `<meta-data>` |
+| **S13** | Crashlytics sin contexto, recolección incondicional | `firebase_crashlytics_collection_enabled=true`; sin `setUserId`/`setCustomKey`; parcialmente adelantado por `RegistroDeFallos` (§13) |
+| **S14** | `reglas.test.js` no cubre S3–S7 | además es un script con estado compartido por orden de ejecución (frágil) |
+
+### 16.2 Decisiones de diseño
+
+**D1 — Aquí se cambian y prueban las reglas contra el Emulator Suite; el despliegue real es
+manual (carril A / A3).** La tanda modifica `firestore.rules`/`storage.rules` y `reglas.test.js`
+y corre `cd firebase && npm test`, pero **no despliega** a la consola: eso lo hace el humano en
+el carril A. Respeta la regla de no tocar Firebase real.
+
+**D2 — Cada regla nueva entra con su caso en `reglas.test.js` (S14).** Es lo único que evita la
+regresión. Se endurece el arnés para que insertar un caso no rompa los siguientes.
+
+**D3 — `update` de Storage se niega, no se acota (S4).** `allow create: if … && resource == null`
+y reintento idempotente contra ausencia del objeto. Alternativa registrada: condicionar `update`
+a `ciclo=='ACTIVO'` si se decide conservarlo.
+
+**D4 — `soloCambia` por transición, con lista blanca (S7).** Cierre:
+`['ciclo','closedAt','comentario','hayNovedad','mediosEsperados','resumenMedios','subida','mediosSubidos','completo']`;
+descarte: `['ciclo','closedAt','motivoDescarte']`; contadores: los tres de hoy. `custodioUid`/`placas`
+nunca en `affectedKeys()`.
+
+**D5 — Cotas de contadores (S6), coordinadas con C3 del Grupo 1.** `nuevo.mediosSubidos >=
+previo.mediosSubidos`, `<= previo.mediosEsperados`, `subida in [enum]`, `completo ==
+(mediosSubidos == mediosEsperados)`. La escritura monótona del cliente (C3) y la cota monótona de
+la regla (S6) tienen que cuadrar: hacer S6 **después** de C3 o en la misma ventana.
+
+**D6 — S13/S11 acotados.** S13 se cierra junto con T7 (contexto de Crashlytics) en el Grupo 6;
+aquí solo queda escrito que la recolección incondicional es defendible en equipos de empresa. S11
+pasa a Producto como decisión de retención.
+
+**Pausa de Sync:** las reglas y `reglas.test.js` no tocan Gradle. `BuildConfig.DEBUG` para S12 **sí**
+requiere habilitar `buildConfig` en `build.gradle.kts` → **pausa de Sync** antes de tocar S12.
+
+### 16.3 Tareas (TDD; cada regla con su prueba primero)
+
+| # | Tarea | Estado |
+| --- | --- | --- |
+| G2-0 | Endurecer el arnés de `reglas.test.js` (aislar estado compartido) — habilita el resto (S14) | pendiente |
+| G2-1 | **S7** — `soloCambia` en `ACTIVO→CERRADO` y `ACTIVO→DESCARTADO` | pendiente |
+| G2-2 | **S6** — cotas y monotonía de contadores + enum de `subida` (coordina con C3) | pendiente |
+| G2-3 | **S5** — `hasOnly()`, tipos, rango de `mediosEsperados`, `storagePath` anclado | pendiente |
+| G2-4 | **S3** — tope de tamaño y lista blanca de `contentType` en Storage | pendiente |
+| G2-5 | **S4** — negar `update` en Storage (reintento contra ausencia del objeto) | pendiente |
+| G2-6 | **S8** — pedir y consultar `COARSE`; degradar a `PRIORITY_BALANCED` (encaja con R13) | pendiente |
+| G2-7 | **S9 + S10** — rationale + ruta a Ajustes, re-chequeo en `ON_RESUME`, micrófono desde Audio | pendiente |
+| G2-8 | **S12** (tras pausa de Sync) — `BuildConfig.DEBUG && activo(context)` | pendiente |
+| G2-9 | Cierre: marcas en `AUDIT.md` (S11→Producto, S13→Grupo 6), §16, `CHANGELOG.md`; recordar el despliegue manual de reglas (carril A) | pendiente |
+
+**Dependencias:** G2-0 primero. G2-1…G2-5 comparten arnés. G2-2 coordina con C3. G2-6/G2-7 son
+independientes de las reglas. G2-8 al final por la pausa de Sync.
+
+**Fuera de alcance:** todo lo de los Grupos 3–6, S11 (retención → Producto), y el despliegue real
+de reglas (carril A).
+
+---
+
+## 17. Tandas restantes — Grupos 3 a 6 (secuenciadas, a detallar al arrancar cada una)
+
+Estas cuatro tandas cierran el backlog de `AUDIT.md`. Se dejan a nivel de tanda —decisión de
+alcance, clústeres de tarea y criterio de cierre— y se **detallarán en modo TDD cuando arranquen**,
+igual que §15 y §16, para no escribir detalle que se desactualice antes de ejecutarlo (el repo
+avanza de a una tanda). El orden sale de `AUDIT.md` §11.
+
+### 17.1 Grupo 3 — Que la app sea usable en campo
+
+**Meta:** acercar el estándar de 5 s de §7 y quitar la fricción contra WhatsApp. Es la tanda que
+más nota el custodio.
+
+- **Abrir en el visor y estado de carga:** R1 (abrir en la cámara, no en la lista), R2 (estado de
+  carga en Reporte para matar el falso "Sin reporte activo").
+- **La ráfaga y el etiquetado:** U1 (disparo libre con etiqueta diferida y salida de la hoja), U2
+  (etiqueta heredada del último uso, quitar el "Guardar" redundante).
+- **Confirmación no visual:** U3 (háptica + sonido de obturador + tic de encolado).
+- **Estado de subida visible:** U4 (mostrar estado **y** etiqueta en Pendientes), U5 (marcar
+  "enviado" en la rejilla, no por ausencia), U6 (separar "sin etiquetar"/"en cola"/"fallido" en el
+  badge).
+- **Navegación y estado:** U8 (orden del `when` de Historial + cablear `onReintentar`), U10
+  (`launchSingleTop`), U11 (`rememberSaveable` en cierre/placa/etiqueta) — **U11 se comparte con
+  el Grupo 5/A9**, conviene hacerlo una vez.
+- **Errores y avisos:** U7 (acciones de recuperación en `DialogoError`), U9 (franja de sin conexión
+  en todo el flujo, no solo en Reporte), U12 (motivos de descarte en chips), U13/U14/U15
+  (vocabulario y jerarquía).
+- **Permisos que ya toca el Grupo 2:** S9/S10 si no se cerraron allí.
+**Cierre:** recorrido completo en dispositivo real cronometrando el flujo de 5 s; `testDebugUnitTest`
+verde; algunas pruebas de Compose (flujo de captura, cierre, ajustes). Sin pausa de Sync salvo que
+U-algo pida una dependencia nueva.
+
+### 17.2 Grupo 4 — Rendimiento
+
+**Meta:** que el estándar de 5 s se cumpla de forma fiable y que una subida de 50 medios no queme
+CPU/batería/RAM. Nota de coordinación: si Producto sube la resolución (§3.4), R4/R5 empeoran, así
+que **arreglar el pipeline de imagen va antes de subir la resolución**.
+
+- **La lectura de estado más cara:** R3 (conteo de pendientes fuera del cuerpo de `AppNavHost`,
+  `StateFlow<Int>` con `COUNT`) — el cambio más rentable del grupo.
+- **Ciclo de vida y Room:** R6 (`lifecycle-runtime-compose` + `collectAsStateWithLifecycle` →
+  **pausa de Sync**), R9 (`@Index` + `distinctUntilChanged` — **coordina con T3/T4 del Grupo 6**,
+  que aporta el export de esquema y la migración), R8 (`@Immutable` + `contentType`).
+- **El pipeline de imagen:** R4 (no decodificar/rotar/recomprimir; EXIF por tag), R5 (`putFile`
+  reanudable, SHA en streaming, concurrencia 1) — **coordina con C2/C5 del Grupo 1**.
+- **Detalles:** R7 (flash en `graphicsLayer`), R13 (fix de GPS compartido con TTL + `lastLocation`
+  — **encaja con S8 del Grupo 2**), R14 (constraints de red + `NET_CAPABILITY_VALIDATED`), R11
+  (config de Coil), R12/R15/R16, T6 (baseline profile propio → **pausa de Sync**).
+**Cierre:** medición antes/después donde se pueda (arranque en frío, subida de 50); `testDebugUnitTest`
+verde. Varias pausas de Sync (R6, T6) — agrupar.
+
+### 17.3 Grupo 5 — Accesibilidad y adaptación
+
+**Meta:** que la app se use a pleno sol, con guantes, con escala de texto grande y con el teléfono
+en cualquier orientación (`fullSensor` ya está activo).
+
+- **Lo primero, por `fullSensor`:** A3.9 + U11 (`verticalScroll` en Login/ReporteAbierto/Audio/Ajustes
+  y `rememberSaveable` en el formulario de cierre) — ascendido porque hoy se rompe al **girar** el
+  teléfono, no solo al 200 % de escala.
+- **Contraste:** A2 (dejar de usar `colorScheme.outline` como color de texto — un `sed`; luego
+  recalcular la receta de chips/`FranjaAviso` **para tema claro**, que es donde falla).
+- **Insets y teclado:** A4 (`imePadding` + `navigationBarsPadding` en los 5 destinos que faltan,
+  empezando por Login) — **coordina con U11**.
+- **Táctil y overflow:** A1 (los cuatro blancos táctiles críticos a ≥48/56dp), A3 resto (`overflow`
+  donde hay `maxLines=1`).
+- **Semántica:** A5 (`contentDescription` del reintento y celda con `mergeDescendants`), A6
+  (`liveRegion` en cronómetro/badge/aviso de encolado; `Role.Tab`, `toggleable`), A7/A8 (error por
+  color, teclado/capitalización/foco).
+- **Strings:** A10 (residuo de `values-es-rMX/` — ya podado en B3; verificar).
+**Cierre:** revisión en dispositivo real a pleno sol y de noche, escala de texto 130/200 %, y una
+pasada de TalkBack; prueba de Compose transversal de A11y (`assertHeightIsAtLeast(48.dp)` +
+`contentDescription`).
+
+### 17.4 Grupo 6 — Proceso, build y deuda
+
+**Meta:** que nada de lo anterior se regrese sin que se note, y cerrar la deuda de release.
+
+- **Red de seguridad:** T1 (CI que corra `assembleDebug testDebugUnitTest lintDebug` + reglas;
+  ojo con la libSQLite `.dylib`→`.so` en runner Linux) — **habilita todo lo demás**.
+- **Room bajo control:** T3 (export de esquema + `app/schemas/1.json` de línea base + política de
+  solo-aditivas + prueba de migración por bump), T4 (índice único solo en `onCreate`/migración) —
+  **coordina con R9 del Grupo 4 y con la migración de §14**. **Pausa de Sync** (plugin de Room).
+- **Versionado y firma:** T2 (`versionCode` derivado), T9 (firma v3 **antes** del despliegue), T8
+  (`applicationIdSuffix` de debug), T12 (`deviceId` propio en vez de `ANDROID_ID`).
+- **Crashlytics y R8:** T7 (`setUserId`/custom keys/`recordException` — **cierra S13 del Grupo 2**),
+  T10 (recortar ABIs), T5 (activar R8 midiendo, y resolver antes el mapping de Crashlytics con AGP 9)
+  — **pausa de Sync**; T11 (dos runtimes de Room, lo resuelve R8).
+- **Evidencia y ciclo de vida que quedaron del grupo E:** E8 (rescate de `EN_PROGRESO` — **coordina
+  con C4/C5 del Grupo 1**), E9 (barrido de huérfanos y purga de miniaturas — **coordina con S11 y
+  la decisión de retención**), E10 (sacar el trabajo crítico de `viewModelScope`), E11 (sesión
+  perdida en caliente).
+- **Pruebas:** P2 restante (suite de contrato que alinee los fakes), P3 (aserciones débiles),
+  P4 (escenarios sin prueba), P5 (determinismo), P6 (las cinco de mayor retorno), P7 (ampliar
+  `reglas.test.js`, se solapa con S14).
+**Cierre:** CI en verde sobre `main`; APK de release firmado v3 con `versionCode` derivado;
+`app/schemas/` versionado. Varias pausas de Sync (T3, T5) — agrupar.
+
+### 17.5 Dependencias entre tandas y decisiones de Producto pendientes
+
+```
+Grupo 0 (§12) ─ hecho
+Grupo E (§13) ─ hecho
+Etiquetas (§14) ─ hecho
+Grupo 1 (§15) ─ planeado ──► Grupo 2 (§16) ──► Grupo 3 (§17.1) ──► Grupo 4 (§17.2) ──► Grupo 5 (§17.3) ──► Grupo 6 (§17.4)
+```
+
+El orden es el de `AUDIT.md` §11, pero hay solapes que conviene explotar: **C3↔S6** (contadores),
+**C2/C5↔R4/R5** (pipeline de imagen), **S8↔R13** (GPS), **U11↔A3.9/A4** (scroll + estado),
+**R9↔T3/T4** (índices + esquema), **S13↔T7** (Crashlytics), **E8↔C4/C5** (rescate de subidas),
+**E9↔S11** (limpieza + retención). Cuando dos tandas tocan lo mismo, se hace una vez en la que
+llegue primero y la otra solo verifica.
+
+**Decisiones de Producto que ninguna tanda toma** (del cierre de la auditoría): resolución de
+captura (§3.4), retención de datos y de miniaturas (§3.2, S11, E9), solo-Wi-Fi para subir (R14). El
+catálogo de etiquetas (§3.1) ya se resolvió en §14.

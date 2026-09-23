@@ -33,7 +33,15 @@ interface ReporteDao {
     @Query(
         "UPDATE reportes SET ciclo = 'CERRADO', closedAt = :closedAt, comentario = :comentario, " +
             "hayNovedad = :hayNovedad, " +
-            "mediosEsperados = :mediosEsperados, fotos = :fotos, audios = :audios, durationMsTotal = :durationMsTotal " +
+            // Los conteos salen de un SELECT escalar sobre `medios` al momento del UPDATE:
+            // un solo statement atómico (hallazgo C6). Antes se pasaban por el caso de uso
+            // desde una lectura previa de Room y un medio capturado entre esa lectura y el
+            // UPDATE podía quedar fuera de mediosEsperados. Con la subconsulta, la foto
+            // que se agrega justo antes de cerrar queda contada.
+            "mediosEsperados = (SELECT COUNT(*) FROM medios WHERE medios.reporteId = reportes.id), " +
+            "fotos = (SELECT COUNT(*) FROM medios WHERE medios.reporteId = reportes.id AND medios.tipo = 'FOTO'), " +
+            "audios = (SELECT COUNT(*) FROM medios WHERE medios.reporteId = reportes.id AND medios.tipo = 'AUDIO'), " +
+            "durationMsTotal = COALESCE((SELECT SUM(medios.durationMs) FROM medios WHERE medios.reporteId = reportes.id), 0) " +
             "WHERE id = :id AND ciclo = 'ACTIVO'",
     )
     suspend fun cerrar(
@@ -41,10 +49,6 @@ interface ReporteDao {
         closedAt: Long,
         comentario: String?,
         hayNovedad: Boolean,
-        mediosEsperados: Int,
-        fotos: Int,
-        audios: Int,
-        durationMsTotal: Long,
     ): Int
 
     @Query(
@@ -61,7 +65,8 @@ interface ReporteDao {
 
     @Query(
         "SELECT * FROM reportes WHERE custodioUid = :custodioUid " +
-            "AND subida != 'COMPLETA' AND fechaLocal >= :fechaDesde " +
+            "AND fechaLocal >= :fechaDesde " +
+            "AND (subida != 'COMPLETA' OR (mediosEsperados IS NOT NULL AND completo = 0)) " +
             "ORDER BY createdAtDevice ASC",
     )
     suspend fun obtenerPendientesSubida(custodioUid: String, fechaDesde: String): List<ReporteEntity>

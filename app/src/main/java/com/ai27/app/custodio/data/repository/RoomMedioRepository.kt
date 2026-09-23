@@ -4,6 +4,7 @@ import com.ai27.app.custodio.data.local.archivo.AlmacenArchivos
 import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
 import com.ai27.app.custodio.data.mapper.aDominio
 import com.ai27.app.custodio.data.mapper.aEntidad
+import com.ai27.app.custodio.data.remote.aTextoPersistible
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.EstadoSubida
@@ -111,6 +112,22 @@ class RoomMedioRepository(
         // porque la rejilla la muestra mientras el viaje sigue abierto.
         medio.localPath?.let { ruta -> almacenArchivos.borrar(ruta) }
         return Result.Success(dao.obtenerPorId(medioId)!!.aDominio())
+    }
+
+    override suspend fun registrarFallo(
+        medioId: String,
+        error: DominioError,
+        intentos: Int,
+    ): Result<Medio> {
+        val mensaje = error.aTextoPersistible()
+        val filas = dao.registrarFallo(medioId, mensaje, intentos)
+        val actualizado = dao.obtenerPorId(medioId)
+            ?: return Result.Failure(DominioError.MedioNoEncontrado)
+        return if (filas == 1) {
+            Result.Success(actualizado.aDominio())
+        } else {
+            Result.Failure(DominioError.MedioNoEncontrado)
+        }
     }
 
     override suspend fun obtenerPendientes(custodioUid: String): List<Medio> =

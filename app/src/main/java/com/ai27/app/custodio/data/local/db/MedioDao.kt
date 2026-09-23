@@ -51,8 +51,11 @@ interface MedioDao {
     @Query("UPDATE medios SET estadoSubida = :estado WHERE id = :id")
     suspend fun actualizarEstadoSubida(id: String, estado: String): Int
 
-    @Query("UPDATE medios SET estadoSubida = 'COMPLETA', storagePath = :storagePath, sha256 = :sha256 WHERE id = :id")
+    @Query("UPDATE medios SET estadoSubida = 'COMPLETA', storagePath = :storagePath, sha256 = :sha256, ultimoError = NULL, intentosSubida = 0 WHERE id = :id")
     suspend fun marcarSubidaCompleta(id: String, storagePath: String, sha256: String): Int
+
+    @Query("UPDATE medios SET ultimoError = :ultimoError, intentosSubida = :intentos WHERE id = :id")
+    suspend fun registrarFallo(id: String, ultimoError: String, intentos: Int): Int
 
     @Query(
         """

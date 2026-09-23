@@ -63,6 +63,9 @@ class FakeReporteRemoto(
 class FakeMedioRemoto(
     val docsCreados: MutableList<String> = mutableListOf(),
     val subidos: MutableList<String> = mutableListOf(),
+    /** El medio tal como llegó a cada llamada: permite afirmar qué se intentó publicar. */
+    val mediosSubidos: MutableList<Medio> = mutableListOf(),
+    val mediosDeDocumento: MutableList<Medio> = mutableListOf(),
 ) : MedioRemoto {
     var debeFallarSubida = false
     var debeFallarDocumento = false
@@ -76,6 +79,7 @@ class FakeMedioRemoto(
         Result.Failure(DominioError.SinConexion)
     } else {
         subidos.add(medio.id)
+        mediosSubidos.add(medio)
         Result.Success(RutasStorage.de(medio))
     }
 
@@ -83,11 +87,14 @@ class FakeMedioRemoto(
         reporte: Reporte,
         medio: Medio,
         rutas: RutasRemotas,
-    ): Result<Unit> = if (debeFallarDocumento) {
-        Result.Failure(DominioError.SinConexion)
-    } else {
-        docsCreados.add(medio.id)
-        Result.Success(Unit)
+    ): Result<Unit> {
+        mediosDeDocumento.add(medio)
+        return if (debeFallarDocumento) {
+            Result.Failure(DominioError.SinConexion)
+        } else {
+            docsCreados.add(medio.id)
+            Result.Success(Unit)
+        }
     }
 }
 

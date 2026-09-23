@@ -19,8 +19,6 @@ interface ReporteRepository {
         closedAt: Instant,
         comentario: String?,
         hayNovedad: Boolean,
-        resumen: ResumenMedios,
-        mediosEsperados: Int,
     ): Result<Reporte>
     suspend fun descartar(reporteId: String, closedAt: Instant, motivo: String): Result<Reporte>
     suspend fun actualizarSubida(

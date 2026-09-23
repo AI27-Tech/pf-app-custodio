@@ -13,7 +13,7 @@ import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 
 @Database(
     entities = [ReporteEntity::class, MedioEntity::class],
-    version = 2,
+    version = 3,
 )
 @ColumnTypeConverters(EtiquetasConverter::class)
 abstract class AppCustodioDatabase : RoomDatabase() {
@@ -24,11 +24,23 @@ abstract class AppCustodioDatabase : RoomDatabase() {
     companion object {
         const val NOMBRE = "app_custodio.db"
 
-        // Room 3 no soporta índices parciales en @Entity/@Index; el invariante
-        // "un solo reporte ACTIVO por custodio" se garantiza con un índice único parcial.
+        /**
+         * Room 3 no soporta índices parciales en @Entity/@Index (`androidx.room3.Index` no tiene
+         * `where`), así que el invariante "un solo reporte ACTIVO por custodio" vive en SQL manual.
+         *
+         * Pero la validación post-migración compara `indices` contra lo que declaran las entidades
+         * (vacío para `reportes`), y un índice sobrante la hace fallar con
+         * "Migration didn't properly handle: reportes". Por eso cada migración **dropea** el índice
+         * al empezar —así la validación ve `indices = {}`— y `onOpen` lo recrea después de la
+         * validación (los callbacks corren posterior al migration+validation). Regresión cubierta en
+         * `MigracionIndiceActivoTest`.
+         */
         const val INDICE_UNICO_ACTIVO =
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_reportes_activo_por_custodio " +
                 "ON reportes(ciclo, custodioUid) WHERE ciclo = 'ACTIVO'"
+
+        private const val DROP_INDICE_UNICO_ACTIVO =
+            "DROP INDEX IF EXISTS ux_reportes_activo_por_custodio"
 
         val callback = object : RoomDatabase.Callback() {
             override suspend fun onCreate(connection: SQLiteConnection) {
@@ -52,6 +64,7 @@ abstract class AppCustodioDatabase : RoomDatabase() {
          */
         val MIGRACION_1_2 = object : Migration(1, 2) {
             override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(DROP_INDICE_UNICO_ACTIVO)
                 connection.execSQL(
                     "ALTER TABLE medios ADD COLUMN etiquetas TEXT NOT NULL DEFAULT '[]'",
                 )
@@ -75,6 +88,19 @@ abstract class AppCustodioDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Segunda migración (PLAN §15 C5): añade el diagnóstico persistido de la subida.
+         * `ultimoError` (texto corto del último fallo permanente) e `intentosSubida`
+         * (cuántos intentos llevaba). Sin valor anterior, ambas quedan en su default.
+         */
+        val MIGRACION_2_3 = object : Migration(2, 3) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(DROP_INDICE_UNICO_ACTIVO)
+                connection.execSQL("ALTER TABLE medios ADD COLUMN ultimoError TEXT")
+                connection.execSQL("ALTER TABLE medios ADD COLUMN intentosSubida INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun crearBaseDatos(context: Context): AppCustodioDatabase =
             crearBaseDatos(ruta = context.getDatabasePath(NOMBRE).absolutePath)
 
@@ -83,7 +109,7 @@ abstract class AppCustodioDatabase : RoomDatabase() {
             Room.databaseBuilder(name = ruta) { AppCustodioDatabase_Impl() }
                 .setDriver(BundledSQLiteDriver())
                 .addCallback(callback)
-                .addMigrations(MIGRACION_1_2)
+                .addMigrations(MIGRACION_1_2, MIGRACION_2_3)
                 .build()
     }
 }

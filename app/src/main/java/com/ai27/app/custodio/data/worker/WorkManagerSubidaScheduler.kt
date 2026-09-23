@@ -31,7 +31,7 @@ class WorkManagerSubidaScheduler(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
             .addTag(SubidaScheduler.TAG_SUBIDA)
             .build()
-        workManager.enqueueUniqueWork(SubidaScheduler.NOMBRE_SUBIDA + medioId, ExistingWorkPolicy.REPLACE, request)
+        workManager.enqueueUniqueWork(SubidaScheduler.NOMBRE_SUBIDA + medioId, ExistingWorkPolicy.KEEP, request)
     }
 
     override fun sincronizarReporte(reporteId: String) {
@@ -41,7 +41,7 @@ class WorkManagerSubidaScheduler(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
             .addTag(SubidaScheduler.TAG_SUBIDA)
             .build()
-        workManager.enqueueUniqueWork(SubidaScheduler.NOMBRE_SYNC + reporteId, ExistingWorkPolicy.REPLACE, request)
+        workManager.enqueueUniqueWork(SubidaScheduler.NOMBRE_SYNC + reporteId, ExistingWorkPolicy.KEEP, request)
     }
 
     override fun cancelarTodo() {

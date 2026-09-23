@@ -17,7 +17,6 @@ import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.BeforeClass
@@ -35,9 +34,12 @@ import org.junit.runner.RunWith
  *
  * ## Requisitos para correrla
  *
- * 1. Levantar los emuladores en el Mac:
+ * 1. Levantar los emuladores en el Mac CON EL PROYECTO DEL APP (lo elige el SDK desde
+ *    `google-services.json`). Sin `--project`, el CLI no autenticado cae a
+ *    `demo-custodio` y Firestore/Auth se ven bien pero la regla de Storage falla: su
+ *    `firestore.get()` cruza a `projects/demo-custodio/...` y no encuentra el reporte:
  *    ```
- *    cd firebase && npx firebase emulators:start --only firestore,storage,auth
+ *    cd firebase && npx firebase emulators:start --only firestore,storage,auth --project custodio-906e7268
  *    ```
  * 2. Abrir los túneles al dispositivo, porque `ModoEmulador.HOST` es `127.0.0.1` y en un
  *    teléfono real eso apunta al propio teléfono (en un emulador de Android sería
@@ -129,6 +131,32 @@ class RemotoEmuladorTest {
     }
 
     @Test
+    fun actualizarContadores_es_monotono_ante_escrituras_intercaladas() = runBlocking {
+        // C3 (docs/AUDIT.md): dos writers intercalados sin transacción hacían regresar
+        // `mediosSubidos` y dejaban `completo = false` para siempre (nada lo recalculaba).
+        // La escritura es un merge monótono en una transacción: una llamada "vieja"
+        // (calculada con una fotografía menor) nunca pisa a una más reciente.
+        val reporte = reporteDePrueba()
+        assertTrue(reporteRemoto.crear(reporte) is Result.Success)
+
+        assertTrue(
+            reporteRemoto.actualizarContadores(reporte.id, EstadoSubida.COMPLETA, mediosSubidos = 2, completo = true)
+                is Result.Success,
+        )
+        assertTrue(
+            // La "escritura vieja" del intercalado: llega DESPUÉS con valores menores.
+            reporteRemoto.actualizarContadores(reporte.id, EstadoSubida.EN_PROGRESO, mediosSubidos = 1, completo = false)
+                is Result.Success,
+        )
+
+        val doc = FirebaseFirestore.getInstance().collection("reportes").document(reporte.id).get().await()
+        assertTrue("El reporte debe existir tras crear()", doc.exists())
+        assertEquals("subida no regresa de COMPLETA", "COMPLETA", doc.getString("subida"))
+        assertEquals("mediosSubidos nunca retrocede", 2L, doc.getLong("mediosSubidos"))
+        assertEquals("completo nunca vuelve a false", true, doc.getBoolean("completo"))
+    }
+
+    @Test
     fun cerrar_transiciona_el_reporte_a_CERRADO() = runBlocking {
         val reporte = reporteDePrueba()
         assertTrue(reporteRemoto.crear(reporte) is Result.Success)
@@ -216,27 +244,25 @@ class RemotoEmuladorTest {
     }
 
     @Test
-    fun el_sha256_del_documento_queda_nulo_hallazgo_C2_aceptado() = runBlocking {
-        // Prueba de CARACTERIZACIÓN del hallazgo C2, que queda FUERA del alcance acordado
-        // (§12.5 de docs/PLAN.md). `SubidaMedioProceso` calcula el sha pero pasa al mapper
-        // el `medio` leído de Room ANTES de subir, cuyo sha256 es null; y como las reglas
-        // prohíben `update` en `medios`, el valor no se puede rellenar después.
-        //
-        // Se deja clavado a propósito: el día que se arregle C2, esta prueba falla y obliga
-        // a actualizarla conscientemente.
+    fun el_sha256_viaja_en_el_documento_del_medio() = runBlocking {
+        // Red de regresión del hallazgo C2 (docs/AUDIT.md): el documento de `medios` se
+        // escribía con sha256 = null porque se construía con el medio leído de Room ANTES
+        // de subir, y como las reglas prohíben `update` en `medios`, el hash quedaba nulo
+        // e irrellenable. Ahora `SubidaMedioProceso` pasa una copia con `sha256` calculado.
         val reporte = reporteDePrueba()
         assertTrue(reporteRemoto.crear(reporte) is Result.Success)
 
-        val medio = medioDePrueba(reporte.id)
+        val medio = medioDePrueba(reporte.id).copy(sha256 = "hash-de-prueba-c2")
+
         val rutas = RutasStorage.de(medio)
         assertTrue(medioRemoto.subirArchivo(reporte, medio, ByteArray(64), null) is Result.Success)
         assertTrue(medioRemoto.crearDocumentoSiNoExiste(reporte, medio, rutas) is Result.Success)
 
         val leido = FirebaseFirestore.getInstance().collection("medios").document(medio.id).get().await()
-        assertNotNull(leido.data)
+        assertTrue("El documento de medios debe existir", leido.exists())
         assertEquals(
-            "C2 sigue abierto: el documento remoto se escribe sin sha256 y no es rellenable.",
-            null,
+            "C2: el sha debe quedar persistido en el documento remoto",
+            "hash-de-prueba-c2",
             leido.getString("sha256"),
         )
     }

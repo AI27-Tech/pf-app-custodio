@@ -107,6 +107,23 @@ class SubidaMedioProcesoTest {
     }
 
     @Test
+    fun `el sha256 viaja al remoto en la subida y en el documento`() = runBlocking {
+        // Hallazgo C2 del AUDIT: el documento de medios quedaba con sha256 nulo porque se
+        // construía con el medio leído de Room antes de subir. El proceso debe pasar una
+        // copia con el hash ya calculado al remoto (medios es create-only en las reglas).
+        proceso.ejecutar("r-1", medio.id)
+
+        assertTrue(medioRemoto.mediosSubidos.size == 1)
+        assertTrue("el sha debe llegar ya calculado", medioRemoto.mediosSubidos[0].sha256!!.isNotBlank())
+        assertTrue(medioRemoto.mediosDeDocumento.size == 1)
+        assertEquals(
+            "el documento se crea con el mismo sha que Room guarda",
+            repoMedios.obtenerPorId(medio.id)!!.sha256,
+            medioRemoto.mediosDeDocumento[0].sha256,
+        )
+    }
+
+    @Test
     fun `no sube un medio sin situacion`() = runBlocking {
         // Hallazgo E3 + decisión A del PLAN §14: se exige al menos una etiqueta de
         // Situación, así que un medio sin clasificar (o solo con Evidencia) no puede salir.
@@ -248,6 +265,39 @@ class SubidaMedioProcesoTest {
 
         assertTrue(resultado is Result.Success)
         assertEquals(0, medioRemoto.subidos.size)
+    }
+
+    @Test
+    fun `un medio ya completo recalcula los contadores para sanar la divergencia`() = runBlocking {
+        // Hallazgo C1: la escritura remota de contadores se descartó y el reporte quedó
+        // con la subida sin terminar aunque el medio ya estaba completo. En el reintento
+        // no se vuelve a subir el medio: solo se propagan los contadores.
+        repoMedios.actualizarEstadoSubida(medio.id, EstadoSubida.COMPLETA)
+
+        val resultado = proceso.ejecutar("r-1", medio.id)
+
+        assertTrue(resultado is Result.Success)
+        assertEquals("el medio ya no se vuelve a subir", 0, medioRemoto.subidos.size)
+        assertEquals(1, reporteRemoto.actualizacionesContadores)
+        val actualizado = repoReportes.obtenerPorId("r-1")!!
+        assertEquals(EstadoSubida.COMPLETA, actualizado.subida)
+        assertTrue(actualizado.completo)
+    }
+
+    @Test
+    fun `un medio ya completo propaga el fallo de la escritura remota de contadores`() = runBlocking {
+        // C1: si el remoto vuelve a fallar, el resultado es Failure para que el worker
+        // reintente, y Room NO se adelanta sobre Firestore (remoto-primero).
+        repoMedios.actualizarEstadoSubida(medio.id, EstadoSubida.COMPLETA)
+        reporteRemoto.debeFallarEscritura = true
+
+        val resultado = proceso.ejecutar("r-1", medio.id)
+
+        assertTrue(resultado is Result.Failure)
+        assertEquals(DominioError.SinConexion, (resultado as Result.Failure).error)
+        val local = repoReportes.obtenerPorId("r-1")!!
+        assertEquals("Room no debe adelantar un estado que el remoto rechazó", EstadoSubida.PENDIENTE, local.subida)
+        assertFalse(local.completo)
     }
 
     @Test

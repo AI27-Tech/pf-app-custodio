@@ -13,6 +13,7 @@ import com.ai27.app.custodio.domain.model.TipoMedio
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -199,5 +200,24 @@ class ReporteSyncProcesoTest {
         val resultado = proceso.ejecutar("r-1")
 
         assertTrue(resultado is Result.Failure)
+    }
+
+    @Test
+    fun `no adelanta Room cuando la escritura remota de contadores falla`() = runBlocking {
+        // Hallazgo C1: el orden era local-primero y una escritura remota fallida dejaba a
+        // Room adelantado (subida COMPLETA) sin el respaldo en Firestore. Ahora el remoto
+        // gana primero y el fallo propaga retry sin tocar el estado local.
+        crearReporteLocal(Ciclo.CERRADO)
+        crearMedioCompleto()
+        remoto.ciclos["r-1"] = Ciclo.CERRADO
+        remoto.debeFallarEscritura = true
+
+        val resultado = proceso.ejecutar("r-1")
+
+        assertTrue(resultado is Result.Failure)
+        val local = repoReportes.obtenerPorId("r-1")!!
+        assertEquals(EstadoSubida.PENDIENTE, local.subida)
+        assertEquals(0, local.mediosSubidos)
+        assertFalse(local.completo)
     }
 }

@@ -28,4 +28,6 @@ data class MedioEntity(
     @ColumnInfo(name = "sizeBytes") val sizeBytes: Long?,
     @ColumnInfo(name = "durationMs") val durationMs: Long?,
     @ColumnInfo(name = "sha256") val sha256: String?,
+    @ColumnInfo(name = "ultimoError") val ultimoError: String?,
+    @ColumnInfo(name = "intentosSubida") val intentosSubida: Int,
 )

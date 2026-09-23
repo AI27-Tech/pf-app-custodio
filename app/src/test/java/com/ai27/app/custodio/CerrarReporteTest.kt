@@ -28,8 +28,8 @@ class CerrarReporteTest {
     @Before
     fun setUp() {
         runBlocking {
-            repoReportes = FakeReporteRepository()
             repoMedios = FakeMedioRepository()
+            repoReportes = FakeReporteRepository(mediosConsultables = repoMedios)
             val crear = CrearReporte(repoReportes, ahora = { fijo })
             val capturar = CapturarMedio(repoReportes, repoMedios, ahora = { fijo })
             val reporte = (crear(custodio, "d1", "c1", "ABC-1234") as Result.Success).value

@@ -84,6 +84,7 @@ abstract class ContratoRepositoriosTest {
         reporteId: String,
         tipo: TipoMedio = TipoMedio.FOTO,
         etiquetas: List<String> = listOf("sin-novedad"),
+        durationMs: Long? = null,
     ): Medio = Medio(
         id = "medio-${UUID.randomUUID()}",
         reporteId = reporteId,
@@ -93,6 +94,7 @@ abstract class ContratoRepositoriosTest {
         contentType = if (tipo == TipoMedio.FOTO) "image/jpeg" else "audio/mp4",
         estadoSubida = EstadoSubida.PENDIENTE,
         etiquetas = etiquetas,
+        durationMs = durationMs,
     )
 
     private suspend fun reporteGuardado(
@@ -110,8 +112,9 @@ abstract class ContratoRepositoriosTest {
         reporteId: String,
         tipo: TipoMedio = TipoMedio.FOTO,
         etiquetas: List<String> = listOf("sin-novedad"),
+        durationMs: Long? = null,
     ): Medio {
-        val resultado = medios.guardar(nuevoMedio(reporteId, tipo, etiquetas), ByteArray(64), ByteArray(16))
+        val resultado = medios.guardar(nuevoMedio(reporteId, tipo, etiquetas, durationMs), ByteArray(64), ByteArray(16))
         return (resultado as Result.Success).value
     }
 
@@ -342,13 +345,12 @@ abstract class ContratoRepositoriosTest {
             closedAt = instante,
             comentario = "sin novedades",
             hayNovedad = false,
-            resumen = ResumenMedios(fotos = 1, audios = 0, durationMsTotal = 0),
-            mediosEsperados = 1,
         )
 
         assertTrue(resultado is Result.Success)
         val cerrado = reportes.obtenerPorId(reporte.id)!!
         assertEquals(Ciclo.CERRADO, cerrado.ciclo)
+        // C6: el conteo sale del UPDATE atómico (SELECT sobre medios), no de parámetros.
         assertEquals(1, cerrado.mediosEsperados)
         assertEquals("Cerrar no sube el contador: el pipeline es quien lo avanza", 0, cerrado.mediosSubidos)
         assertFalse("Cerrar no marca completo: la evidencia puede seguir en la cola", cerrado.completo)
@@ -357,6 +359,11 @@ abstract class ContratoRepositoriosTest {
     @Test
     fun `cerrar guarda comentario y hayNovedad`() = runBlocking {
         val reporte = reporteGuardado()
+        // El resumen lo deriva el propio cierre: se siembran 2 fotos + 1 audio para que la
+        // derivación atómica tenga qué contar (hallazgo C6).
+        medioGuardado(reporte.id)
+        medioGuardado(reporte.id)
+        medioGuardado(reporte.id, tipo = TipoMedio.AUDIO, durationMs = 5_000)
 
         assertTrue(
             reportes.cerrar(
@@ -364,8 +371,6 @@ abstract class ContratoRepositoriosTest {
                 closedAt = instante,
                 comentario = "se detectó un sello roto",
                 hayNovedad = true,
-                resumen = ResumenMedios(fotos = 2, audios = 1, durationMsTotal = 5_000),
-                mediosEsperados = 3,
             ) is Result.Success,
         )
 
@@ -374,19 +379,42 @@ abstract class ContratoRepositoriosTest {
         assertTrue(cerrado.hayNovedad)
         assertEquals(2, cerrado.resumenMedios.fotos)
         assertEquals(1, cerrado.resumenMedios.audios)
+        assertEquals(5_000L, cerrado.resumenMedios.durationMsTotal)
+        assertEquals(3, cerrado.mediosEsperados)
     }
 
     @Test
     fun `un reporte ya cerrado no se puede volver a cerrar`() = runBlocking {
         val reporte = reporteGuardado()
-        assertTrue(
-            reportes.cerrar(reporte.id, instante, null, false, ResumenMedios(), 0) is Result.Success,
-        )
+        assertTrue(reportes.cerrar(reporte.id, instante, null, false) is Result.Success)
 
-        val segundo = reportes.cerrar(reporte.id, instante, null, false, ResumenMedios(), 0)
+        val segundo = reportes.cerrar(reporte.id, instante, null, false)
 
         assertTrue(segundo is Result.Failure)
         assertEquals(DominioError.ReporteCerradoInmutable, (segundo as Result.Failure).error)
+    }
+
+    @Test
+    fun `cerrar cuenta los medios presentes al momento del UPDATE, no una lectura previa`() = runBlocking {
+        // Hallazgo C6: el conteo salía de una lectura previa (obtenerDelReporte del caso de
+        // uso) y un medio que entraba entre esa lectura y el UPDATE quedaba fuera de
+        // mediosEsperados — `completo` podía ponerse true antes de tiempo. El cierre es
+        // un solo UPDATE atómico con COUNT(*)/SUM sobre `medios`: cuenta lo que hay en el
+        // instante exacto del cerrar, así que la "captura en la ventana" sí entra.
+        val reporte = reporteGuardado()
+        medioGuardado(reporte.id) // lo que una lectura previa habría visto
+
+        // La captura que llega antes de que corra el cierre:
+        medioGuardado(reporte.id)
+
+        val resultado = reportes.cerrar(reporte.id, instante, null, false)
+
+        assertTrue(resultado is Result.Success)
+        val cerrado = reportes.obtenerPorId(reporte.id)!!
+        assertEquals("el medio de la ventana queda contado", 2, cerrado.mediosEsperados)
+        assertEquals(2, cerrado.resumenMedios.fotos)
+        assertEquals("sin medios subidos no puede marcarse completo", 0, cerrado.mediosSubidos)
+        assertFalse(cerrado.completo)
     }
 
     @Test
@@ -410,7 +438,7 @@ abstract class ContratoRepositoriosTest {
 
         assertEquals(reporte.id, reportes.obtenerActivo(reporte.custodioUid)?.id)
 
-        assertTrue(reportes.cerrar(reporte.id, instante, null, false, ResumenMedios(), 0) is Result.Success)
+        assertTrue(reportes.cerrar(reporte.id, instante, null, false) is Result.Success)
         assertNull(reportes.obtenerActivo(reporte.custodioUid))
     }
 
@@ -452,6 +480,34 @@ abstract class ContratoRepositoriosTest {
 
         assertFalse(
             reportes.obtenerPendientesSubida(reporte.custodioUid, desdeSiempre).any { it.id == reporte.id },
+        )
+    }
+
+    @Test
+    fun `obtenerPendientesSubida REincluye un reporte COMPLETA en divergencia`() = runBlocking {
+        // Hallazgo C1 del AUDIT: si el reporte quedó con `subida = COMPLETA` pero
+        // `completo = false` (contadores locales adelantados por una escritura remota
+        // descartada), salía de la reconciliación para siempre. Ahora la firma de
+        // divergencia local lo vuelve a exponer para sanarlo.
+        val reporte = reporteGuardado()
+        assertTrue(
+            reportes.cerrar(
+                reporteId = reporte.id,
+                closedAt = instante,
+                comentario = null,
+                hayNovedad = false,
+            ) is Result.Success,
+        )
+        assertTrue(
+            reportes.actualizarSubida(reporte.id, EstadoSubida.COMPLETA, mediosSubidos = 2, completo = false)
+                is Result.Success,
+        )
+
+        val pendientes = reportes.obtenerPendientesSubida(reporte.custodioUid, desdeSiempre)
+
+        assertTrue(
+            "subida COMPLETA con completo = false es divergencia: debe seguir en la reconciliación",
+            pendientes.any { it.id == reporte.id },
         )
     }
 
