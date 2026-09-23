@@ -2,6 +2,31 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:23 17:11 — Infraestructura Firebase movida a `pf-infra-firebase`
+
+**Resumen:** la carpeta `firebase/` (reglas de Firestore/Storage, arnés `reglas.test.js`, funciones,
+seed y provisioning) dejó de vivir en este repo y pasó a su propio hogar, el repo nuevo
+`pf-infra-firebase`. Motivo: el panel web analista ahora es consumidor real de las reglas (lectura
+del analista en `config/analistas`), y con dos clientes el perímetro compartido no puede vivir dentro
+de ninguno. La app consume las reglas/seed desde `../pf-infra-firebase`.
+
+**Cambios:**
+- Movidos a `pf-infra-firebase/`: `firebase.json`, `firestore.rules`, `storage.rules`,
+  `package.json`/`package-lock.json`, `functions/`, `provision/` (provisionar.js + telefonos.csv),
+  `seed/` y `test/reglas.test.js`.
+- `AGENTS.md`: el comando de reglas pasa de `cd firebase && npm test` a
+  `cd ../pf-infra-firebase && npm test`; seed, funciones y provisioning se referencian al repo nuevo.
+- `README.md`: comandos de `npm test`, `emulators:start`, deploy de reglas y provisioning apuntan a
+  `../pf-infra-firebase`.
+- `.gitignore`: se quitaron las entradas `firebase/node_modules/` y `firebase/functions/node_modules/`
+  (el folder ya no existe).
+
+**Archivos modificados:**
+- `AGENTS.md`
+- `README.md`
+- `.gitignore`
+- eliminados todos los archivos bajo `firebase/` (rastreados por el repo).
+
 ## 2026:09:23 — A4: catálogo remoto de etiquetas (PLAN §3.1) — entregado
 
 **Resumen:** el catálogo de etiquetas dejó de ser código y pasó a ser **dato**: la app lee

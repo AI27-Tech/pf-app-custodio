@@ -16,7 +16,7 @@ GENERIC_RULES.md contains reusable working rules. This file adds the project's A
   - Single test: `./gradlew testDebugUnitTest --tests "com.ai27.app.custodio.ExampleUnitTest"`
 - Instrumented / Compose UI tests (need emulator or connected device): `./gradlew connectedDebugAndroidTest`
 - Install on device: `./gradlew installDebug`
-- Reglas de seguridad contra el Emulator Suite (requiere Node): `cd firebase && npm test`. Ejecuta `firebase emulators:exec --only firestore,storage --project demo-custodio` sobre `firebase/test/reglas.test.js`. Primera vez: `cd firebase && npm install` (la carpeta `firebase/node_modules/` está gitignored).
+- Reglas de seguridad y provisión de Firebase viven en el repo **`pf-infra-firebase`** (no en este). Desde aquí: `cd ../pf-infra-firebase && npm test` ejecuta el arnés de reglas contra el Emulator Suite (`firebase emulators:exec --only firestore,storage --project demo-custodio` sobre `test/reglas.test.js`); el seed (`seed/`), las funciones (`functions/`) y el provisioning (`provision/`) también están ahí. Primera vez: `cd ../pf-infra-firebase && npm install`.
 
 ## Workflow: pausa para Sync
 

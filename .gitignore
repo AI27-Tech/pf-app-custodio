@@ -64,7 +64,7 @@ serviceAccountKey.json
 output-metadata.json
 /release/
 
-# --- Firebase: emulador, exportaciones y logs ---
+# --- Firebase: logs del emulador (la infra y las reglas viven en pf-infra-firebase) ---
 .firebase/
 firebase-debug.log
 firebase-debug.*.log
@@ -75,10 +75,6 @@ storage-debug.log
 ui-debug.log
 firebase-export-*/
 emulator-data/
-
-# --- Dependencias de los tests de reglas y de las funciones (firebase/) ---
-firebase/node_modules/
-firebase/functions/node_modules/
 
 # --- Crashlytics: artefactos generados ---
 com_crashlytics_export_strings.xml

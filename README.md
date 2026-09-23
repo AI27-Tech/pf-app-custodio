@@ -16,7 +16,7 @@ Para el diseño, el contrato de datos y el roadmap completo: `docs/PLAN.md`.
 ./gradlew testDebugUnitTest      # pruebas JVM (JUnit4, sin dispositivo)
 ./gradlew assembleRelease        # APK firmado para el campo
 ./gradlew installDebug           # instalar en dispositivo conectado
-cd firebase && npm test          # reglas de Firestore/Storage contra el Emulator Suite
+cd ../pf-infra-firebase && npm test # reglas de Firestore/Storage contra el Emulator Suite
 ```
 
 ### Pruebas instrumentadas contra el Emulator Suite
@@ -30,7 +30,7 @@ Requiere **tres pasos**, y el segundo es el que se olvida:
 
 ```bash
 # 1. Levantar los emuladores en la máquina de desarrollo
-cd firebase && npx firebase emulators:start --only firestore,storage,auth
+cd ../pf-infra-firebase && npx firebase emulators:start --only firestore,storage,auth
 
 # 2. Abrir los túneles al dispositivo (en otra terminal)
 adb reverse tcp:8080 tcp:8080    # Firestore
@@ -67,14 +67,14 @@ Para correr una sola clase:
 2. **A3 — Desplegar reglas de seguridad** (`docs/PLAN.md` §5.3):
 
    ```bash
-   cd firebase && firebase deploy --only firestore,storage
+   cd ../pf-infra-firebase && firebase deploy --only firestore,storage
    ```
 
    Se validan localmente antes con `npm test` (Emulator Suite, sin tocar la consola).
 3. **A4 — Cargar el catálogo de etiquetas** (PLAN §3.1). El gancho remoto está en la app: `catalogos/etiquetas` → campo `valores` (`[{ id, nombre, categoria, orden, activo }]`, `categoria ∈ SITUACION|EVIDENCIA`); se cachea por la persistencia de Firestore y la app cae al catálogo empaquetado si la lectura falla o el doc está malformado. El seed idempotente de `provisionar.js` lo siembra con el vocabulario provisional:
 
    ```bash
-   cd firebase/provision && node provisionar.js telefonos.csv
+   cd ../pf-infra-firebase/provision && node provisionar.js telefonos.csv
    ```
 
    **Sin esto no hay etiquetas que elegir al capturar** (los valores provisionales al final hay que sustituirlos por los reales derivados del tráfico del grupo, R4). Cambiar el doc no requiere recompilar ni publicar APK.
@@ -87,12 +87,12 @@ La identidad del custodio es su **número de teléfono verificado por SMS** (PHO
 
   ```bash
   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/custodio-service-account.json"   # gitignored
-  cd firebase/provision && node provisionar.js telefonos.csv
+  cd ../pf-infra-firebase/provision && node provisionar.js telefonos.csv
   ```
 
 - **Baja:** Firestore → `config/telefonos.telefonos` → quitar el número, y revocar la cuenta en Authentication. Los documentos ya subidos no se tocan (inmutabilidad, §6.1).
-- El **candado real** en producción es la función `beforeCreate` (`firebase/functions`): autoriza únicamente teléfonos de la allowlist. **Se despliega solo cuando exista el plan Blaze** (`cd firebase/functions && firebase deploy --only functions`). En Spark, la app igualmente cierra la sesión de quien no esté en la lista (verificación tras el OTP, opción B).
-- En el **emulador** no hay SMS reales: el Auth emulator simula el envío y la verificación. El seed (`firebase/seed`) ya trae el custodio de demostración `+525544880512`.
+- El **candado real** en producción es la función `beforeCreate` (`../pf-infra-firebase/functions`): autoriza únicamente teléfonos de la allowlist. **Se despliega solo cuando exista el plan Blaze** (`cd ../pf-infra-firebase/functions && firebase deploy --only functions`). En Spark, la app igualmente cierra la sesión de quien no esté en la lista (verificación tras el OTP, opción B).
+- En el **emulador** no hay SMS reales: el Auth emulator simula el envío y la verificación. El seed (`../pf-infra-firebase/seed`) ya trae el custodio de demostración `+525544880512`.
 
 ### Alta de analistas (panel web, solo lectura)
 
