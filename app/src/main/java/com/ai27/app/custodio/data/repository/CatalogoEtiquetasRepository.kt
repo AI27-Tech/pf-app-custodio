@@ -4,13 +4,18 @@ import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.repository.EtiquetaRepository
 
-// Catálogo fijo en la app (PLAN §14). Es el vocabulario curado a partir del codebook de
-// radio (Media.jpeg); será configurable desde Firebase cuando llegue el gancho remoto
-// (B5), y la forma del modelo ya no cambiará entonces (R2).
+// Catálogo embebido en la app (PLAN §14), el vocabulario curado a partir del codebook de
+// radio (Media.jpeg). Desde A4 el catálogo vivo es `catalogos/etiquetas` en Firestore y
+// este set es el **respaldo offline**: mismo contenido que se provisionó en el remoto, de
+// forma que etiquetar nunca se rompe sin conexión y el primer arranque sin el doc remoto
+// (o con él malformado) cae aquí. La forma del modelo coincide con la del remoto (R2).
 //
 // El criterio de subida es "tiene al menos una etiqueta de Situación" (decisión A de
-// §14.2): este set es la fuente de verdad de qué ids cuentan, y también lo usan la
-// migración de Room (D2) y los mappers que recalculan la columna denormalizada.
+// §14.2): qué ids cuentan lo define el catálogo activo (remoto con fallback) en
+// RoomMedioRepository.etiquetar y en el guard de SubidaMedioProceso. ESTE set se queda
+// para dos sitios históricos que no deben seguir el catálogo dinámico: la migración de
+// Room (D2, recalcula la columna de filas viejas) y MedioMappers.aEntidad (escribe los
+// mismos ids al guardar, cuando la etiquetación aún no ha ocurrido).
 val CATALOGO_ETIQUETAS: List<Etiqueta> = listOf(
     Etiqueta(id = "sin-novedad", nombre = "Sin novedad", categoria = CategoriaEtiqueta.SITUACION, orden = 0, activo = true),
     Etiqueta(id = "en-recorrido", nombre = "En recorrido", categoria = CategoriaEtiqueta.SITUACION, orden = 1, activo = true),

@@ -157,7 +157,8 @@ class WorkerSubidaMedioTest {
         database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = File(context.cacheDir, "worker-medios-${UUID.randomUUID()}").also { it.mkdirs() }
         reportes = RoomReporteRepository(database)
-        medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val catalogosFijos = EtiquetasFijas()
+        medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), catalogosFijos)
         registroDeFallos = RegistroFake()
     }
 
@@ -174,6 +175,7 @@ class WorkerSubidaMedioTest {
     ) = SubidaMedioProceso(
         reporteRepository = reportes,
         medioRepository = medios,
+        etiquetaRepository = EtiquetasFijas(),
         reporteRemoto = reporteRemoto,
         medioRemoto = medioRemoto,
         almacenArchivos = FilesDirAlmacenArchivos(directorioMedios),

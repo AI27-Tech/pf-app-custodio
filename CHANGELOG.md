@@ -2,6 +2,105 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:23 — A4: catálogo remoto de etiquetas (PLAN §3.1) — entregado
+
+**Resumen:** el catálogo de etiquetas dejó de ser código y pasó a ser **dato**: la app lee
+`catalogos/etiquetas` en Firestore (`data/remote/FirestoreCatalogoEtiquetasRepositorio`), lo cachea
+con la persistencia de Firestore y usa el set curado empaquetado (`CATALOGO_ETIQUETAS`) solo de
+**respaldo offline** (doc ausente, malformado o vacío — la trampa sin salida del catálogo vacío de
+AUDIT §11 se rechaza en `valoresDelCatalogo`). Cambiar los valores reales no requiere recompilar.
+La **Situación de subida pasó a ser dinámica**: qué ids cuentan lo decide el catálogo activo en
+`RoomMedioRepository.etiquetar` (columna `tieneSituacion`) y en el guard de `SubidaMedioProceso`;
+el set fijo queda solo en la migración de Room (`Migration(1,2)`) y en `MedioMappers` (históricos:
+no deben seguir al catálogo dinámico). Alcance B aprobado por el usuario; contrato `valores` con
+`categoria` en `docs/PLAN.md` §5.1.
+
+**Cambios:**
+
+- `app/.../data/remote/CatalogoEtiquetasDocumento.kt` (nuevo): `valoresDelCatalogo`, parser puro con
+  fallback `null` (lista vacía o entrada rota → respaldo empaquetado); admite `orden` `Int`/`Long`.
+- `app/.../data/remote/FirestoreCatalogoEtiquetasRepositorio.kt` (nuevo): lee `catalogos/etiquetas`,
+  respaldo `CATALOGO_ETIQUETAS` por defecto.
+- `app/.../data/repository/RoomMedioRepository.kt`: `etiquetar` calcula `tieneSituacion` con el
+  catálogo activo (nuevo parámetro `EtiquetaRepository`).
+- `app/.../data/pipeline/SubidaMedioProceso.kt`: guard de Situación con el catálogo activo (nuevo
+  parámetro `EtiquetaRepository`).
+- `app/.../di/DatabaseModule.kt`: `proveeEtiquetaRepository(FirebaseFirestore)` → firestore;
+  `proveeMedioRepository` inyecta el repo de etiquetas.
+- `app/.../di/PipelineModule.kt`: `proveeSubidaMedioProceso` cablea `EtiquetaRepository`.
+- Tests: `CatalogoEtiquetasDocumentoTest` (nuevo, 6 casos), Situación dinámica en
+  `RoomMedioRepositoryTest` y `SubidaMedioProcesoTest`; `FakeEtiquetaRepository` ahora con catálogo
+  configurable; constructores actualizados en `ContratoRoomTest`, `RoomReporteRepositoryTest`,
+  `SubidaMedioProcesoRoomTest`, y los androidTest `WorkerSubidaMedioTest`/`ReconciliacionColaTest`
+  (que no ven el Fake de unit tests; `EtiquetasFijas` nuevo en el source set de instrumentación).
+- Seed idempotente del catálogo en `firebase/provision/provisionar.js` (11 entradas, las mismas del
+  respaldo embebido).
+- `firebase/test/reglas.test.js`: fixture `catalogos/c1 {etiquetas:[...]}` → `catalogos/etiquetas
+  {valores:[...categoria...]}` (reglas no validan contenido, solo lectura autenticada).
+- Docs: `docs/PLAN.md` §3.1/§5.1/§9-A4, `README.md` sección A4.
+
+**Pendiente único:** sustituir los valores provisionales por los reales derivados del tráfico del
+grupo de WhatsApp (R4). Verificación: `testDebugUnitTest` y `assembleDebug` verdes;
+`compileDebugAndroidTestKotlin` verdes.
+
+## 2026:09:23 17:10 — A2: `beforeCreate` desplegado pero INERTE (decisión GCIP)
+
+**Resumen:** se desplegó la Cloud Function `beforeCreate` de `firebase/functions`
+(`bloquearTelefonoNoAutorizado`, trigger `providers/cloud.auth/eventTypes/user.beforeCreate`,
+us-central1, nodejs20) contra `custodio-906e7268`. Al intentar registrarla como blocking function
+(`PATCH .../admin/v2/projects/{project}/config?updateMask=blockingFunctions.triggers.beforeCreate`)
+la Identity Platform API respondió **`OPERATION_NOT_ALLOWED: Blocking Functions may only be
+configured for GCIP projects`**: el proyecto está en `subtype: FIREBASE_AUTH` (Auth básico). Habilitar
+blocking functions exige migrar a **Identity Platform (GCIP)**, cambio **irreversible**, diferido como
+**decisión de producto** (el candado real sigue siendo la allowlist post-OTP en la app + las reglas
+Firestore/Storage). La función queda desplegada pero **no registrada** así que Auth nunca la invoca;
+registrarla tras el upgrade es un solo PATCH con su `functionUri`.
+
+**Cambios:**
+
+- `firebase/firebase.json`: bloque `functions.source: functions` (para `firebase deploy --only
+  functions`).
+- `firebase/functions/index.js`: cabecera ampliada con el requisito GCIP y el PATCH de registro.
+- `.gitignore`: `firebase/functions/node_modules/` agregado.
+- `docs/PLAN.md` §9: carril A con estado real (A1 ✅, A2 provisión ✅ + beforeCreate ⚠️ inerte,
+  A3 ✅, A4 pendiente); corregida la línea stale "consola no configurada".
+- `AGENTS.md`: nota del `beforeCreate` inerte y del requisito GCIP.
+
+## 2026:09:23 16:00 — A2: provisioning de Producción (cuentas + allowlist)
+
+**Resumen:** se corrió `firebase/provision/provisionar.js` contra `custodio-906e7268` con la service
+account (roles Firebase Auth Admin + Cloud Datastore User): creó las **35 cuentas de Authentication**
+(de los 35 E.164 de `telefonos.csv`, que ahora incluye `+525563322805`) y reescribió
+`config/telefonos` con la allowlist completa (verificado por REST: 35, incluye `+525563322805`).
+
+**Cambios:**
+
+- `firebase/package.json` / `package-lock.json`: nueva dependencia `firebase-admin` **anclada a
+  `^12.7.0`**. La v14 (última de esa fecha) **rompe la API clásica** (`admin.firestore`/`admin.auth`
+  no son funciones); con v12 el script funciona tal cual.
+- `firebase/provision/telefonos.csv`: `+525563322805` agregado a la lista.
+- `AGENTS.md`: marcado el provisioning de A2 (sigue pendiente `config/analistas`).
+
+## 2026:09:23 15:41 — A3: reglas endurecidas publicadas en Producción
+
+**Resumen:** las reglas de §5.3/§16 (`G2: Privacidad y reglas S3–S14`) se desplegaron a la consola
+real `custodio-906e7268` el 2026-09-23 desde `firebase/firestore.rules` y `firebase/storage.rules`.
+Firestore: `firebase deploy --only firestore:rules --project custodio-906e7268`. Storage: antes hubo
+que inicializar el bucket en la consola ("Get Started" en Storage; el bucket del SDK es
+`custodio-906e7268.firebasestorage.app`), y `--only storage:rules` falló por un bug del CLI
+(`Could not find rules for the following storage targets: rules`; el target con `.firebaserc`
+desencadenó `TypeError: _a.match is not a function`), por lo que se publicó con **`--only
+storage`**, que compila y libera `storage.rules` correctamente.
+
+**Cambios:**
+
+- `firestore.rules` publicadas en `cloud.firestore` de `custodio-906e7268`.
+- `storage.rules` publicadas en `firebase.storage` de `custodio-906e7268` (create-only + acotadas).
+- Documentos `config/telefonos` y `config/analistas` verificados: **no existen aún en Producción**
+  (404 en ambos). Sin ellos el login (allowlist tras el OTP) y la lectura del analista quedan
+  denegados: es el pendiente A2 de provisión (`firebase/provision/provisionar.js`) y de la "Alta de
+  analistas" (README).
+
 ## 2026:09:23 14:13 — G2: tanda de Privacidad y reglas (S3–S14) cerrada
 
 **Resumen:** cierre del Grupo 2 de la auditoría (tanda §16 de `docs/PLAN.md`): reglas de

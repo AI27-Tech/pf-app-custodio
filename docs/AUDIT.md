@@ -28,8 +28,8 @@ resueltos al ver este documento.
 El **Grupo 2** (S3–S14) quedó atendido el **2026-09-23** según `docs/PLAN.md` §16; las marcas
 viven en cada hallazgo: S3–S10 y S12–S14 `✅ ATENDIDO`, **S11 → Producto** (retención) y
 **S13 → Grupo 6** (contexto de Crashlytics con T7). El Grupo 1 quedó atendido el 2026-09-22
-(§15, marcas en cada hallazgo). El despliegue de las reglas endurecidas a la consola sigue como
-**tarea manual del carril A (A3)**, sin hacer.
+(§15, marcas en cada hallazgo). El despliegue de las reglas endurecidas a la consola real se hizo
+el **2026-09-23** (Firestore + Storage vía `firebase deploy`, carril A3).
 
 **Aviso que sigue vigente y que conviene no perder de vista:** arreglar B1 hizo que las subidas
 funcionen por primera vez, y en ese momento **C1, C2 y C4 empezaron a producir datos incorrectos
@@ -2291,8 +2291,8 @@ custodio). Cada cambio de reglas entra **con su caso en `reglas.test.js`** (S14)
 Cerrado en la tanda de `docs/PLAN.md` §16 (2026-09-23): S3–S10 y S12–S14 quedaron atendidos y
 cada uno lleva su marca arriba; **S11 pasó a Producto** (decisión de retención; el grueso lo
 cumplió E6) y **S13 pasó al Grupo 6** (contexto de Crashlytics con T7). Arné con 89 casos y
-suite de dispositivo verde (33). Recordatorio vigente: el despliegue de las reglas endurecidas
-a la consola es **manual (carril A / A3)** y todavía no se hizo.
+suite de dispositivo verde (33). El despliegue de las reglas endurecidas a la consola real se hizo
+el 2026-09-23 (Firestore + Storage, `firebase deploy --only firestore:rules,storage`).
 
 ### Grupo 3 — Que la app sea usable en campo
 

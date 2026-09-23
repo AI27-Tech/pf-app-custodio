@@ -77,11 +77,19 @@ object PipelineModule {
     fun proveeSubidaMedioProceso(
         reporteRepository: ReporteRepository,
         medioRepository: MedioRepository,
+        etiquetaRepository: com.ai27.app.custodio.domain.repository.EtiquetaRepository,
         reporteRemoto: ReporteRemoto,
         medioRemoto: MedioRemoto,
         almacenArchivos: com.ai27.app.custodio.data.local.archivo.AlmacenArchivos,
     ): SubidaMedioProceso =
-        SubidaMedioProceso(reporteRepository, medioRepository, reporteRemoto, medioRemoto, almacenArchivos)
+        SubidaMedioProceso(
+            reporteRepository,
+            medioRepository,
+            etiquetaRepository,
+            reporteRemoto,
+            medioRemoto,
+            almacenArchivos,
+        )
 
     @Provides
     fun proveeWorkManager(@ApplicationContext context: Context): WorkManager =

@@ -1,5 +1,6 @@
 package com.ai27.app.custodio.data.pipeline
 
+import com.ai27.app.custodio.FakeEtiquetaRepository
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
 import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
@@ -47,12 +48,13 @@ class SubidaMedioProcesoRoomTest {
         database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = Files.createTempDirectory("c0-pipeline-medios").toFile()
         repoReportes = RoomReporteRepository(database)
-        repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), FakeEtiquetaRepository())
         reporteRemoto = FakeReporteRemoto()
         medioRemoto = FakeMedioRemoto()
         proceso = SubidaMedioProceso(
             repoReportes,
             repoMedios,
+            FakeEtiquetaRepository(),
             reporteRemoto,
             medioRemoto,
             FilesDirAlmacenArchivos(directorioMedios),

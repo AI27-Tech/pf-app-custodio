@@ -76,8 +76,9 @@ ui-debug.log
 firebase-export-*/
 emulator-data/
 
-# --- Dependencias de los tests de reglas (firebase/) ---
+# --- Dependencias de los tests de reglas y de las funciones (firebase/) ---
 firebase/node_modules/
+firebase/functions/node_modules/
 
 # --- Crashlytics: artefactos generados ---
 com_crashlytics_export_strings.xml

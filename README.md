@@ -71,7 +71,13 @@ Para correr una sola clase:
    ```
 
    Se validan localmente antes con `npm test` (Emulator Suite, sin tocar la consola).
-3. **A4 — Cargar el catálogo de etiquetas** en `catalogos/etiquetas` (el valor puede ser una lista provisional de trabajo; la app cachea el catálogo en el dispositivo). **Sin esto, no hay etiquetas que eligir al capturar.**
+3. **A4 — Cargar el catálogo de etiquetas** (PLAN §3.1). El gancho remoto está en la app: `catalogos/etiquetas` → campo `valores` (`[{ id, nombre, categoria, orden, activo }]`, `categoria ∈ SITUACION|EVIDENCIA`); se cachea por la persistencia de Firestore y la app cae al catálogo empaquetado si la lectura falla o el doc está malformado. El seed idempotente de `provisionar.js` lo siembra con el vocabulario provisional:
+
+   ```bash
+   cd firebase/provision && node provisionar.js telefonos.csv
+   ```
+
+   **Sin esto no hay etiquetas que elegir al capturar** (los valores provisionales al final hay que sustituirlos por los reales derivados del tráfico del grupo, R4). Cambiar el doc no requiere recompilar ni publicar APK.
 
 ### Alta y baja de custodios (teléfono)
 

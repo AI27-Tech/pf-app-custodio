@@ -8,7 +8,9 @@ import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
@@ -61,7 +63,7 @@ class RoomMedioRepositoryTest {
     @Test
     fun `guardar con miniatura escribe original y miniatura y borrar pendiente los elimina`() = runBlocking {
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
 
@@ -90,7 +92,7 @@ class RoomMedioRepositoryTest {
     @Test
     fun `etiquetar actualiza etiqueta y ubicacionTexto solo cuando se pasa`() = runBlocking {
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
         val guardado = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
@@ -109,7 +111,7 @@ class RoomMedioRepositoryTest {
     @Test
     fun `actualizarGps adjunta la ubicacion a un medio pendiente`() = runBlocking {
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
@@ -140,7 +142,7 @@ class RoomMedioRepositoryTest {
     @Test
     fun `actualizarGps no muta el medio una vez que dejo de estar pendiente`() = runBlocking {
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
@@ -174,7 +176,7 @@ class RoomMedioRepositoryTest {
         // Failure tipado, sin fila en Room y sin archivos a medias.
         val almacen = FakeAlmacenArchivos()
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, almacen)
+        val repoMedios = RoomMedioRepository(database, almacen, FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
@@ -200,7 +202,7 @@ class RoomMedioRepositoryTest {
         // referencie sería un huérfano invisible que nadie recolecta nunca.
         val almacen = AlmacenQueFallaEnLaSegundaEscritura()
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, almacen)
+        val repoMedios = RoomMedioRepository(database, almacen, FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
@@ -223,7 +225,7 @@ class RoomMedioRepositoryTest {
         // C5: un fallo permanente deja `ultimoError`/`intentosSubida` para diagnóstico;
         // una re-subida exitosa los resetea (marca el medio COMPLETA y borra el rastro).
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
@@ -248,6 +250,35 @@ class RoomMedioRepositoryTest {
         assertTrue(subido is Result.Success)
         assertEquals("el diagnóstico se limpia al subir", null, (subido as Result.Success).value.ultimoError)
         assertEquals(0, subido.value.intentosSubida)
+    }
+
+    @Test
+    fun `etiquetar usa el catalogo activo para decidir la situacion (A4)`() = runBlocking {
+        // A4: la Situación ya no es un set fijo en código; la define el catálogo (remoto
+        // con fallback). Un id de Situación que SOLO existe en el catálogo nuevo debe
+        // habilitar el medio para la cola de subida, sin recompilar.
+        val caprichoso = FakeEtiquetaRepository(
+            catalogo = listOf(
+                Etiqueta("apagon", "Apagón", CategoriaEtiqueta.SITUACION, 0, activo = true),
+                Etiqueta("llanta", "Llanta", CategoriaEtiqueta.EVIDENCIA, 0, activo = true),
+            ),
+        )
+        val repoReportes = RoomReporteRepository(database)
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), caprichoso)
+        val crear = CrearReporte(repoReportes, ahora = { fijo })
+        val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
+
+        val conSituacionNueva = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
+        repoMedios.etiquetar(conSituacionNueva.id, listOf("apagon"))
+
+        // `tieneSituacion = 1`: el medio entra a la cola de subida.
+        assertTrue(repoMedios.obtenerPendientes("c-1").map { it.id }.contains(conSituacionNueva.id))
+
+        val soloEvidencia = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
+        repoMedios.etiquetar(soloEvidencia.id, listOf("llanta"))
+
+        // Con solo Evidencia no entra a la cola, aunque "llanta" exista en el catálogo.
+        assertFalse(repoMedios.obtenerPendientes("c-1").map { it.id }.contains(soloEvidencia.id))
     }
 
     /** Deja pasar la primera escritura (el original) y falla la segunda (la miniatura). */

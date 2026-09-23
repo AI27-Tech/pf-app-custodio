@@ -51,7 +51,7 @@ class RoomReporteRepositoryTest {
     fun `el historial incluye cerrados y descartados y excluye el activo`() = runBlocking {
         var reloj = fijo
         val repoReportes = RoomReporteRepository(database)
-        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), FakeEtiquetaRepository())
         val crear = CrearReporte(repoReportes, ahora = { reloj })
         val capturar = CapturarMedio(repoReportes, repoMedios, ahora = { reloj })
         val cerrar = CerrarReporte(repoReportes, repoMedios, ahora = { reloj })

@@ -43,7 +43,7 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 - **Se quitó el selector de galería** (R6). Pediste GPS y hora por archivo; una foto sacada de la galería puede ser de otro día y otro lugar, y vacía justamente el dato que da valor.
 - **Se desnormalizan campos del reporte en cada documento de media** (B2). Firestore no hace joins: sin esto, "todos los audios de la placa XYZ la semana pasada" es imposible.
 - **Las fotos subieron de 10 a 50** (D3, R11). La resolución quedó en 1920×1080 calidad 88, y está en revisión porque el propósito real —leer el contenido de la foto— pide más (§3.4).
-- **La identidad del custodio pasó de correo+contraseña a teléfono verificado por SMS** (PHONE_AUTH, 2026-09-23). El login es de dos fases (número → OTP), la autorización se resuelve con una allowlist de teléfonos en `config/telefonos` verificada **después** del OTP (más `beforeCreate` en Cloud Functions cuando haya plan Blaze), y el contrato de datos cambió `custodioCorreo` → `custodioTelefono`. El correo+contraseña quedó descartado por completo; el único correo que sobrevive es el del **analista** del panel (`config/analistas.correos`), que es otro eje. Detalle del contrato en §5.1, provisión en §9 (A1/A2).
+- **La identidad del custodio pasó de correo+contraseña a teléfono verificado por SMS** (PHONE_AUTH, 2026-09-23). El login es de dos fases (número → OTP), la autorización se resuelve con una allowlist de teléfonos en `config/telefonos` verificada **después** del OTP (el refuerzo de servidor `beforeCreate` quedó desplegado pero **inerte**, pendiente de la decisión de subir a Identity Platform/GCIP — ver §9 A2), y el contrato de datos cambió `custodioCorreo` → `custodioTelefono`. El correo+contraseña quedó descartado por completo; el único correo que sobrevive es el del **analista** del panel (`config/analistas.correos`), que es otro eje. Detalle del contrato en §5.1, provisión en §9 (A1/A2).
 
 ---
 
@@ -53,7 +53,7 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 
 La etiqueta por archivo es obligatoria, pero **sus valores no están definidos**. No los invento: salen de lo que hoy manda la gente al grupo de WhatsApp, y la exportación de ese grupo no se entregó (R4).
 
-Para que esto no detenga el desarrollo, el catálogo es **dato, no código**: vive en `catalogos/etiquetas` en Firestore, se cachea en el dispositivo y se usa una lista provisional de trabajo durante el desarrollo, claramente marcada como tal. Cambiar los valores reales no requiere recompilar ni publicar APK.
+Para que esto no detenga el desarrollo, el catálogo es **dato, no código**: vive en `catalogos/etiquetas` en Firestore, se cachea en el dispositivo (persistencia de Firestore) y la app cae al set curado empaquetado si la lectura falla o el documento está malformado. Cambiar los valores reales no requiere recompilar ni publicar APK. El gancho remoto quedó **entregado en A4** (ver §9): se sembró el vocabulario provisional con la provisión y quedó pendiente **solo** sustituir los valores reales derivados del tráfico del grupo.
 
 **La app no puede entregarse a los 37 custodios sin este catálogo.** La forma más barata de obtenerlo sigue siendo exportar una semana del grupo (WhatsApp → Exportar chat → Sin archivos) y derivarlo del tráfico real.
 
@@ -147,7 +147,8 @@ config/telefonos
   telefonos: [string]      ← allowlist E.164 (+52…); se verifica tras el OTP. Ver §5.4
 
 catalogos/etiquetas
-  valores: [{ id, nombre, orden, activo }]      ← pendiente §3.1
+  valores: [{ id, nombre, categoria, orden, activo }]   ← A4 entregado §3.1
+    categoria   SITUACION | EVIDENCIA
 
 reportes/{reporteId}                             ← contenedor de un viaje
   placas            string   normalizada: mayúsculas, sin espacios ni guiones
@@ -220,7 +221,7 @@ Agrupado por reporte porque "evidencia para el cliente" significa descargar un v
 
 ### 5.4 Identidad, autenticación e idempotencia
 
-**Autenticación (PHONE_AUTH).** La identidad del custodio es su **teléfono E.164 verificado por SMS** (Firebase Phone Auth), no un correo. El login es de dos fases: el custodio teclea el número, recibe un OTP y lo confirma. La **autorización** se resuelve **después** del OTP contra la allowlist `config/telefonos.telefonos`: un teléfono verificado que no esté en la lista no entra. En producción con plan Blaze, un `beforeCreate` (Cloud Functions) refuerza esa puerta del lado del servidor. `Custodio(uid, telefono)` es lo que circula por la sesión; el correo+contraseña anterior quedó descartado.
+**Autenticación (PHONE_AUTH).** La identidad del custodio es su **teléfono E.164 verificado por SMS** (Firebase Phone Auth), no un correo. El login es de dos fases: el custodio teclea el número, recibe un OTP y lo confirma. La **autorización** se resuelve **después** del OTP contra la allowlist `config/telefonos.telefonos`: un teléfono verificado que no esté en la lista no entra. El `beforeCreate` (`firebase/functions`) que reforzaría esa puerta del lado del servidor está **desplegado pero inerte**: exige `subtype: GCIP` (migración irreversible, decisión de producto diferida — §9 A2). `Custodio(uid, telefono)` es lo que circula por la sesión; el correo+contraseña anterior quedó descartado.
 
 `reporteId` y `medioId` son **UUID generados en el cliente**. La ruta en Storage y el id del documento se derivan de ellos, así que un reintento sobrescribe en lugar de duplicar. Es lo que hace segura una cola offline con backoff.
 
@@ -292,14 +293,18 @@ El almacenamiento crece sin techo mientras no haya regla de retención (§3.2): 
 
 ## 9. Fases
 
-La consola de Firebase **no está configurada todavía** (nada habilitado, ninguna cuenta creada). Por eso el trabajo de consola es un **carril paralelo** y no la fase 1: así no te vuelves el bloqueo de tu propio camino crítico.
+Originalmente la consola de Firebase no estaba configurada (nada habilitado, ninguna cuenta creada); el trabajo de consola nació como **carril paralelo** para no ser el bloqueo del camino crítico. El grueso ya está hecho (ver estado en A1–A4 abajo).
 
 ### Carril A — consola (tú, en paralelo)
 
-- **A1.** Habilitar Auth (**phone sign-in**, verificación por SMS), Firestore (modo producción) y Storage en `custodio-906e7268`. El SMS OTP real exige el plan **Blaze** (Identity Platform); en Spark el Emulator Suite prueba el flujo completo pero no salen SMS reales.
-- **A2.** Dar de alta los teléfonos de los custodios. El aprovisionamiento con **Admin SDK** (`firebase/provision/`) es idempotente: crea la cuenta de Authentication por teléfono y escribe la allowlist `config/telefonos.telefonos` (E.164, +52). Con Blaze, desplegar además el `beforeCreate` de `firebase/functions/`. Alta y baja manuales por un admin, documentado en el README.
-- **A3.** Desplegar las reglas de seguridad de §5.3 (incluye `config/telefonos` legible y `config/analistas` para el correo del analista).
-- **A4.** Entregar el catálogo de etiquetas (§3.1) — lo que destraba la salida a producción.
+Estado al 2026-09-23: **A1 hecha, A2 hecha (provisión) + beforeCreate inerte, A3 hecha, A4 hecha.**
+
+- **A1.** Habilitar Auth (**phone sign-in**, verificación por SMS), Firestore (modo producción) y Storage en `custodio-906e7268`. El SMS OTP real exige el plan **Blaze** (Identity Platform); en Spark el Emulator Suite prueba el flujo completo pero no salen SMS reales. ✅ **hecho**: producto en Blaze, phone sign-in activo, Firestore modo producción y Storage con bucket. Smoke test real superado (reCAPTCHA + SMS + OTP + allowlist) con el APK release.
+- **A2.** Dar de alta los teléfonos de los custodios. El aprovisionamiento con **Admin SDK** (`firebase/provision/`) es idempotente: crea la cuenta de Authentication por teléfono y escribe la allowlist `config/telefonos.telefonos` (E.164, +52). Alta y baja manuales por un admin, documentado en el README. ✅ **provisión hecha** (35 cuentas + allowlist, 2026-09-23); el `beforeCreate` de `firebase/functions/` quedó **desplegado pero INERTE** — exige `subtype: GCIP` (migración irreversible a Identity Platform, diferida como decisión de producto). © [ver nota]
+- **A3.** Desplegar las reglas de seguridad de §5.3 (incluye `config/telefonos` legible y `config/analistas` para el correo del analista). ✅ **hecho** (2026-09-23, vía `firebase deploy --only firestore:rules,storage`).
+- **A4.** Entregar el catálogo de etiquetas (§3.1). ✅ **hecho** (2026-09-23): gancho de **catálogo remoto** en `catalogos/etiquetas` (`data/remote/FirestoreCatalogoEtiquetasRepositorio` lee el doc, cacheado por la persistencia de Firestore, con el set curado empaquetado como respaldo offline si falta/está malformado/vacío); la Situación de subida es dinámica (qué cuenta lo decide el catálogo activo en `RoomMedioRepository.etiquetar` y el guard de `SubidaMedioProceso` — el set fijo solo queda en la migración de Room y en `MedioMappers`); contrato `valores` con `categoria` en §5.1; catálogo sembrado de forma idempotente por `provisionar.js`; `reglas.test.js` alineado al doc real. **Pendiente único: sustituir los valores provisionales por los reales derivados del tráfico del grupo** (R4).
+
+[^1] Nota A2: registrable cuando exista GCIP vía `PATCH .../admin/v2/projects/{project}/config?updateMask=blockingFunctions.triggers.beforeCreate` con el `functionUri` de la función ya desplegada (`https://us-central1-custodio-906e7268.cloudfunctions.net/bloquearTelefonoNoAutorizado`).
 
 ### Carril B — app
 
@@ -1370,11 +1375,16 @@ retención (el grueso ya lo cumplió E6 en §13, sin purga por decisión); S13 �
 (la recolección incondicional queda escrita como defendible en equipos de empresa; el contexto
 `setUserId`/`setCustomKey` se cierra con T7 en el Grupo 6 del camino).
 
-**Despliegue de reglas al carril A, recordatorio.** Estas reglas endurecidas **no se
-desplegaron**: la consola `custodio-906e7268` aún no tiene las reglas de §5.3/§16. El humano
-las publica con `firebase firestore:deploy --only rules` y `firebase storage:deploy`,
-preferiblemente desde `firebase/firestore.rules` y `firebase/storage.rules` (primer carril A3).
-Hasta entonces, en Producción rigen las reglas actuales de la consola (históricas).
+**Despliegue de reglas al carril A, recordatorio (CUMPLIDO).** Estas reglas endurecidas **se
+desplegaron el 2026-09-23** a la consola `custodio-906e7268` desde `firebase/firestore.rules` y
+`firebase/storage.rules` (vía `firebase deploy --only firestore:rules,storage`, usando
+`--project custodio-906e7268`, primer carril A3). Notas del despliegue: `storage:rules`
+individual no resolvió el bucket (bug del CLI: `Could not find rules for the following storage
+targets: rules`); funcionó `--only storage`. Antes era necesario inicializar el Storage en la
+consola (El bucket del SDK es `custodio-906e7268.firebasestorage.app`). Sigue pendiente del carril
+A crear `config/telefonos` (A2: `provisionar.js` + servicio) y `config/analistas.correos`
+(revisar el README "Alta de analistas") en Producción: sin esos documentos el login y el analista
+no funcionan.
 
 **Fuera de alcance:** todo lo de los Grupos 3–6, S11 (retención → Producto), y el despliegue real
 de reglas (carril A).

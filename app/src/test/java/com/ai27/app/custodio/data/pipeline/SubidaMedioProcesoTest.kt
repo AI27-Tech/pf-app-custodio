@@ -1,13 +1,16 @@
 package com.ai27.app.custodio.data.pipeline
 
+import com.ai27.app.custodio.FakeEtiquetaRepository
 import com.ai27.app.custodio.FakeMedioRepository
 import com.ai27.app.custodio.FakeReporteRepository
 import com.ai27.app.custodio.data.remote.MedioRemoto
 import com.ai27.app.custodio.data.remote.ReporteRemoto
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
 import com.ai27.app.custodio.domain.model.Reporte
@@ -47,6 +50,7 @@ class SubidaMedioProcesoTest {
         proceso = SubidaMedioProceso(
             reporteRepository = repoReportes,
             medioRepository = repoMedios,
+            etiquetaRepository = FakeEtiquetaRepository(),
             reporteRemoto = reporteRemoto,
             medioRemoto = medioRemoto,
             almacenArchivos = archivos,
@@ -175,6 +179,47 @@ class SubidaMedioProcesoTest {
         assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(soloEvidencia.id)!!.estadoSubida)
         assertEquals(0, medioRemoto.subidos.size)
         assertEquals(0, medioRemoto.docsCreados.size)
+    }
+
+    @Test
+    fun `sube un medio cuya situacion existe solo en el catalogo remoto (A4)`() = runBlocking {
+        // A4: la Situación la define el catálogo activo (remoto con fallback), no un set
+        // fijo en código. Un id de Situación agregado en Firestore debe habilitar la
+        // subida sin recompilar: el guard del proceso no lo descarta.
+        val catalogoNuevo = FakeEtiquetaRepository(
+            catalogo = listOf(
+                Etiqueta("apagon", "Apagón", CategoriaEtiqueta.SITUACION, 0, activo = true),
+                Etiqueta("llanta", "Llanta", CategoriaEtiqueta.EVIDENCIA, 0, activo = true),
+            ),
+        )
+        proceso = SubidaMedioProceso(
+            reporteRepository = repoReportes,
+            medioRepository = repoMedios,
+            etiquetaRepository = catalogoNuevo,
+            reporteRemoto = reporteRemoto,
+            medioRemoto = medioRemoto,
+            almacenArchivos = archivos,
+        )
+        val conSituacionNueva = (repoMedios.guardar(
+            Medio(
+                id = "m-4",
+                reporteId = "r-1",
+                tipo = TipoMedio.FOTO,
+                origen = OrigenMedio.CAMARA,
+                createdAtDevice = fijo,
+                contentType = "image/jpeg",
+                estadoSubida = EstadoSubida.PENDIENTE,
+                etiquetas = listOf("apagon"),
+            ),
+            contenido = ByteArray(10),
+            miniatura = ByteArray(4),
+        ) as Result.Success).value
+
+        val resultado = proceso.ejecutar("r-1", conSituacionNueva.id)
+
+        assertTrue(resultado is Result.Success)
+        assertEquals(EstadoSubida.COMPLETA, repoMedios.obtenerPorId(conSituacionNueva.id)!!.estadoSubida)
+        assertEquals(1, medioRemoto.subidos.size)
     }
 
     @Test

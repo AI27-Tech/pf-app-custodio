@@ -7,9 +7,11 @@ import com.ai27.app.custodio.data.mapper.aEntidad
 import com.ai27.app.custodio.data.remote.aTextoPersistible
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
+import com.ai27.app.custodio.domain.repository.EtiquetaRepository
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.map
 class RoomMedioRepository(
     private val database: AppCustodioDatabase,
     private val almacenArchivos: AlmacenArchivos,
+    private val etiquetaRepository: EtiquetaRepository,
 ) : MedioRepository {
 
     private val dao = database.medioDao()
@@ -69,7 +72,14 @@ class RoomMedioRepository(
         dao.observarPendientesDe(custodioUid).map { lista -> lista.map { it.aDominio() } }
 
     override suspend fun etiquetar(medioId: String, etiquetas: List<String>, ubicacionTexto: String?): Result<Medio> {
-        val tieneSituacion = etiquetas.any { it in ETIQUETAS_SITUACION_IDS }
+        // A4: qué cuenta como Situación lo define el catálogo activo (remoto con fallback
+        // al set empaquetado), no un set fijo en código. La columna `tieneSituacion` se
+        // recalcula acá, en la escritura, para que Room y la cola de subida usen el mismo
+        // criterio que validó EtiquetarMedio.
+        val catalogo = etiquetaRepository.obtener()
+        val tieneSituacion = etiquetas.any { id ->
+            catalogo.any { it.id == id && it.categoria == CategoriaEtiqueta.SITUACION }
+        }
         val filas = dao.etiquetar(medioId, etiquetas, tieneSituacion, ubicacionTexto)
         val actualizado = dao.obtenerPorId(medioId)
         return if (filas == 1 && actualizado != null) {

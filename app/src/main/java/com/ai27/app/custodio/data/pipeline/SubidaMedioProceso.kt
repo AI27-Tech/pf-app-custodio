@@ -3,14 +3,15 @@ package com.ai27.app.custodio.data.pipeline
 import com.ai27.app.custodio.data.local.archivo.AlmacenArchivos
 import com.ai27.app.custodio.data.remote.MedioRemoto
 import com.ai27.app.custodio.data.remote.ReporteRemoto
-import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 import com.ai27.app.custodio.data.util.Sha256
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
+import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.SubidaReporte
+import com.ai27.app.custodio.domain.repository.EtiquetaRepository
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.repository.ReporteRepository
 
@@ -20,6 +21,7 @@ import com.ai27.app.custodio.domain.repository.ReporteRepository
 class SubidaMedioProceso(
     private val reporteRepository: ReporteRepository,
     private val medioRepository: MedioRepository,
+    private val etiquetaRepository: EtiquetaRepository,
     private val reporteRemoto: ReporteRemoto,
     private val medioRemoto: MedioRemoto,
     private val almacenArchivos: AlmacenArchivos,
@@ -30,8 +32,13 @@ class SubidaMedioProceso(
         // Sin etiqueta de Situación no sale: el criterio de subida es "tiene al menos una
         // Situación" (PLAN §14, decisión A) y el analista no puede filtrar evidencia sin
         // clasificar. Es defensa en profundidad — la cola ya filtra por tieneSituacion—
-        // para que ningún camino futuro se la salte (hallazgo E3).
-        if (medio.etiquetas.none { it in ETIQUETAS_SITUACION_IDS }) return Result.Success(Unit)
+        // para que ningún camino futuro se la salte (hallazgo E3). A4: qué cuenta como
+        // Situación lo define el catálogo activo (remoto con fallback), no un set fijo.
+        val catalogo = etiquetaRepository.obtener()
+        val esSituacion = medio.etiquetas.any { id ->
+            catalogo.any { it.id == id && it.categoria == CategoriaEtiqueta.SITUACION }
+        }
+        if (!esSituacion) return Result.Success(Unit)
         val reporte = reporteRepository.obtenerPorId(reporteId)
             ?: return Result.Success(Unit)
         if (reporte.ciclo == Ciclo.DESCARTADO) return Result.Success(Unit) // sin evidencia futura a un viaje descartado

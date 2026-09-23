@@ -12,6 +12,15 @@
 // DESPLIEGUE (solo cuando exista el plan Blaze):
 //   cd firebase/functions && npm install && firebase deploy --only functions
 //
+// Aviso (2026-09-23): la migración a Identity Platform (GCIP) es IRREVERSIBLE y se
+// dejó como decisión de producto. El proyecto sigue en `subtype: FIREBASE_AUTH`, así
+// que aunque esta función esté desplegada en la nube NO se registra como trigger
+// (la API responde "Blocking Functions may only be configured for GCIP projects")
+// y por tanto NO se invoca. Registrarla después del upgrade:
+//   PATCH .../admin/v2/projects/{project}/config?updateMask=blockingFunctions.triggers.beforeCreate
+//   {"blockingFunctions":{"triggers":{"beforeCreate":{"functionUri":
+//     "https://us-central1-<project>.cloudfunctions.net/bloquearTelefonoNoAutorizado"}}}}
+//
 // Con el proyecto aún en Spark esta carpeta NO se despliega: la app igualmente cierra
 // la sesión de teléfonos que no estén en la allowlist (Task 4, opción B).
 'use strict';

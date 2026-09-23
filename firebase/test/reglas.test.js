@@ -134,7 +134,12 @@ describe('Reglas de seguridad (PLAN §5.3 y §16)', () => {
           motivoDescarte: 'sin evidencia',
         }),
       );
-      await dbBase.doc('catalogos/c1').set({ etiquetas: ['carga', 'descarga', 'novedad'] });
+      await dbBase.doc('catalogos/etiquetas').set({
+        valores: [
+          { id: 'sin-novedad', nombre: 'Sin novedad', categoria: 'SITUACION', orden: 0, activo: true },
+          { id: 'accidente', nombre: 'Accidente', categoria: 'EVIDENCIA', orden: 1, activo: true },
+        ],
+      });
       await dbBase.doc('medios/m-seed').set(nuevoMedioA());
       await dbBase.doc('usuarios/uid-a').set({ correo: 'alicia@custodio.cl', rol: 'custodio', activo: true });
       // La lista que autoriza al analista, ahora por CORREOS. En producción se crea a
@@ -154,7 +159,7 @@ describe('Reglas de seguridad (PLAN §5.3 y §16)', () => {
 
   it('sin auth no crea reporte', () => assertFails(dbSinAuth.doc('reportes/r-c').set(nuevoReporteA())));
   it('sin auth no lee reporte', () => assertFails(dbSinAuth.doc('reportes/r-a').get()));
-  it('sin auth no lee catalogos', () => assertFails(dbSinAuth.doc('catalogos/c1').get()));
+  it('sin auth no lee catalogos', () => assertFails(dbSinAuth.doc('catalogos/etiquetas').get()));
 
   // ============ CREACIÓN DE REPORTES ============
 
@@ -186,8 +191,8 @@ describe('Reglas de seguridad (PLAN §5.3 y §16)', () => {
   it('alicia no lee el reporte de bruno', () => assertFails(dbA.doc('reportes/r-b').get()));
   it('bruno no lee el reporte de alicia', () => assertFails(dbB.doc('reportes/r-a').get()));
   it('get de reporte inexistente no falla', () => assertSucceeds(dbA.doc('reportes/inexistente').get()));
-  it('cualquier custodio lee catalogos', () => assertSucceeds(dbA.doc('catalogos/c1').get()));
-  it('sin auth no escribe catalogos', () => assertFails(dbSinAuth.doc('catalogos/c1').set({ etiquetas: [] })));
+  it('cualquier custodio lee catalogos', () => assertSucceeds(dbA.doc('catalogos/etiquetas').get()));
+  it('sin auth no escribe catalogos', () => assertFails(dbSinAuth.doc('catalogos/etiquetas').set({ etiquetas: [] })));
 
   // ============ TRANSICIONES DE CICLO (S7) Y CONTADORES (S6) ============
 
@@ -356,7 +361,7 @@ describe('Reglas de seguridad (PLAN §5.3 y §16)', () => {
   it('analista lee el reporte de alicia', () => assertSucceeds(dbAn.doc('reportes/r-a').get()));
   it('analista lee el reporte de bruno', () => assertSucceeds(dbAn.doc('reportes/r-b').get()));
   it('analista lee un medio ajeno', () => assertSucceeds(dbAn.doc('medios/m-seed').get()));
-  it('analista lee catalogos', () => assertSucceeds(dbAn.doc('catalogos/c1').get()));
+  it('analista lee catalogos', () => assertSucceeds(dbAn.doc('catalogos/etiquetas').get()));
   it('analista lee el directorio de usuarios', () => assertSucceeds(dbAn.doc('usuarios/uid-a').get()));
 
   // Consultas de lista: es aquí donde una regla mal escrita rompe el panel entero.
@@ -378,7 +383,7 @@ describe('Reglas de seguridad (PLAN §5.3 y §16)', () => {
   it('analista no crea medio', () => assertFails(dbAn.doc('medios/m-an').set(nuevoMedioA({ custodioUid: 'uid-an' }))));
   it('analista no actualiza medio', () => assertFails(dbAn.doc('medios/m-seed').update({ etiquetas: ['otra'] })));
   it('analista no borra medio', () => assertFails(dbAn.doc('medios/m-seed').delete()));
-  it('analista no escribe catalogos', () => assertFails(dbAn.doc('catalogos/c1').set({ etiquetas: [] })));
+  it('analista no escribe catalogos', () => assertFails(dbAn.doc('catalogos/etiquetas').set({ etiquetas: [] })));
 
   // La lista de autorización no la toca ningún cliente, ni el analista
   it('analista no lee config/analistas', () => assertFails(dbAn.doc('config/analistas').get()));

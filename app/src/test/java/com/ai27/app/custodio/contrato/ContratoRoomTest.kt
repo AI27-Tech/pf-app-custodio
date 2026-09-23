@@ -31,7 +31,7 @@ class ContratoRoomTest : ContratoRepositoriosTest() {
         database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = Files.createTempDirectory("contrato-medios").toFile()
         reportes = RoomReporteRepository(database)
-        medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), com.ai27.app.custodio.FakeEtiquetaRepository())
     }
 
     @After

@@ -75,7 +75,7 @@ class ReconciliacionColaTest {
         database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = File(context.cacheDir, "recon-medios-${UUID.randomUUID()}").also { it.mkdirs() }
         reportes = RoomReporteRepository(database)
-        medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
+        medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), EtiquetasFijas())
         scheduler = WorkManagerSubidaScheduler(context, reportes, medios)
     }
 
