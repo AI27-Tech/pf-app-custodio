@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,12 +35,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.captura.HojaEtiqueta
@@ -47,8 +51,10 @@ import com.ai27.app.custodio.ui.captura.VistaCamara
 import com.ai27.app.custodio.ui.captura.tomarFoto
 import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
 import com.ai27.app.custodio.ui.components.BarraSuperior
+import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.components.abrirAjustesDelSistema
 import com.ai27.app.custodio.ui.previews.DatosDemo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
@@ -57,6 +63,9 @@ import kotlinx.coroutines.launch
 private data class PermisosCamara(
     val camara: Boolean,
     val mic: Boolean,
+    // S8: hay que pedir y RE-CHECKEAR la ubicación aproximada; la fina sigue siendo la
+    // ideal, pero la app funciona (con menor precisión) teniendo solo la COARSE.
+    val ubicacion: Boolean,
 )
 
 /**
@@ -107,17 +116,24 @@ fun CapturaEvidenciaScreen(
             PackageManager.PERMISSION_GRANTED,
         mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED,
+        ubicacion = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED,
     )
 
     fun permisosSolicitados(): Array<String> = arrayOf(
         Manifest.permission.CAMERA,
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.ACCESS_FINE_LOCATION,
+        // S8: la aproximada da lo mismo pedirla junto en el mismo diálogo: si el
+        // custodio solo concede la COARSE, la captura sigue funcionando degradada.
+        Manifest.permission.ACCESS_COARSE_LOCATION,
     )
 
     var permisos by remember {
         mutableStateOf(
-            if (inspeccion) PermisosCamara(camara = true, mic = true) else permisosActuales(),
+            if (inspeccion) PermisosCamara(camara = true, mic = true, ubicacion = true) else permisosActuales(),
         )
     }
     val lanzadorPermisos = rememberLauncherForActivityResult(
@@ -125,9 +141,21 @@ fun CapturaEvidenciaScreen(
     ) { permisos = permisosActuales() }
 
     LaunchedEffect(Unit) {
-        if (!inspeccion && (!permisos.camara || !permisos.mic)) {
+        if (!inspeccion && (!permisos.camara || !permisos.mic || !permisos.ubicacion)) {
             lanzadorPermisos.launch(permisosSolicitados())
         }
+    }
+
+    // S9: al volver de los Ajustes del sistema (o de un diálogo que ya pidió todo) el
+    // estado de permisos pudo cambiar; se re-chequea en ON_RESUME para que la pantalla
+    // reaccione sin obligar a navegar fuera y volver.
+    val duenoDelCiclo = LocalLifecycleOwner.current
+    DisposableEffect(duenoDelCiclo) {
+        val observador = LifecycleEventObserver { _, evento ->
+            if (evento == Lifecycle.Event.ON_RESUME) permisos = permisosActuales()
+        }
+        duenoDelCiclo.lifecycle.addObserver(observador)
+        onDispose { duenoDelCiclo.lifecycle.removeObserver(observador) }
     }
 
     val disparoHabilitado = permisos.camara &&
@@ -170,6 +198,14 @@ fun CapturaEvidenciaScreen(
                             lanzadorPermisos.launch(permisosSolicitados())
                         },
                     ) { Text(stringResource(R.string.captura_permitir_camara)) }
+                    Spacer(Modifier.size(8.dp))
+                    // S9: si el diálogo ya no puede volver a pedirse ("no volver a
+                    // preguntar") el único camino es la pantalla de Ajustes del sistema;
+                    // el re-chequeo en ON_RESUME actualiza el estado al regresar.
+                    BotonSecundario(
+                        texto = stringResource(R.string.captura_abrir_ajustes),
+                        onClick = { abrirAjustesDelSistema(context) },
+                    )
                 }
             }
         }

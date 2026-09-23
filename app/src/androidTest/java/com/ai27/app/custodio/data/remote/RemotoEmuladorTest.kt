@@ -120,40 +120,53 @@ class RemotoEmuladorTest {
         val reporte = reporteDePrueba()
         assertTrue(reporteRemoto.crear(reporte) is Result.Success)
 
+        // S6 (PLAN §16): sin `mediosEsperados` (solo se fija al cerrar) `completo` no
+        // puede ser true; la app nunca lo escribe antes del cierre. La regresión B1 de
+        // este test es que `actualizarContadores()` usa update() → Task<Void> y debe
+        // tener éxito con los valores que el contrato admite durante la captura.
         val actualizado = reporteRemoto.actualizarContadores(
             reporteId = reporte.id,
-            estado = EstadoSubida.COMPLETA,
+            estado = EstadoSubida.EN_PROGRESO,
             mediosSubidos = 1,
-            completo = true,
+            completo = false,
         )
 
         assertTrue("actualizarContadores() usa update() → Task<Void>: era parte de B1.", actualizado is Result.Success)
+
+        val doc = FirebaseFirestore.getInstance().collection("reportes").document(reporte.id).get().await()
+        assertEquals("subida debe avanzar a EN_PROGRESO", "EN_PROGRESO", doc.getString("subida"))
+        assertEquals("mediosSubidos avanza", 1L, doc.getLong("mediosSubidos"))
+        assertEquals("completo sigue false sin haber cerrado", false, doc.getBoolean("completo"))
     }
 
     @Test
     fun actualizarContadores_es_monotono_ante_escrituras_intercaladas() = runBlocking {
         // C3 (docs/AUDIT.md): dos writers intercalados sin transacción hacían regresar
-        // `mediosSubidos` y dejaban `completo = false` para siempre (nada lo recalculaba).
-        // La escritura es un merge monótono en una transacción: una llamada "vieja"
-        // (calculada con una fotografía menor) nunca pisa a una más reciente.
+        // `mediosSubidos` y dejaban `completo = false` para siempre. La escritura es un
+        // merge monótono en una transacción (subida no retrocede de rango, mediosSubidos
+        // es el máximo, completo es un OR): una llamada "vieja" (calculada con una
+        // fotografía menor) nunca pisa a una más reciente.
         val reporte = reporteDePrueba()
         assertTrue(reporteRemoto.crear(reporte) is Result.Success)
 
         assertTrue(
-            reporteRemoto.actualizarContadores(reporte.id, EstadoSubida.COMPLETA, mediosSubidos = 2, completo = true)
+            reporteRemoto.actualizarContadores(reporte.id, EstadoSubida.EN_PROGRESO, mediosSubidos = 1, completo = false)
                 is Result.Success,
         )
+        // La "escritura vieja" del intercalado: llega DESPUÉS con valores menores. El
+        // merge del cliente la absorbe (sigue siendo Success) y S6 (PLAN §16) es la
+        // segunda línea: si algún día una escritura directa intentara regresar los
+        // contadores, las reglas la rechazarían.
         assertTrue(
-            // La "escritura vieja" del intercalado: llega DESPUÉS con valores menores.
-            reporteRemoto.actualizarContadores(reporte.id, EstadoSubida.EN_PROGRESO, mediosSubidos = 1, completo = false)
+            reporteRemoto.actualizarContadores(reporte.id, EstadoSubida.PENDIENTE, mediosSubidos = 0, completo = false)
                 is Result.Success,
         )
 
         val doc = FirebaseFirestore.getInstance().collection("reportes").document(reporte.id).get().await()
         assertTrue("El reporte debe existir tras crear()", doc.exists())
-        assertEquals("subida no regresa de COMPLETA", "COMPLETA", doc.getString("subida"))
-        assertEquals("mediosSubidos nunca retrocede", 2L, doc.getLong("mediosSubidos"))
-        assertEquals("completo nunca vuelve a false", true, doc.getBoolean("completo"))
+        assertEquals("subida no retrocede del rango alcanzado", "EN_PROGRESO", doc.getString("subida"))
+        assertEquals("mediosSubidos nunca retrocede", 1L, doc.getLong("mediosSubidos"))
+        assertEquals("completo no retrocede a false", false, doc.getBoolean("completo"))
     }
 
     @Test
@@ -227,6 +240,33 @@ class RemotoEmuladorTest {
     }
 
     @Test
+    fun audio_graba_subida_y_documento_sin_miniatura() = runBlocking {
+        // Red de regresión S5 (G2-9): el AUDIO no lleva miniatura (thumbnailPath = null),
+        // así que las reglas tenían que tolerar null ahí o el create del documento se
+        // negaba con PERMISSION_DENIED aunque el blob de Storage ya había subido.
+        val reporte = reporteDePrueba()
+        assertTrue(reporteRemoto.crear(reporte) is Result.Success)
+
+        val medio = AudioDePrueba(reporte.id)
+        val contenido = ByteArray(128) { it.toByte() }
+
+        val subido = medioRemoto.subirArchivo(reporte, medio, contenido, null)
+        assertTrue("subirArchivo() para audio debe devolver rutas. Obtuve: $subido", subido is Result.Success)
+        val rutas = (subido as Result.Success).value
+        assertEquals("medios/${reporte.id}/${medio.id}.m4a", rutas.media)
+        assertTrue("El audio no genera miniatura", rutas.miniatura == null)
+
+        val documento = medioRemoto.crearDocumentoSiNoExiste(reporte, medio, rutas)
+        assertTrue("crearDocumentoSiNoExiste() para audio debe pasar las reglas. Obtuve: $documento", documento is Result.Success)
+
+        val leido = FirebaseFirestore.getInstance().collection("medios").document(medio.id).get().await()
+        assertTrue(leido.exists())
+        assertEquals(medio.reporteId, leido.getString("reporteId"))
+        assertEquals(rutas.media, leido.getString("storagePath"))
+        assertEquals("audio/mp4", leido.getString("contentType"))
+    }
+
+    @Test
     fun crearDocumento_es_idempotente_en_el_reintento() = runBlocking {
         val reporte = reporteDePrueba()
         assertTrue(reporteRemoto.crear(reporte) is Result.Success)
@@ -295,5 +335,18 @@ class RemotoEmuladorTest {
         estadoSubida = EstadoSubida.PENDIENTE,
         etiquetas = listOf("sin-novedad"),
         sizeBytes = 128L,
+    )
+
+    private fun AudioDePrueba(reporteId: String): Medio = Medio(
+        id = "audio-${UUID.randomUUID()}",
+        reporteId = reporteId,
+        tipo = TipoMedio.AUDIO,
+        origen = OrigenMedio.GRABADORA,
+        createdAtDevice = Instant.now(),
+        contentType = "audio/mp4",
+        estadoSubida = EstadoSubida.PENDIENTE,
+        etiquetas = listOf("sin-novedad"),
+        sizeBytes = 128L,
+        durationMs = 5210L,
     )
 }

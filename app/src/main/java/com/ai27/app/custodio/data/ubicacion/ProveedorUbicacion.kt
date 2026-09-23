@@ -36,7 +36,7 @@ class FusedProveedorUbicacion(
                 val token = CancellationTokenSource()
                 cont.invokeOnCancellation { token.cancel() }
                 try {
-                    cliente.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, token.token)
+                    cliente.getCurrentLocation(prioridadDeUbicacion(), token.token)
                         .addOnCompleteListener { tarea ->
                             if (!cont.isActive) return@addOnCompleteListener
                             // tarea.result lanza RuntimeExecutionException si la Task falló,
@@ -51,11 +51,21 @@ class FusedProveedorUbicacion(
         }
     }
 
-    private fun tienePermisoDeUbicacion(): Boolean =
+    private fun tienePermisoDeUbicacion(): Boolean = tienePermisoFina() || tienePermisoGruesa()
+
+    private fun tienePermisoFina(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
+
+    private fun tienePermisoGruesa(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    // S8: con solo la aproximada no se puede pedir alta precisión; se degrada a
+    // PRIORITY_BALANCED_POWER_ACCURACY para que el punto siga teniendo valor útil para
+    // el caso de uso.
+    private fun prioridadDeUbicacion(): Int =
+        if (tienePermisoFina()) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
 }
 
 private fun Location.aGps(): Gps = Gps(

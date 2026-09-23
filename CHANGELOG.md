@@ -2,6 +2,55 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:23 14:13 — G2: tanda de Privacidad y reglas (S3–S14) cerrada
+
+**Resumen:** cierre del Grupo 2 de la auditoría (tanda §16 de `docs/PLAN.md`): reglas de
+Firestore/Storage endurecidas y validadas contra el Emulator Suite y el teléfono, permisos de
+ubicación/micrófono completos, y `ModoEmulador` atado a `BuildConfig.DEBUG`. Se desplegó en el
+emulador y en dispositivo; el despliegue a la consola real queda como tarea manual del carril A
+(no se hizo). El audio no subía (los `.m4a` llegaban a Storage pero el documento de `medios` se
+rechazaba porque `thumbnailPath` nulo no estaba tolerado); quedó corregido con regresión en el
+arné y en el dispositivo.
+
+**Cambios:**
+
+- S3/S4 (Storage): lista blanca de `contentType` y tope de tamaño (`FOTO` ≤ 12 MB `image/jpeg`,
+  `AUDIO` ≤ 25 MB `audio/mp4`) acoplados al `{tipo}` de la ruta; `update`/`delete` negados,
+  reintento idempotente contra ausencia del objeto (`resource == null`).
+- S5/S6/S7 (Firestore): `hasOnly()` con las llaves exactas, tipos por campo, enums, rango de
+  `mediosEsperados`, `storagePath`/`thumbnailPath` anclados a `medios/{reporteId}/`,
+  `contadoresValidos` (monotonía + cota + `subida` enum + `completo` derivado) y `soloCambia`
+  por transición; campos nullable aceptados como null de verdad (incluido `thumbnailPath`).
+- S8 (ubicación): `AccessCoarseLocation` pedido y consultado; `ProveedorUbicacion` degrada a
+  `PRIORITY_BALANCED_POWER_ACCURACY` con solo COARSE.
+- S9/S10 (permisos): rationale + botón "Abrir ajustes del sistema"
+  (`ui/components/AjustesDelSistema.kt`), re-chequeo de permisos en `ON_RESUME` (cámara y
+  audio), petición de `RECORD_AUDIO` desde `AudioScreen`. Strings nuevos
+  `captura_abrir_ajustes`, `audio_sin_microfono`, `audio_permitir_microfono`.
+- S12: `ModoEmulador.activo = BuildConfig.DEBUG && meta-data modo_emulador` (`buildConfig =
+  true`).
+- Arné de reglas endurecido: 48 → **89 casos** (nuevo caso de AUDIO con `thumbnailPath` null);
+  suite de dispositivo 32 → **33** (`audio_graba_subida_y_documento_sin_miniatura`).
+- S11 → Producto (retención) y S13 → Grupo 6 (contexto de Crashlytics con T7): reclasificados
+  en `AUDIT.md`, no arreglados aquí.
+
+**Archivos modificados:**
+
+- `firebase/firestore.rules`
+- `firebase/storage.rules`
+- `firebase/test/reglas.test.js`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/remote/RemotoEmuladorTest.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/ubicacion/ProveedorUbicacion.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/AudioScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/components/AjustesDelSistema.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/ModoEmulador.kt`
+- `app/build.gradle.kts`
+- `app/src/main/res/values/strings.xml`
+- `docs/PLAN.md`
+- `docs/AUDIT.md`
+- `CHANGELOG.md`
+
 ## 2026:09:23 12:15
 
 **Resumen:** Se reconció `docs/PLAN.md` con la migración PHONE_AUTH (identidad por teléfono verificado por SMS), que estaba desactualizada en las secciones de autenticación y contrato de datos frente al código y al README. Solo documentación; no se tocó código.

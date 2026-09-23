@@ -1325,19 +1325,56 @@ requiere habilitar `buildConfig` en `build.gradle.kts` → **pausa de Sync** ant
 
 | # | Tarea | Estado |
 | --- | --- | --- |
-| G2-0 | Endurecer el arnés de `reglas.test.js` (aislar estado compartido) — habilita el resto (S14) | pendiente |
-| G2-1 | **S7** — `soloCambia` en `ACTIVO→CERRADO` y `ACTIVO→DESCARTADO` | pendiente |
-| G2-2 | **S6** — cotas y monotonía de contadores + enum de `subida` (coordina con C3) | pendiente |
-| G2-3 | **S5** — `hasOnly()`, tipos, rango de `mediosEsperados`, `storagePath` anclado | pendiente |
-| G2-4 | **S3** — tope de tamaño y lista blanca de `contentType` en Storage | pendiente |
-| G2-5 | **S4** — negar `update` en Storage (reintento contra ausencia del objeto) | pendiente |
-| G2-6 | **S8** — pedir y consultar `COARSE`; degradar a `PRIORITY_BALANCED` (encaja con R13) | pendiente |
-| G2-7 | **S9 + S10** — rationale + ruta a Ajustes, re-chequeo en `ON_RESUME`, micrófono desde Audio | pendiente |
-| G2-8 | **S12** (tras pausa de Sync) — `BuildConfig.DEBUG && activo(context)` | pendiente |
-| G2-9 | Cierre: marcas en `AUDIT.md` (S11→Producto, S13→Grupo 6), §16, `CHANGELOG.md`; recordar el despliegue manual de reglas (carril A) | pendiente |
+| G2-0 | Endurecer el arnés de `reglas.test.js` (aislar estado compartido) — habilita el resto (S14) | ✅ hecha (2026-09-23) |
+| G2-1 | **S7** — `soloCambia` en `ACTIVO→CERRADO` y `ACTIVO→DESCARTADO` | ✅ hecha (2026-09-23) |
+| G2-2 | **S6** — cotas y monotonía de contadores + enum de `subida` (coordina con C3) | ✅ hecha (2026-09-23) |
+| G2-3 | **S5** — `hasOnly()`, tipos, rango de `mediosEsperados`, `storagePath` anclado | ✅ hecha (2026-09-23) |
+| G2-4 | **S3** — tope de tamaño y lista blanca de `contentType` en Storage | ✅ hecha (2026-09-23) |
+| G2-5 | **S4** — negar `update` en Storage (reintento contra ausencia del objeto) | ✅ hecha (2026-09-23) |
+| G2-6 | **S8** — pedir y consultar `COARSE`; degradar a `PRIORITY_BALANCED_POWER_ACCURACY` (encaja con R13) | ✅ hecha (2026-09-23) |
+| G2-7 | **S9 + S10** — rationale + ruta a Ajustes, re-chequeo en `ON_RESUME`, micrófono desde Audio | ✅ hecha (2026-09-23) |
+| G2-8 | **S12** (tras pausa de Sync) — `BuildConfig.DEBUG && activo(context)` | ✅ hecha (2026-09-23) |
+| G2-9 | Cierre: marcas en `AUDIT.md` (S11→Producto, S13→Grupo 6), §16, `CHANGELOG.md`; recordar el despliegue manual de reglas (carril A) | ✅ hecha (2026-09-23) |
 
 **Dependencias:** G2-0 primero. G2-1…G2-5 comparten arnés. G2-2 coordina con C3. G2-6/G2-7 son
 independientes de las reglas. G2-8 al final por la pausa de Sync.
+
+### 16.4 Resultado de la tanda (2026-09-23) y desviaciones al ejecutar
+
+**Verde de punta a punta.** `cd firebase && npm test` en verde con **89 casos / 0 fallos**
+(arnés endurecido, G2-0); `./gradlew testDebugUnitTest` verde; `connectedDebugAndroidTest`
+verde (33 pruebas) en el teléfono CPH2769 contra el Emulator Suite levantado con
+`--project custodio-906e7268 --import seed` (el proyecto que usa el SDK; ver quirk en
+`AGENTS.md`). El dispositivo quedó con la app instalada y el flujo de audio verificado a mano.
+
+**Hallazgo nuevo que salió de probar en el dispositivo: `thumbnailPath` nulo en AUDIO.** Las
+reglas de `medios` toleraban null en `gps`/`ubicacionTexto`/`comentario`/`sizeBytes`/
+`durationMs`/`sha256` pero pedían `thumbnailPath is string`; el AUDIO lleva `miniatura = null`
+(`RutasStorage`), así que el blob `.m4a` sí subía a Storage pero el create del documento en
+`medios` se rechazaba (`PERMISSION_DENIED evaluation error`), y el worker quedaba FALLIDA sin
+aviso de causa. Solo afectaba audio porque la foto siempre trae miniatura. Fix: tolerar
+`thumbnailPath == null` en `camposDeMedioValidos`, con regresión en el arnés (`dueño crea un
+medio de AUDIO`) y en el dispositivo (`audio_graba_subida_y_documento_sin_miniatura` en
+`RemotoEmuladorTest`).
+
+**S6 contra el contrato real, no contra la versión ideal.** Los tests del arnés que
+cubrieron S6 con `completo=true` sin `mediosEsperados` se actualizaron al contrato que la app
+escribe (nunca cierra `completo` pre-cierre; `SubidaReporte.completo()` exige
+`mediosEsperados`); la escritura vieja que violaría monotonía **la absorbe la transacción del
+cliente** (`FirebaseReporteRemoto` hace merge monótono con `max`/OR), así que no hay regresión
+posible por reintento. Igual que en §15, la firma nula (`thumbnailPath`/`gps`/etc.) viaja en el
+create y las reglas la aceptan por campo.
+
+**S11 y S13 no se "arreglan" aquí, se reclasifican (D6).** S11 → **Producto** como decisión de
+retención (el grueso ya lo cumplió E6 en §13, sin purga por decisión); S13 → **Grupo 6**
+(la recolección incondicional queda escrita como defendible en equipos de empresa; el contexto
+`setUserId`/`setCustomKey` se cierra con T7 en el Grupo 6 del camino).
+
+**Despliegue de reglas al carril A, recordatorio.** Estas reglas endurecidas **no se
+desplegaron**: la consola `custodio-906e7268` aún no tiene las reglas de §5.3/§16. El humano
+las publica con `firebase firestore:deploy --only rules` y `firebase storage:deploy`,
+preferiblemente desde `firebase/firestore.rules` y `firebase/storage.rules` (primer carril A3).
+Hasta entonces, en Producción rigen las reglas actuales de la consola (históricas).
 
 **Fuera de alcance:** todo lo de los Grupos 3–6, S11 (retención → Producto), y el despliegue real
 de reglas (carril A).

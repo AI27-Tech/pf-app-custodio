@@ -69,6 +69,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // S12 (G2-8): ModoEmulador.activo() = BuildConfig.DEBUG && meta-data
+        // modo_emulador; el flag de debug se lee de BuildConfig.
+        buildConfig = true
     }
 
     // El gate de lint del release era ciego: lintVitalRelease —lo que corre assembleRelease—

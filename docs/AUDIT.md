@@ -25,6 +25,12 @@ resueltos al ver este documento.
 | S1 · foto publicada en la galería compartida | ✅ atendido | Cero referencias en `app/src`; **verificado en el teléfono**: 0 filas en MediaStore de `com.ai27.app.custodio` (15683 imágenes + 1033 audios) |
 | S2 · evidencia respaldada a Google | ✅ atendido | `allowBackup="false"` en el manifest fusionado; **`bmgr backupnow` en el teléfono → "Backup is not allowed"** |
 
+El **Grupo 2** (S3–S14) quedó atendido el **2026-09-23** según `docs/PLAN.md` §16; las marcas
+viven en cada hallazgo: S3–S10 y S12–S14 `✅ ATENDIDO`, **S11 → Producto** (retención) y
+**S13 → Grupo 6** (contexto de Crashlytics con T7). El Grupo 1 quedó atendido el 2026-09-22
+(§15, marcas en cada hallazgo). El despliegue de las reglas endurecidas a la consola sigue como
+**tarea manual del carril A (A3)**, sin hacer.
+
 **Aviso que sigue vigente y que conviene no perder de vista:** arreglar B1 hizo que las subidas
 funcionen por primera vez, y en ese momento **C1, C2 y C4 empezaron a producir datos incorrectos
 en Firestore** — `sha256` nulo y no rellenable, contadores que pueden quedar desfasados, y
@@ -765,7 +771,13 @@ evidencia con pipeline propio. Si se quiere conservar backup, hay que excluir
 `cloud-backup` **y** `device-transfer`) — respaldar solo la base es peor que no respaldar
 nada. Y pasar `localPath`/`thumbnailPath` a ruta **relativa** resuelta contra `filesDir`.
 
-### S3 · Storage sin tope de tamaño ni validación de `contentType` — ALTO · VERIFICADO
+### S3 · Storage sin tope de tamaño ni validación de `contentType` — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-4 de `docs/PLAN.md` §16).** `storage.rules` ganó `esArchivoPermitido()`:
+> `FOTO` ≤ 12 MB y `image/jpeg`, `AUDIO` ≤ 25 MB y `audio/mp4`, con el `{tipo}` de la ruta
+> acoplado al prefijo del nombre (`medios/{reporteId}/{medioId}[.jpg|-min.jpg|.m4a]`), de modo
+> que la lista blanca y la ruta no se pueden desalinear. Casos en `reglas.test.js` y round-trip
+> de `RemotoEmuladorTest`.
 
 `firebase/storage.rules:34-38`. `allow create, update` solo comprueba autenticación y dueño
 del reporte: no hay `request.resource.size < N`, ni
@@ -779,7 +791,12 @@ empresa. El panel del analista recibiría URLs de descarga de tipo arbitrario.
 **Dirección:** tope duro por tipo (p. ej. ≤12 MB foto, ≤25 MB audio) y lista blanca de
 `contentType`. Es una regla, no requiere cambios en la app.
 
-### S4 · `update` en Storage permite sobrescribir evidencia ya cerrada — ALTO · VERIFICADO
+### S4 · `update` en Storage permite sobrescribir evidencia ya cerrada — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-5 de `docs/PLAN.md` §16).** `update`/`delete` en Storage están **negados**;
+> solo se permite `create` con `resource == null` (idempotencia contra ausencia del objeto) y
+> el `update` del documento `medios` —create-only— nunca reescribe la ruta. El reintento de la
+> app es un `subirSiNoExiste` (`FirebaseMedioRemoto`), probado en arnés y en dispositivo.
 
 `firebase/storage.rules:37`, **probado y aceptado** en `firebase/test/reglas.test.js:190`
 ("dueño sobrescribe en reintento (update)").
@@ -798,7 +815,15 @@ borrado, porque es silencioso**. (Y hoy el `sha256` remoto es null de todos modo
 idempotente contra la ausencia del objeto. Si `update` debe quedar, condicionarlo a
 `firestore.get(...).data.ciclo == 'ACTIVO'`.
 
-### S5 · Firestore: cero validación de forma, tipo y tamaño — ALTO · VERIFICADO
+### S5 · Firestore: cero validación de forma, tipo y tamaño — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-3 de `docs/PLAN.md` §16).** `hasOnly()` con las llaves exactas del contrato,
+> tipos por campo (`is string`/`is int`/`is timestamp`), enums (`ciclo`, `tipo`, `origen`,
+> `subida`), rango y monotonía de contadores (S6), y `storagePath`/`thumbnailPath` anclados a
+> `medios/{reporteId}/` con `matches`. Los campos nullable del contrato se aceptan **null de
+> verdad** (`gps`, `ubicacionTexto`, `comentario`, `sizeBytes`, `durationMs`, `sha256`,
+> `thumbnailPath`, `mediosEsperados`, `closedAt`, `motivoDescarte`) porque la app los escribe
+> así en el create (ver hallazgo de `thumbnailPath` en §16.4). Cerrado con 89 casos en el arnés.
 
 `firebase/firestore.rules:63-67` (create de reporte) y `:88-90` (create de medio).
 
@@ -815,7 +840,14 @@ la colección que consume el panel (DoS del panel, inyección de contenido en su
 en los campos que el panel usa, y anclar
 `storagePath.matches('^medios/' + request.resource.data.reporteId + '/.*')`.
 
-### S6 · `mediosSubidos` y `completo` son contadores libres, sin cota — ALTO · VERIFICADO
+### S6 · `mediosSubidos` y `completo` son contadores libres, sin cota — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-2 de `docs/PLAN.md` §16; coordina con C3).** `contadoresValidos()` exige
+> monotonía (`nuevo.mediosSubidos >= previo.mediosSubidos`), cota
+> (`<= previo/actual mediosEsperados`), `subida in [PENDIENTE, EN_PROGRESO, COMPLETA, FALLIDA]`
+> y `completo == (mediosSubidos == mediosEsperados)`. El cliente sube con merge monótono
+> (C3), así que reintentos no reportan falsos COMPLETA. Tests de arnés actualizados al
+> contrato real (ver §16.4).
 
 `firebase/firestore.rules:70-78`. `transicionValida()` restringe **qué llaves** cambian pero
 no **a qué valores**. Nada impide `mediosSubidos: 99999`, `completo: true` con cero archivos
@@ -829,7 +861,13 @@ falsificación de estado, no solo un dato sucio.
 `nuevo.mediosSubidos >= previo.mediosSubidos && nuevo.mediosSubidos <= previo.mediosEsperados`,
 `nuevo.subida in [...]`, y `completo == (nuevo.mediosSubidos == previo.mediosEsperados)`.
 
-### S7 · `ACTIVO → CERRADO` no acota qué más cambia en la misma escritura — ALTO · VERIFICADO
+### S7 · `ACTIVO → CERRADO` no acota qué más cambia en la misma escritura — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-1 de `docs/PLAN.md` §16).** `soloCambia()` con lista blanca por transición:
+> cierre (`ciclo`, `closedAt`, `comentario`, `hayNovedad`, `mediosEsperados`, `resumenMedios`,
+> `subida`, `mediosSubidos`, `completo`), descarte (`ciclo`, `closedAt`, `motivoDescarte`) y
+> contadores (los tres de hoy); `custodioUid`/`placas`/`fechaLocal`/`createdAtDevice` no
+> aparecen en `affectedKeys()`. Pruebas de transición inválida en el arnés.
 
 `firebase/firestore.rules:73-75`. Las dos primeras ramas de `transicionValida()` solo miran
 el par `(previo.ciclo, nuevo.ciclo)`. En el mismo `update` que pasa a `CERRADO` se puede
@@ -846,7 +884,13 @@ reporte depende de campos que son mutables una vez.
 `['ciclo','closedAt','motivoDescarte']`) y verificar que `custodioUid` y `placas` nunca
 aparecen en `affectedKeys()`.
 
-### S8 · `ACCESS_COARSE_LOCATION` se declara pero no se solicita — ALTO · VERIFICADO
+### S8 · `ACCESS_COARSE_LOCATION` se declara pero no se solicita — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-6 de `docs/PLAN.md` §16).** `permisosSolicitados()` y `permisosActuales()`
+> (`CapturaEvidenciaScreen`) incluyen `ACCESS_COARSE_LOCATION` y la petición automática se
+> dispara si falta cámara, micrófono **o** ubicación. `ProveedorUbicacion.prioridadDeUbicacion()`
+> usa `PRIORITY_HIGH_ACCURACY` con FINE y `PRIORITY_BALANCED_POWER_ACCURACY` con solo COARSE
+> (que también encaja con R13). Re-chequeo en `ON_RESUME`.
 
 `AndroidManifest.xml:10` **sí** declara `ACCESS_COARSE_LOCATION` (añadido después del
 levantamiento; ver el delta del manifest arriba). Pero
@@ -874,7 +918,13 @@ no está; y `tarea.result` dentro del `addOnCompleteListener` lanza
 `permisosActuales()`, y degradar a `PRIORITY_BALANCED` cuando solo haya COARSE concedido (lo
 que encaja con el fix de R13).
 
-### S9 · Sin rationale y sin salida del "no volver a preguntar" — MEDIO · VERIFICADO
+### S9 · Sin rationale y sin salida del "no volver a preguntar" — MEDIO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-7 de `docs/PLAN.md` §16).** La pantalla de captura con cámara denegada muestra
+> rationale + "Permitir cámara" + `BotonSecundario` "Abrir ajustes del sistema"
+> (`ui/components/AjustesDelSistema.kt`, `ACTION_APPLICATION_DETAILS_SETTINGS`), y las pantallas
+> de captura y audio **re-chequean permisos en `ON_RESUME`**, así que conceder desde Ajustes
+> actualiza la UI al volver. AudioScreen pide `RECORD_AUDIO` por su cuenta (S10).
 
 No existe `shouldShowRequestPermissionRationale` en todo el proyecto (verificado por grep).
 Tras la segunda negación, `lanzadorPermisos.launch(...)` retorna denegado al instante: el
@@ -888,21 +938,38 @@ el estado de permisos solo se recalcula en el callback del launcher: si el custo
 concede desde los Ajustes de Android y vuelve, la pantalla sigue diciendo "sin cámara"
 (falta re-chequeo en `ON_RESUME`).
 
-### S10 · Sin permiso de micrófono no hay forma de concederlo desde Audio — ALTO · VERIFICADO
+### S10 · Sin permiso de micrófono no hay forma de concederlo desde Audio — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-7 de `docs/PLAN.md` §16).** `AudioScreen` solicita `RECORD_AUDIO` por su
+> cuenta: `rememberLauncherForActivityResult(RequestPermission)`, franja de aviso
+> `audio_sin_microfono` + botones "Permitir micrófono" y "Abrir ajustes del sistema" en el
+> estado idle, y re-chequeo en `ON_RESUME`.
 
 `RECORD_AUDIO` solo se solicita en `CapturaEvidenciaScreen`. Si el custodio entra directo
 Reporte → Nota de voz (camino válido en `AppNavHost`), o si negó el micrófono antes,
 `grabadora.iniciar()` falla, se muestra `error_grabacion_no_inicio` y **no hay ningún botón
 para pedir el permiso**. Es exactamente el caso de un equipo recién provisionado.
 
-### S11 · Rotación de custodio: no se limpia nada — ALTO · VERIFICADO
+### S11 · Rotación de custodio: no se limpia nada — ALTO · VERIFICADO · → PRODUCTO (retención)
+
+> **Reclasificado (G2-9 de `docs/PLAN.md` §16; D6).** El grueso quedó atendido por E6 (§13):
+> la cola se acota por `custodioUid` y fecha, y **no se purga** por decisión — los archivos son
+> inmutables. El residuo (archivos locales y miniaturas acumulándose entre custodios) es una
+> decisión de **retención de datos**, no una tarea de implementación, y pasa a Producto junto
+> con las de `docs/PLAN.md` §3.2. No se salida de la auditoría: se mueve a las decisiones de
+> producto pendientes.
 
 Ver E6. Qué queda del custodio anterior accesible al siguiente: todas las filas de Room
 (la UI las filtra por uid, pero siguen en disco, en claro, sin cifrado — Room sin SQLCipher),
 los JPEG/M4A en `filesDir/medios`, y las copias en `Pictures/AppCustodio`, que **sí** son
 visibles. El dispositivo acumula datos de clientes de las 37 personas indefinidamente.
 
-### S12 · `ModoEmulador` depende de un meta-data, no de `BuildConfig.DEBUG` — MEDIO · VERIFICADO
+### S12 · `ModoEmulador` depende de un meta-data, no de `BuildConfig.DEBUG` — MEDIO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-8 de `docs/PLAN.md` §16).** `ModoEmulador.activo` pasó a
+> `BuildConfig.DEBUG && meta-data modo_emulador` (`buildConfig = true` en `app/build.gradle.kts`,
+> habilita con pausa de Sync respetada). La condición emulador ahora es inspeccionable y no
+> puede viajar al release: sin `DEBUG` el `meta-data` no activa nada.
 
 `di/ModoEmulador.kt:12-21`, `app/src/debug/AndroidManifest.xml:4-8`, consumido en
 `di/AuthModule.kt:22-24`. Es correcto **hoy**: el meta-data solo existe en el manifest de
@@ -914,7 +981,14 @@ constantes de host/puerto y la llamada a `useEmulator` viajan en el APK de produ
 
 **Dirección:** envolver en `BuildConfig.DEBUG && activo(context)`.
 
-### S13 · Crashlytics sin contexto y con PII residual — MEDIO · VERIFICADO
+### S13 · Crashlytics sin contexto y con PII residual — MEDIO · VERIFICADO · → GRUPO 6
+
+> **Reclasificado (G2-9 de `docs/PLAN.md` §16; D6).** La recolección incondicional en equipos
+> de empresa queda **escrita como defendible** (D6) y no se toca: en campo la app no debe
+> colgar del consentimiento. El contexto (`setUserId`/`setCustomKey`/`recordException` y el
+> `RecordException` de `RegistroDeFallos`) se cierra con el contexto de Crashlytics del Grupo 6
+> (T7), donde además vive el `mappingFileUploadEnabled`. La PII residual (trazas con rutas de
+> `filesDir/medios`) se acota con lo que T7 decida exponer.
 
 No hay `setUserId`, `setCustomKey` ni `recordException` en ningún punto del código
 (verificado por grep), así que no se envía PII deliberadamente. Dos vías residuales:
@@ -926,7 +1000,13 @@ rutas de `filesDir/medios/{medioId}` y mensajes de Firebase con el uid; y el ún
 La recolección está en `true` de forma incondicional, sin consentimiento. Para dispositivos
 de la empresa es defendible; conviene que quede escrito.
 
-### S14 · Casos de abuso que `reglas.test.js` no cubre — MEDIO · VERIFICADO
+### S14 · Casos de abuso que `reglas.test.js` no cubre — MEDIO · VERIFICADO · ✅ ATENDIDO 2026-09-23
+
+> **Atendido (G2-0 de `docs/PLAN.md` §16).** El arnés se endureció (sin estado compartido entre
+> casos) y subió de 48 a **89 casos**: cubre los vectores S3–S7 (tope de tamaño/`contentType`,
+> transiciones inválidas, `soloCambia`, contadores, forma/tipo, rutas ancladas, `hasOnly`) y
+> cada regla nueva entró con su prueba (D2). Además el arnés destapó el bug de `thumbnailPath`
+> null en AUDIO (§16.4), con regresión también en dispositivo.
 
 El archivo tiene buena cobertura de autorización (48 casos) pero no prueba ninguno de los
 vectores de S3–S7. Faltan concretamente:
@@ -2200,13 +2280,19 @@ E3 (medios sin etiquetar), C1 (resultado de contadores descartado), C2 (`sha256`
 permanente vs transitorio y registrar la causa), C6 (cierre transaccional), E4 (`IOException` de
 disco), E2 (dejar de tragar los errores de `tomarFoto`).
 
-### Grupo 2 — Privacidad y reglas
+### Grupo 2 — Privacidad y reglas ✅ atendido (2026-09-23, tanda §16 de `docs/PLAN.md`)
 
 S2 (`allowBackup="false"`, una línea), S1 (quitar o volver privada la copia a la galería), S3 y S4
 (tope de tamaño/`contentType` y `update` acotado a `ACTIVO`), S6 y S7 (cotas de contadores y
 `soloCambia` en cada transición), S8 (declarar y pedir `COARSE`), S11/E6 (limpieza al rotar de
 custodio). Cada cambio de reglas entra **con su caso en `reglas.test.js`** (S14): los tests son lo
 único que evita que las reglas se regresen.
+
+Cerrado en la tanda de `docs/PLAN.md` §16 (2026-09-23): S3–S10 y S12–S14 quedaron atendidos y
+cada uno lleva su marca arriba; **S11 pasó a Producto** (decisión de retención; el grueso lo
+cumplió E6) y **S13 pasó al Grupo 6** (contexto de Crashlytics con T7). Arné con 89 casos y
+suite de dispositivo verde (33). Recordatorio vigente: el despliegue de las reglas endurecidas
+a la consola es **manual (carril A / A3)** y todavía no se hizo.
 
 ### Grupo 3 — Que la app sea usable en campo
 

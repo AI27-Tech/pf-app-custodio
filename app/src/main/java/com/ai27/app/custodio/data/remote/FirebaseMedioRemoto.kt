@@ -6,6 +6,7 @@ import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.Reporte
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.tasks.await
 
@@ -22,12 +23,14 @@ class FirebaseMedioRemoto(
     ): Result<RutasRemotas> = ejecutarRemoto {
         val rutas = RutasStorage.de(medio)
         val metadatos = StorageMetadata.Builder().setContentType(medio.contentType).build()
-        storage.reference.child(rutas.media).putBytes(contenido, metadatos).await()
-        // Las rutas repetidas sobrescriben: el reintento es idempotente (PLAN §5.4).
+        // S4: `storage.rules` hace las rutas create-only (una vez escrito, el blob es
+        // inmutable). El reintento idempotente (PLAN §5.4) ya no "sobrescribe": se
+        // sube CONTRA LA AUSENCIA del objeto. Si el blob ya está —un reintento tras
+        // caerse la red a mitad— no se escribe nada y solo se completa lo que faltara
+        // (p. ej. la miniatura cuando el primer intento murió entre archivo y miniatura).
+        subirSiNoExiste(rutas.media, contenido, metadatos)
         rutas.miniatura?.let { ruta ->
-            if (miniatura != null) {
-                storage.reference.child(ruta).putBytes(miniatura, metadatos).await()
-            }
+            if (miniatura != null) subirSiNoExiste(ruta, miniatura, metadatos)
         }
         rutas
     }
@@ -45,6 +48,21 @@ class FirebaseMedioRemoto(
         }
         Unit
     }
+
+    // El contenido del reintento es el mismo del primer intento (mismo medio, mismo
+    // sha), así que "ya existe" es exactamente "ya está subido".
+    private suspend fun subirSiNoExiste(ruta: String, bytes: ByteArray, metadatos: StorageMetadata) {
+        if (objetoExiste(ruta)) return
+        storage.reference.child(ruta).putBytes(bytes, metadatos).await()
+    }
+
+    private suspend fun objetoExiste(ruta: String): Boolean =
+        try {
+            storage.reference.child(ruta).metadata.await()
+            true
+        } catch (e: StorageException) {
+            if (e.errorCode == StorageException.ERROR_OBJECT_NOT_FOUND) false else throw e
+        }
 
     private companion object {
         const val MEDIOS = "medios"

@@ -150,11 +150,14 @@
     <!-- Viaje: Captura de evidencia -->
     <string name="captura_sin_camara">Para capturar se necesita la cámara.</string>
     <string name="captura_permitir_camara">Permitir cámara</string>
+    <string name="captura_abrir_ajustes">Abrir ajustes del sistema</string>
     <string name="captura_titulo">Capturar evidencia</string>
     <string name="captura_tomar_foto">Tomar foto</string>
 
     <!-- Viaje: Audio -->
     <string name="audio_aviso">Máximo 5:00 por nota. Habla claro y cerca del micrófono.</string>
+    <string name="audio_sin_microfono">Para grabar la nota se necesita el micrófono.</string>
+    <string name="audio_permitir_microfono">Permitir micrófono</string>
     <string name="audio_grabando">GRABANDO</string>
     <string name="audio_guardando">Guardando nota…</string>
     <string name="audio_toca_para_iniciar">Toca el botón para iniciar</string>
