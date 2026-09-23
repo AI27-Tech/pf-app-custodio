@@ -67,7 +67,7 @@ abstract class ContratoRepositoriosTest {
         placas = "ABC123",
         placasCapturadas = "abc-123",
         custodioUid = custodioUid,
-        custodioCorreo = "custodio@ai27.test",
+        custodioTelefono = "custodio@ai27.test",
         clienteId = "cliente-provisional",
         deviceId = "dispositivo-1",
         fechaLocal = fechaLocal,

@@ -31,7 +31,7 @@ class RoomReporteRepositoryTest {
     private lateinit var archivoDb: File
     private lateinit var directorioMedios: File
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
-    private val custodio = Custodio("c-1", "c@t.mx")
+    private val custodio = Custodio("c-1", "+525544880512")
 
     @Before
     fun setUp() {

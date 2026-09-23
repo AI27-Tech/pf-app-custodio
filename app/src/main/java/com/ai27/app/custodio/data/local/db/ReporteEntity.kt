@@ -10,7 +10,7 @@ data class ReporteEntity(
     @ColumnInfo(name = "placas") val placas: String,
     @ColumnInfo(name = "placasCapturadas") val placasCapturadas: String,
     @ColumnInfo(name = "custodioUid") val custodioUid: String,
-    @ColumnInfo(name = "custodioCorreo") val custodioCorreo: String,
+    @ColumnInfo(name = "custodioTelefono") val custodioTelefono: String,
     @ColumnInfo(name = "clienteId") val clienteId: String,
     @ColumnInfo(name = "deviceId") val deviceId: String,
     @ColumnInfo(name = "fechaLocal") val fechaLocal: String,

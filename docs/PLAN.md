@@ -22,7 +22,7 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 |---|---|
 | Usuario | **Custodio de AI27**, 37 personas. No el operador del tracto |
 | Cliente | **Uno solo** por ahora; se escribe `clienteId` con valor fijo para no migrar después |
-| Auth | Firebase Auth, correo+contraseña por persona en equipos compartidos; sesión persistente, logout visible |
+| Auth | Firebase Auth por **teléfono verificado por SMS** (E.164 +52), login de dos fases número→OTP; identidad = teléfono, no correo. Allowlist de teléfonos en `config/telefonos` verificada tras el OTP; sesión persistente, logout visible. Ver "Lo que cambió" (PHONE_AUTH) |
 | Unidad de agrupación | **Un reporte = un viaje.** Se abre al tomar el transporte, se cierra al entregarlo |
 | Reporte activo | **Uno a la vez.** No se puede crear otro hasta cerrar o descartar el actual |
 | Identificador | **Placa del tracto**, capturada al crear el reporte. Se cruza con fecha para ligar a un servicio (no hay folio) |
@@ -43,6 +43,7 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 - **Se quitó el selector de galería** (R6). Pediste GPS y hora por archivo; una foto sacada de la galería puede ser de otro día y otro lugar, y vacía justamente el dato que da valor.
 - **Se desnormalizan campos del reporte en cada documento de media** (B2). Firestore no hace joins: sin esto, "todos los audios de la placa XYZ la semana pasada" es imposible.
 - **Las fotos subieron de 10 a 50** (D3, R11). La resolución quedó en 1920×1080 calidad 88, y está en revisión porque el propósito real —leer el contenido de la foto— pide más (§3.4).
+- **La identidad del custodio pasó de correo+contraseña a teléfono verificado por SMS** (PHONE_AUTH, 2026-09-23). El login es de dos fases (número → OTP), la autorización se resuelve con una allowlist de teléfonos en `config/telefonos` verificada **después** del OTP (más `beforeCreate` en Cloud Functions cuando haya plan Blaze), y el contrato de datos cambió `custodioCorreo` → `custodioTelefono`. El correo+contraseña quedó descartado por completo; el único correo que sobrevive es el del **analista** del panel (`config/analistas.correos`), que es otro eje. Detalle del contrato en §5.1, provisión en §9 (A1/A2).
 
 ---
 
@@ -140,7 +141,10 @@ Convención de nombres: los conceptos de negocio en español (`reportes`, `medio
 
 ```
 usuarios/{uid}
-  correo, nombre, rol, activo
+  telefono, nombre, rol, activo                  ← identidad por teléfono (PHONE_AUTH)
+
+config/telefonos
+  telefonos: [string]      ← allowlist E.164 (+52…); se verifica tras el OTP. Ver §5.4
 
 catalogos/etiquetas
   valores: [{ id, nombre, orden, activo }]      ← pendiente §3.1
@@ -149,7 +153,7 @@ reportes/{reporteId}                             ← contenedor de un viaje
   placas            string   normalizada: mayúsculas, sin espacios ni guiones
   placasCapturadas  string   lo que el custodio tecleó, tal cual
   custodioUid       string
-  custodioCorreo    string
+  custodioTelefono  string   E.164; reemplazó a custodioCorreo (PHONE_AUTH)
   clienteId         string   valor fijo por ahora
   deviceId          string
   fechaLocal        string   "YYYY-MM-DD" en America/Mexico_City
@@ -211,9 +215,12 @@ Agrupado por reporte porque "evidencia para el cliente" significa descargar un v
 - `reportes`: se puede actualizar mientras `ciclo == ACTIVO`. Transiciones permitidas: `ACTIVO → CERRADO` y `ACTIVO → DESCARTADO`. Una vez `CERRADO`, sólo se admite avanzar `subida`, `mediosSubidos` y `completo` — nada más, y nunca de regreso a `ACTIVO`.
 - `medios`: creación permitida al dueño; **update y delete negados siempre**.
 - `delete` negado en `reportes` siempre. Descartar es un estado.
-- El acceso de lectura del dashboard se resuelve con *custom claims* de rol cuando se construya. Fuera de este plan, pero las reglas se escriben desde ahora para no dejarlas abiertas "temporalmente".
+- `config/telefonos` (allowlist de teléfonos, PHONE_AUTH): **lectura sólo autenticada, escritura negada** desde el cliente. La escribe el aprovisionamiento con Admin SDK (§9 A2). Es la excepción legible de `config/*`.
+- El acceso de lectura del dashboard se resuelve por **correo del analista** en `config/analistas.correos` (no por custom claim). El correo del analista es un eje aparte de la identidad del custodio, que es por teléfono. Fuera de este plan en cuanto a UI, pero las reglas se escriben desde ahora para no dejarlas abiertas "temporalmente".
 
-### 5.4 Identidad e idempotencia
+### 5.4 Identidad, autenticación e idempotencia
+
+**Autenticación (PHONE_AUTH).** La identidad del custodio es su **teléfono E.164 verificado por SMS** (Firebase Phone Auth), no un correo. El login es de dos fases: el custodio teclea el número, recibe un OTP y lo confirma. La **autorización** se resuelve **después** del OTP contra la allowlist `config/telefonos.telefonos`: un teléfono verificado que no esté en la lista no entra. En producción con plan Blaze, un `beforeCreate` (Cloud Functions) refuerza esa puerta del lado del servidor. `Custodio(uid, telefono)` es lo que circula por la sesión; el correo+contraseña anterior quedó descartado.
 
 `reporteId` y `medioId` son **UUID generados en el cliente**. La ruta en Storage y el id del documento se derivan de ellos, así que un reintento sobrescribe en lugar de duplicar. Es lo que hace segura una cola offline con backoff.
 
@@ -289,9 +296,9 @@ La consola de Firebase **no está configurada todavía** (nada habilitado, ningu
 
 ### Carril A — consola (tú, en paralelo)
 
-- **A1.** Habilitar Auth (correo+contraseña), Firestore (modo producción) y Storage en `custodio-906e7268`.
-- **A2.** Crear las 37 cuentas de custodio. Alta y baja manuales por un admin, documentado en el README.
-- **A3.** Desplegar las reglas de seguridad de §5.3.
+- **A1.** Habilitar Auth (**phone sign-in**, verificación por SMS), Firestore (modo producción) y Storage en `custodio-906e7268`. El SMS OTP real exige el plan **Blaze** (Identity Platform); en Spark el Emulator Suite prueba el flujo completo pero no salen SMS reales.
+- **A2.** Dar de alta los teléfonos de los custodios. El aprovisionamiento con **Admin SDK** (`firebase/provision/`) es idempotente: crea la cuenta de Authentication por teléfono y escribe la allowlist `config/telefonos.telefonos` (E.164, +52). Con Blaze, desplegar además el `beforeCreate` de `firebase/functions/`. Alta y baja manuales por un admin, documentado en el README.
+- **A3.** Desplegar las reglas de seguridad de §5.3 (incluye `config/telefonos` legible y `config/analistas` para el correo del analista).
 - **A4.** Entregar el catálogo de etiquetas (§3.1) — lo que destraba la salida a producción.
 
 ### Carril B — app
@@ -302,7 +309,7 @@ La consola de Firebase **no está configurada todavía** (nada habilitado, ningu
 | **B1** | Dependencias y andamiaje: Hilt, Room, WorkManager, Navigation, CameraX, Coil, Firebase BoM, Crashlytics en `libs.versions.toml`; estructura de paquetes; `strings.xml` es-MX; tema claro/oscuro | La app arranca con navegación vacía en los dos temas |
 | **B2** | Dominio y persistencia local: modelos, casos de uso, Room con el índice único de reporte activo, almacén de archivos, errores sellados. **Sin Firebase, con fakes** | Pruebas unitarias en verde, incluida la carrera de dos reportes activos |
 | **B3** | Captura: CameraX, grabadora con tope y temporizador, GPS por archivo con precisión y antigüedad, etiquetado con chips, miniaturas, rejilla, borrado previo a la subida | Se capturan y etiquetan 50 archivos sin red y sobreviven a reiniciar la app |
-| **B4** | Autenticación: login, sesión persistente, logout bloqueado con pendientes, `authStateChanges` dirigiendo la navegación | Se entra y se sale; la sesión sobrevive al reinicio |
+| **B4** | Autenticación: login de dos fases por SMS (número → OTP), allowlist de teléfonos verificada tras el OTP, sesión persistente, logout bloqueado con pendientes, gate de sesión (`RootViewModel`) dirigiendo la navegación | Se entra por OTP y se sale; la sesión sobrevive al reinicio. **Migrado a teléfono en PHONE_AUTH (2026-09-23); ver §5.4** |
 | **B5** | Pipeline de subida: repositorios de Firestore y Storage, upsert idempotente del reporte, subida progresiva, contadores, backoff, reintento manual. Reglas de seguridad probadas con el **Emulator Suite** | Un reporte capturado en modo avión sube solo al recuperar red; las pruebas de reglas verifican que un custodio no lee ni modifica lo de otro y que un cerrado no se edita |
 | **B6** | Historial y estados: lista de 30 días, detalle sólo lectura, chips de estado, badge de pendientes, descarte con motivo | Se recorre el ciclo completo en un dispositivo real |
 | **B7** | Release y documentación: APK release por sideload, README de provisión de equipos y cuentas, App Distribution | APK instalado en un equipo de campo y un reporte real en Firestore |
@@ -359,6 +366,7 @@ Cada decisión de este plan sale de una respuesta del cuestionario `to-questionn
 | Dominio puro, Room como guarda, `Result`, emulador, Crashlytics | G1–G6 |
 | Plan en español; fases reordenadas | G7, G8 |
 | SHA-256, EXIF conservado, sin retención aún | D6, D7 |
+| Identidad por teléfono verificado por SMS; allowlist tras OTP | PHONE_AUTH (supersede la fila "Auth = correo+contraseña" de §2) |
 
 
 ---
@@ -486,7 +494,7 @@ Orden sugerido, de la que fija el lenguaje a la que menos riesgo tiene:
 8. `historial_de_reportes_*` → agregar agrupación por fecha y `RenglonReporte`.
 9. `detalle_de_reporte_cerrado_*` → `RenglonResumen` en lugar de `CabezaDetalle`.
 10. `pendientes_de_subir_*` → pantalla nueva; hoy sólo existe el contador.
-11. `ajustes_*` → pantalla nueva: toggle de tema, correo, pendientes y cierre de sesión con su variante deshabilitada.
+11. `ajustes_*` → pantalla nueva: toggle de tema, teléfono del custodio (PHONE_AUTH; era el correo), pendientes y cierre de sesión con su variante deshabilitada.
 12. `iniciar_sesi_n_*` → aplicar el lenguaje al login, que hoy es un `Column` sin identidad.
 
 - **C4 completado:** Ajustes con tema nocturno persistente, sesión del custodio y cierre de sesión (bloqueado mientras haya archivos sin subir); la sesión sale de la pestaña Reporte (`SinReporte` con `EstadoVacio` + `HojaInferior` para placa y crear viaje). La novedad y el comentario del cierre se sincronizan hasta Room/Firestore (`hayNovedad` en `Reporte`/DAO/`CerrarReporte`). `HistorialScreen`/`DetalleReporteScreen` quedan sin `Scaffold` anidado, usando `BarraSuperior` (el badge del encabezado se retira; el conteo de pendientes vive en la barra inferior y el badge de la pestaña Reporte) con `RenglonReporte`/`RenglonResumen`/`ChipCiclo`. LOGIN aplica el lenguaje con `CampoPlaca` heredado y tema del sistema.

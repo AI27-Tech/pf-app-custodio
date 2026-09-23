@@ -63,7 +63,7 @@ class RoomMedioRepositoryTest {
         val repoReportes = RoomReporteRepository(database)
         val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
         val crear = CrearReporte(repoReportes, ahora = { fijo })
-        val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
+        val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
 
         val capturar = CapturarMedio(repoReportes, repoMedios, ahora = { fijo })
         val resultado = capturar(
@@ -92,7 +92,7 @@ class RoomMedioRepositoryTest {
         val repoReportes = RoomReporteRepository(database)
         val repoMedios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios))
         val crear = CrearReporte(repoReportes, ahora = { fijo })
-        val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
+        val reporte = (crear(custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"), deviceId = "d1", clienteId = "c1", placasCapturadas = "ABC-1234") as Result.Success).value
         val guardado = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
 
         val conUbicacion = repoMedios.etiquetar(guardado.id, listOf("sin-novedad"), "Entrada 3")
@@ -113,7 +113,7 @@ class RoomMedioRepositoryTest {
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
-                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"),
                 deviceId = "d1",
                 clienteId = "c1",
                 placasCapturadas = "ABC-1234",
@@ -144,7 +144,7 @@ class RoomMedioRepositoryTest {
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
-                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"),
                 deviceId = "d1",
                 clienteId = "c1",
                 placasCapturadas = "ABC-1234",
@@ -178,7 +178,7 @@ class RoomMedioRepositoryTest {
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
-                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"),
                 deviceId = "d1",
                 clienteId = "c1",
                 placasCapturadas = "ABC-1234",
@@ -204,7 +204,7 @@ class RoomMedioRepositoryTest {
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
-                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"),
                 deviceId = "d1",
                 clienteId = "c1",
                 placasCapturadas = "ABC-1234",
@@ -227,7 +227,7 @@ class RoomMedioRepositoryTest {
         val crear = CrearReporte(repoReportes, ahora = { fijo })
         val reporte = (
             crear(
-                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "c@t.mx"),
+                custodio = com.ai27.app.custodio.domain.model.Custodio("c-1", "+525544880512"),
                 deviceId = "d1",
                 clienteId = "c1",
                 placasCapturadas = "ABC-1234",

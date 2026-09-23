@@ -1,5 +1,6 @@
 package com.ai27.app.custodio
 
+import android.app.Activity
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.local.media.EventoGrabacion
 import com.ai27.app.custodio.data.local.media.Grabacion
@@ -9,18 +10,57 @@ import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.Custodio
+import com.ai27.app.custodio.domain.model.EventoVerificacion
 import com.ai27.app.custodio.domain.model.Gps
+import com.ai27.app.custodio.domain.repository.AllowlistRepositorio
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 
 class FakeSesionRepositorio(custodio: Custodio?) : SesionRepositorio {
     private val flujo = MutableStateFlow(custodio)
+
+    /** El custodio que "autentica" [enviarCodigo]/[verificarCodigo]; la verificación de
+     *  TeléfonoNoAutorizado la decide la capa de allowlist (Task 4), no este fake. */
+    var custodioAlVerificar: Custodio = custodio ?: Custodio("u-fake", "+525544880512")
+
+    /** Si se fija, [enviarCodigo]/[verificarCodigo] fallan con este error. */
+    var errorAlVerificar: DominioError? = null
+
+    /** Qué evento emite `enviarCodigo`/`reenviarCodigo` según el teléfono pedido. */
+    var alEnviarSms: (telefono: String) -> EventoVerificacion =
+        { EventoVerificacion.CodigoEnviado("vid-1", 0L) }
+
+    /** E.164 con el que se pidió cada SMS, para afirmar la composición del prefijo +52. */
+    val telefonosSolicitados = mutableListOf<String>()
+
+    /** verificationId de cada `reenviarCodigo`, para afirmar que se reutiliza la sesión. */
+    val reenviosSolicitados = mutableListOf<String>()
+
     override fun observarCustodio(): Flow<Custodio?> = flujo
-    override suspend fun iniciarSesion(correo: String, contraseña: String): Result<Custodio> =
-        error("no usado en la prueba")
+
+    override fun enviarCodigo(activity: Activity?, telefono: String): Flow<EventoVerificacion> {
+        telefonosSolicitados.add(telefono)
+        return flowOf(alEnviarSms(telefono))
+    }
+
+    override fun reenviarCodigo(
+        activity: Activity?,
+        verificationId: String,
+        resendToken: Long,
+    ): Flow<EventoVerificacion> {
+        reenviosSolicitados.add(verificationId)
+        return flowOf(alEnviarSms(verificationId))
+    }
+
+    override suspend fun verificarCodigo(verificationId: String, codigo: String): Result<Custodio> {
+        errorAlVerificar?.let { return Result.Failure(it) }
+        flujo.value = custodioAlVerificar
+        return Result.Success(custodioAlVerificar)
+    }
 
     /** Cierres de sesión efectuados, en orden, para poder afirmar qué pasó antes del signOut. */
     val cierres = mutableListOf<Unit>()
@@ -33,6 +73,20 @@ class FakeSesionRepositorio(custodio: Custodio?) : SesionRepositorio {
         cierres.add(Unit)
         flujo.value = null
         return Result.Success(Unit)
+    }
+}
+
+/**
+ * Allowlist falsa: guarda qué teléfonos se consultaron y la respuesta es configurable.
+ * Basa la verificación de TeléfonoNoAutorizado del PHONE_AUTH_PLAN Task 4 sin tocar red.
+ */
+class FakeAllowlistRepositorio : AllowlistRepositorio {
+    val consultados = mutableListOf<String>()
+    var respuesta: Result<Boolean> = Result.Success(true)
+
+    override suspend fun contiene(telefono: String): Result<Boolean> {
+        consultados.add(telefono)
+        return respuesta
     }
 }
 

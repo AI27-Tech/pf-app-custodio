@@ -24,7 +24,7 @@ internal object DatosDemo {
 
     private val instantCierre = instante.plusSeconds(3_600L)
 
-    val custodio = Custodio(uid = "uid-demo", correo = "c.duarte@acme.mx")
+    val custodio = Custodio(uid = "uid-demo", telefono = "+525544880512")
 
     val etiquetas = listOf(
         Etiqueta(id = "sin-novedad", nombre = "Sin novedad", categoria = CategoriaEtiqueta.SITUACION, orden = 0, activo = true),
@@ -41,7 +41,7 @@ internal object DatosDemo {
         placas = "736-DBK",
         placasCapturadas = "736-DBK",
         custodioUid = custodio.uid,
-        custodioCorreo = custodio.correo,
+        custodioTelefono = custodio.telefono,
         clienteId = "cli-7",
         deviceId = "dev-7",
         fechaLocal = "lun 21 sep",
@@ -59,7 +59,7 @@ internal object DatosDemo {
         placas = "452-XKH",
         placasCapturadas = "452-XKH",
         custodioUid = custodio.uid,
-        custodioCorreo = custodio.correo,
+        custodioTelefono = custodio.telefono,
         clienteId = "cli-7",
         deviceId = "dev-7",
         fechaLocal = "sáb 19 sep",
@@ -80,7 +80,7 @@ internal object DatosDemo {
         placas = "888-ZZZ",
         placasCapturadas = "888-ZZZ",
         custodioUid = custodio.uid,
-        custodioCorreo = custodio.correo,
+        custodioTelefono = custodio.telefono,
         clienteId = "cli-7",
         deviceId = "dev-7",
         fechaLocal = "vie 18 sep",

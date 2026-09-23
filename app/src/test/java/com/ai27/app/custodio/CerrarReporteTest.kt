@@ -19,7 +19,7 @@ import org.junit.Test
 
 class CerrarReporteTest {
 
-    private val custodio = Custodio(uid = "c-1", correo = "custodio@test.mx")
+    private val custodio = Custodio(uid = "c-1", telefono = "+525544880512")
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
     private lateinit var repoReportes: FakeReporteRepository
     private lateinit var repoMedios: FakeMedioRepository

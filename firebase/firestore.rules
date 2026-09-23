@@ -63,9 +63,12 @@ service cloud.firestore {
         && (resource == null || esDuenoDe(resource) || esAnalista());
 
       // Un reporte siempre nace ACTIVO; el cierre offline llega como ACTIVO->CERRADO
-      // en dos pasos desde la app (PLAN §6.2).
+      // en dos pasos desde la app (PLAN §6.2). Además del dueño, se exige el campo
+      // `custodioTelefono` (PHONE_AUTH_PLAN): columna renombrada tras Task 1, y parte del
+      // contrato de escritura —sin él la app no sabe de quién es el reporte en el historial.
       allow create: if autenticado()
         && esDuenoDe(request.resource)
+        && 'custodioTelefono' in request.resource.data
         && request.resource.data.ciclo == 'ACTIVO';
 
       function transicionValida() {
@@ -104,22 +107,28 @@ service cloud.firestore {
       allow create: if autenticado() && request.auth.uid == uid;
     }
 
-    // La lista de analistas se administra desde la consola o el emulador y ningún
-    // cliente la toca. Las reglas sí la leen: `get()` dentro de una regla corre con
-    // acceso total y no se evalúa a sí misma, así que negar aquí no rompe `esAnalista()`.
+    // Configuración administrada desde la consola o el emulador y que ningún cliente
+    // modifica. Las reglas sí las leen: `get()` dentro de una regla corre con acceso
+    // total y no se evalúa a sí misma, así que negar aquí no rompe `esAnalista()`.
     //
-    // Cómo agregar un analista (un correo a la vez):
-    //   - Producción: Consola Firebase -> Firestore -> documento `config/analistas`
-    //     -> editar el arreglo `correos` y añadir el correo EXACTO del usuario. Los
-    //     correos se guardan en minúsculas (Firebase Auth los normaliza). No hace
-    //     falta re-desplegar estas reglas.
-    //   - Emulador: Emulator UI (http://127.0.0.1:4000/firestore) sobre la misma
-    //     llave `config/analistas.correos`, o por REST con el token de dueño:
-    //       curl -X POST http://127.0.0.1:8080/v1/projects/<PROYECTO>/databases/(default)/documents/config?documentId=analistas \
-    //            -H "Authorization: Bearer owner" \
-    //            -d '{"fields":{"correos":{"arrayValue":{"values":[{"stringValue":"ana@ai27.mx"}]}}}}'
+    // La allowlist de teléfonos (`config/telefonos.telefonos`, PHONE_AUTH_PLAN Task 4)
+    // ES la excepción que sí lee la app: cada custodio la consulta (solo lectura) tras
+    // autenticar su número por SMS. La lista la administra el Admin SDK / la consola.
+    match /config/telefonos {
+      allow read: if autenticado();
+      allow write: if false;
+    }
+
     match /config/{documento} {
       allow read, write: if false;
     }
+
+    // Cómo administrar la lista de analistas (config/analistas.correos, un correo a la
+    // vez, en minúsculas como los normaliza Firebase Auth):
+    //   - Producción: Consola Firebase -> Firestore -> documento `config/analistas`.
+    //   - Emulador: Emulator UI (http://127.0.0.1:4000/firestore) o REST con token de dueño:
+    //       curl -X POST http://127.0.0.1:8080/v1/projects/<PROYECTO>/databases/(default)/documents/config?documentId=analistas \
+    //            -H "Authorization: Bearer owner" \
+    //            -d '{"fields":{"correos":{"arrayValue":{"values":[{"stringValue":"ana@ai27.mx"}]}}}}'
   }
 }

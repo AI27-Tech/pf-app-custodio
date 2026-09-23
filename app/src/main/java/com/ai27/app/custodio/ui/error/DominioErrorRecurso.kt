@@ -32,7 +32,12 @@ fun DominioError.aRecurso(): Int = when (this) {
     DominioError.MedioNoEncontrado -> R.string.error_medio_no_encontrado
     DominioError.MedioEnSubida -> R.string.error_medio_en_subida
     DominioError.MedioYaSubido -> R.string.error_medio_ya_subido
-    DominioError.CredencialesInvalidas -> R.string.error_credenciales
+    DominioError.NumeroInvalido -> R.string.error_numero_invalido
+    DominioError.CodigoInvalido -> R.string.error_codigo_invalido
+    DominioError.CodigoExpirado -> R.string.error_codigo_expirado
+    DominioError.DemasiadosIntentos -> R.string.error_demasiados_intentos
+    DominioError.SinRespuestaSms -> R.string.error_sin_respuesta_sms
+    DominioError.TelefonoNoAutorizado -> R.string.error_tel_no_autorizado
     DominioError.SinConexion -> R.string.error_sin_conexion
     DominioError.ServidorIndisponible -> R.string.error_sin_conexion
     DominioError.PermisoDenegado -> R.string.error_inesperado

@@ -34,7 +34,7 @@ class InvarianteUnSoloActivoTest {
     private lateinit var archivo: File
     private lateinit var dao: ReporteDao
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
-    private val custodio = Custodio(uid = "c-1", correo = "custodio@test.mx")
+    private val custodio = Custodio(uid = "c-1", telefono = "custodio@test.mx")
 
     @Before
     fun setUp() {
@@ -54,7 +54,7 @@ class InvarianteUnSoloActivoTest {
         placas = placas,
         placasCapturadas = placas,
         custodioUid = custodioUid,
-        custodioCorreo = "correo@test.mx",
+        custodioTelefono = "correo@test.mx",
         clienteId = "cliente-1",
         deviceId = "device-1",
         fechaLocal = "2026-09-18",

@@ -13,7 +13,7 @@ import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 
 @Database(
     entities = [ReporteEntity::class, MedioEntity::class],
-    version = 3,
+    version = 4,
 )
 @ColumnTypeConverters(EtiquetasConverter::class)
 abstract class AppCustodioDatabase : RoomDatabase() {
@@ -101,6 +101,21 @@ abstract class AppCustodioDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Cuarta migración (PHONE_AUTH_PLAN, Task 1): la identidad del custodio pasa de
+         * `correo` a `telefono`, renombrando la columna `custodioCorreo` → `custodioTelefono`
+         * sin perder el valor (migración no destructiva). `RENAME COLUMN` requiere SQLite
+         * ≥ 3.25; el `BundledSQLiteDriver` lo soporta. La columna sigue `NOT NULL`.
+         */
+        val MIGRACION_3_4 = object : Migration(3, 4) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(DROP_INDICE_UNICO_ACTIVO)
+                connection.execSQL(
+                    "ALTER TABLE reportes RENAME COLUMN custodioCorreo TO custodioTelefono",
+                )
+            }
+        }
+
         fun crearBaseDatos(context: Context): AppCustodioDatabase =
             crearBaseDatos(ruta = context.getDatabasePath(NOMBRE).absolutePath)
 
@@ -109,7 +124,7 @@ abstract class AppCustodioDatabase : RoomDatabase() {
             Room.databaseBuilder(name = ruta) { AppCustodioDatabase_Impl() }
                 .setDriver(BundledSQLiteDriver())
                 .addCallback(callback)
-                .addMigrations(MIGRACION_1_2, MIGRACION_2_3)
+                .addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4)
                 .build()
     }
 }

@@ -5,6 +5,7 @@ import androidx.work.WorkManager
 import com.ai27.app.custodio.data.pipeline.ReporteSyncProceso
 import com.ai27.app.custodio.data.pipeline.SubidaMedioProceso
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
+import com.ai27.app.custodio.data.remote.FirestoreAllowlistRepositorio
 import com.ai27.app.custodio.data.remote.FirebaseMedioRemoto
 import com.ai27.app.custodio.data.remote.FirebaseReporteRemoto
 import com.ai27.app.custodio.data.remote.MedioRemoto
@@ -12,6 +13,7 @@ import com.ai27.app.custodio.data.remote.ReporteRemoto
 import com.ai27.app.custodio.data.worker.CustodioWorkerFactory
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.data.worker.WorkManagerSubidaScheduler
+import com.ai27.app.custodio.domain.repository.AllowlistRepositorio
 import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.repository.ReporteRepository
 import com.google.firebase.firestore.FirebaseFirestore
@@ -58,6 +60,11 @@ object PipelineModule {
         storage: FirebaseStorage,
         firestore: FirebaseFirestore,
     ): MedioRemoto = FirebaseMedioRemoto(storage, firestore)
+
+    @Provides
+    @Singleton
+    fun proveeAllowlistRepositorio(firestore: FirebaseFirestore): AllowlistRepositorio =
+        FirestoreAllowlistRepositorio(firestore)
 
     @Provides
     fun proveeReporteSyncProceso(

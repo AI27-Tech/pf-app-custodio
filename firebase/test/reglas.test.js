@@ -44,7 +44,7 @@ async function main() {
     placas: 'ABC-123',
     placasCapturadas: 'ABC-123',
     custodioUid: 'uid-a',
-    custodioCorreo: 'alicia@custodio.cl',
+    custodioTelefono: '+525544880501',
     clienteId: 'cli-tmp',
     deviceId: 'dev-1',
     fechaLocal: '2026-09-18',
@@ -58,7 +58,7 @@ async function main() {
     schemaVersion: 1,
   };
 
-  const reporteB = { ...reporteA, custodioUid: 'uid-b', custodioCorreo: 'bruno@custodio.cl', placas: 'ZZZ-999' };
+  const reporteB = { ...reporteA, custodioUid: 'uid-b', custodioTelefono: '+525544880502', placas: 'ZZZ-999' };
   const medioA = {
     reporteId: 'r-a',
     tipo: 'FOTO',
@@ -97,6 +97,9 @@ async function main() {
     // La lista que autoriza al analista, ahora por CORREOS. En producción se crea a
     // mano en la consola (ver firestore.rules, match /config).
     await dbBase.doc('config/analistas').set({ correos: ['ana@ai27.mx'] });
+    // Allowlist de teléfonos de custodios (PHONE_AUTH_PLAN Task 4, opción B): se lee
+    // DESPUÉS de autenticar. Un custodio no autorizado es rechazado en la app.
+    await dbBase.doc('config/telefonos').set({ telefonos: ['+525544880501', '+525544880502'] });
   });
 
   // ============ REGLAS FIRESTORE ============
@@ -172,6 +175,19 @@ async function main() {
   await comprobar('analista no se agrega a config/analistas', assertFails(dbAn.doc('config/analistas').update({ uids: ['uid-an', 'uid-a'] })));
   await comprobar('custodio no lee config/analistas', assertFails(dbA.doc('config/analistas').get()));
   await comprobar('custodio no se agrega a config/analistas', assertFails(dbA.doc('config/analistas').set({ uids: ['uid-a'] })));
+
+  // Allowlist de teléfonos (PHONE_AUTH_PLAN Task 4, opción B): cualquier autenticado
+  // lee `config/telefonos` para verificar su número tras el OTP; nadie la escribe.
+  await comprobar('custodio lee config/telefonos', assertSucceeds(dbA.doc('config/telefonos').get()));
+  await comprobar('sin auth no lee config/telefonos', assertFails(dbSinAuth.doc('config/telefonos').get()));
+  await comprobar('custodio no modifica config/telefonos', assertFails(dbA.doc('config/telefonos').update({ telefonos: ['+525544880503'] })));
+  await comprobar('analista no modifica config/telefonos', assertFails(dbAn.doc('config/telefonos').update({ telefonos: [] })));
+
+  // Contrato: el reporte lleva `custodioTelefono`, no `custodioCorreo` (Task 1/2). La
+  // regla de create lo exige explícitamente, así que un reporte sin el teléfono se niega.
+  // El campo se OMITE (no `undefined`), porque el SDK rechaza `undefined` en el cliente.
+  const { custodioTelefono: _sinTel, ...reporteSinTelefono } = reporteA;
+  await comprobar('no se crea reporte sin custodioTelefono', assertFails(dbA.doc('reportes/r-sin-tel').set(reporteSinTelefono)));
 
   // Regresión: estar autenticado no basta. Un custodio que no está en la lista sigue
   // sin ver lo ajeno aunque la regla del analista exista.

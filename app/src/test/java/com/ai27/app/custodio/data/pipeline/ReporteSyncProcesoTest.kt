@@ -41,7 +41,7 @@ class ReporteSyncProcesoTest {
             placas = "ABC-123",
             placasCapturadas = "ABC-123",
             custodioUid = "c-1",
-            custodioCorreo = "a@b.cl",
+            custodioTelefono = "a@b.cl",
             clienteId = "cli-tmp",
             deviceId = "dev-1",
             fechaLocal = "2026-09-18",

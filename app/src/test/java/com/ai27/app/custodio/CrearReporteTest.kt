@@ -14,7 +14,7 @@ import org.junit.Test
 
 class CrearReporteTest {
 
-    private val custodio = Custodio(uid = "c-1", correo = "custodio@test.mx")
+    private val custodio = Custodio(uid = "c-1", telefono = "+525544880512")
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
 
     @Test
@@ -99,8 +99,8 @@ class CrearReporteTest {
         val repoReportes = FakeReporteRepository()
         val caso = CrearReporte(repoReportes, ahora = { fijo })
 
-        val a = caso(Custodio("a", "a@test.mx"), "d1", "c1", "AAA-0001")
-        val b = caso(Custodio("b", "b@test.mx"), "d1", "c1", "BBB-0002")
+        val a = caso(Custodio("a", "+525544880514"), "d1", "c1", "AAA-0001")
+        val b = caso(Custodio("b", "+525544880515"), "d1", "c1", "BBB-0002")
 
         assertTrue(a is Result.Success)
         assertTrue(b is Result.Success)

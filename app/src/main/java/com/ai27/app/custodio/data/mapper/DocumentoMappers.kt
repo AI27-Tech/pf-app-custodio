@@ -13,7 +13,10 @@ fun Reporte.aDocumentoFirestore(): Map<String, Any?> = mapOf(
     "placas" to placas,
     "placasCapturadas" to placasCapturadas,
     "custodioUid" to custodioUid,
-    "custodioCorreo" to custodioCorreo,
+    // Contrato Firestore: la identidad visible del custodio es el TELÉFONO (PHONE_AUTH_PLAN).
+    // Punto de coordinación cross-repo: el panel del analista debe leer `custodioTelefono`,
+    // no `custodioCorreo` (el correo dejó de existir en el contrato con el login por SMS).
+    "custodioTelefono" to custodioTelefono,
     "clienteId" to clienteId,
     "deviceId" to deviceId,
     "fechaLocal" to fechaLocal,

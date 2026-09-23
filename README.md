@@ -63,7 +63,7 @@ Para correr una sola clase:
 
 ### Prerrequisitos del carril A (consola Firebase, `custodio-906e7268`)
 
-1. **A1 — Habilitar servicios:** Authentication (correo+contraseña), Firestore en modo producción y Storage. El proyecto Firebase al que apunta la app lo define `app/google-services.json`.
+1. **A1 — Habilitar servicios:** Authentication (**phone sign-in**), Firestore en modo producción y Storage. El proyecto Firebase al que apunta la app lo define `app/google-services.json`. El SMS OTP exige el plan **Blaze** (Identity Platform): en Spark el emulador sirve para probar el flujo completo, pero los SMS reales no salen.
 2. **A3 — Desplegar reglas de seguridad** (`docs/PLAN.md` §5.3):
 
    ```bash
@@ -73,13 +73,20 @@ Para correr una sola clase:
    Se validan localmente antes con `npm test` (Emulator Suite, sin tocar la consola).
 3. **A4 — Cargar el catálogo de etiquetas** en `catalogos/etiquetas` (el valor puede ser una lista provisional de trabajo; la app cachea el catálogo en el dispositivo). **Sin esto, no hay etiquetas que eligir al capturar.**
 
-### Alta y baja de custodios (manual, el admin)
+### Alta y baja de custodios (teléfono)
 
-Las altas/bajas son manuales por diseño (37 personas; `docs/PLAN.md` §2, E5).
+La identidad del custodio es su **número de teléfono verificado por SMS** (PHONE_AUTH_PLAN): sin correo ni PIN. Las altas/bajas son manuales por diseño (37 personas; `docs/PLAN.md` §2, E5).
 
-- **Alta:** Consola Firebase → Authentication → "Agregar usuario" → correo + contraseña temporal. Entregar las credenciales al custodio; la contraseña temporal se cambia en el primer inicio de sesión.
-- **Baja:** Firestore → `usuarios/{uid}` → `activo: false` y revocar acceso en Authentication. Los documentos ya subidos no se tocan (inmutabilidad, `docs/PLAN.md` §6.1).
-- El correo de la cuenta es el autor de cada archivo (`custodioUid`/`custodioCorreo`); debe ser el mismo correo que el custodio usa para iniciar sesión.
+- **Alta:** correr el aprovisionamiento (Admin SDK), idempotente — crea la cuenta de Authentication por teléfono y escribe la allowlist `config/telefonos.telefonos` (E.164, prefijo +52):
+
+  ```bash
+  export GOOGLE_APPLICATION_CREDENTIALS="$HOME/custodio-service-account.json"   # gitignored
+  cd firebase/provision && node provisionar.js telefonos.csv
+  ```
+
+- **Baja:** Firestore → `config/telefonos.telefonos` → quitar el número, y revocar la cuenta en Authentication. Los documentos ya subidos no se tocan (inmutabilidad, §6.1).
+- El **candado real** en producción es la función `beforeCreate` (`firebase/functions`): autoriza únicamente teléfonos de la allowlist. **Se despliega solo cuando exista el plan Blaze** (`cd firebase/functions && firebase deploy --only functions`). En Spark, la app igualmente cierra la sesión de quien no esté en la lista (verificación tras el OTP, opción B).
+- En el **emulador** no hay SMS reales: el Auth emulator simula el envío y la verificación. El seed (`firebase/seed`) ya trae el custodio de demostración `+525544880512`.
 
 ### Alta de analistas (panel web, solo lectura)
 

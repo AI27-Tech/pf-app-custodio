@@ -1,0 +1,14 @@
+{
+  "name": "pf-app-custodio-functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Funciones de producción del PHONE_AUTH_PLAN: bloqueo de altas de teléfonos no autorizados (beforeCreate). Solo se despliegan con el plan Blaze.",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^5.1.0"
+  }
+}

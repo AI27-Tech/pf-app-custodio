@@ -18,7 +18,18 @@ sealed interface DominioError {
     data object MedioNoEncontrado : DominioError
     data object MedioEnSubida : DominioError
     data object MedioYaSubido : DominioError
-    data object CredencialesInvalidas : DominioError
+
+    /** Error de sesión por SMS (PHONE_AUTH_PLAN Task 3). */
+    data object NumeroInvalido : DominioError
+    data object CodigoInvalido : DominioError
+    data object CodigoExpirado : DominioError
+    data object DemasiadosIntentos : DominioError
+    /** El envío del SMS no obtuvo respuesta a tiempo (p. ej. el broker de Phone Auth no responde). */
+    data object SinRespuestaSms : DominioError
+
+    /** El número verificó el OTP pero no está en la allowlist `config/telefonos` (Task 4). */
+    data object TelefonoNoAutorizado : DominioError
+
     data object SinConexion : DominioError
     /** El servidor respondió pero estuvo temporalmente indisponible (UNAVAILABLE/DEADLINE_EXCEEDED). */
     data object ServidorIndisponible : DominioError

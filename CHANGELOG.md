@@ -2,6 +2,162 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:23 12:15
+
+**Resumen:** Se reconció `docs/PLAN.md` con la migración PHONE_AUTH (identidad por teléfono verificado por SMS), que estaba desactualizada en las secciones de autenticación y contrato de datos frente al código y al README. Solo documentación; no se tocó código.
+
+**Cambios:**
+
+- §2 (Decisiones bloqueadas): la fila "Auth" pasa de "correo+contraseña" a teléfono verificado por SMS, login de dos fases número→OTP con allowlist `config/telefonos`.
+- §2 "Lo que cambió": nuevo bullet que registra la migración de identidad de correo a teléfono (PHONE_AUTH, 2026-09-23), aclarando que el único correo que sobrevive es el del analista.
+- §5.1 (contrato Firestore): `usuarios/{uid}` con `telefono`; `reportes.custodioCorreo` → `custodioTelefono`; documentado el doc `config/telefonos` (allowlist).
+- §5.3 (reglas): añadida la regla de lectura de `config/telefonos` y aclarado que el acceso del dashboard es por correo del analista en `config/analistas.correos`, eje aparte de la identidad del custodio.
+- §5.4: renombrada a "Identidad, autenticación e idempotencia" con la descripción del flujo OTP + allowlist + `beforeCreate`.
+- §9 (carril A/B): A1 phone sign-in + Blaze; A2 aprovisionamiento Admin SDK + allowlist + `beforeCreate`; A3 con `config/telefonos`/`config/analistas`; B4 reescrita al login de dos fases por SMS.
+- §10 (trazabilidad): fila nueva de identidad por teléfono que supersede la fila de Auth de §2.
+- §11.6 (checklist C4): "correo" → "teléfono del custodio" en la descripción de la pantalla de Ajustes.
+
+**Archivos modificados:**
+
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:23 10:40 — PHONE_AUTH_HOTFIX: crash en "Reenviar código"
+
+**Resumen:** Prueba física; al tocar "Reenviar código" la app reventaba con
+`IllegalArgumentException: The given phoneNumber is empty` en `main`. El builder de
+`PhoneAuthOptions` exige `setPhoneNumber` SIEMPRE (también en el reenvío), y `reenviarCodigo`
+solo agregaba el `ForceResendingToken`.
+
+**Cambios:**
+
+- `FirebaseAuthSesionRepositorio`: recuerda `ultimoTelefono` del último `enviarCodigo`;
+  `reenviarCodigo` lo reintroduce en el builder junto al token de reenvío.
+- `flujoVerificacion`: `build()` + `verifyPhoneNumber` protegidos en `try/catch` — cualquier
+  opción inválida se reporta como `EventoVerificacion.Fallo` en vez de crashear el hilo main.
+- Nota de campo: el emulador NO entrega SMS reales; el código se lee en la Emulator UI
+  (`http://127.0.0.1:4000/auth` → "Phone verification codes") o vale cualquier código de 6
+  dígitos. El SMS real queda para el carril Blaze (provisionar + beforeCreate).
+
+## 2026:09:23 10:30 — PHONE_AUTH_HOTFIX: gate de sesión exige teléfono
+
+**Resumen:** Prueba física (OPPO CPH2769, Android 16) contra el Emulator Suite. La app fue
+directo a `inicio` con una sesión restaurada SIN teléfono: `installDebug` sobre la versión
+anterior conservó la cuenta de correo+contraseña heredada, que Firebase restaura al arrancar,
+y el gate la trataba como sesión válida (Ajustes mostró "Sesión de custodio" en blanco).
+
+**Cambios:**
+
+- `RootViewModel`: `Custodio` sin `telefono` (o `null`) → `NO_SESION`. Tras PHONE_AUTH la
+  identidad es el teléfono; una sesión de correo heredada ya no entra al `inicio` y el login
+  por OTP la reemplaza al autenticar.
+- Seed del emulador: export real de Firestore (`seed/firestore_export` + metadata) con el doc
+  `config/telefonos` = allowlist completa (34 del CSV + `+525544880512` demo; incluye
+  `+525548162705`). El emulador ya NO arranca con la allowlist vacía.
+- `telefonos.csv`: alta de `+525548162705` (34 teléfonos).
+
+## 2026:09:23 10:00 — PHONE_AUTH_TASK_8
+
+**Resumen:** Aprovisionamiento de custodios con Admin SDK y el candado de producción `beforeCreate`.
+
+**Cambios:**
+
+- `firebase/provision/telefonos.csv`: los 33 teléfonos E.164 (+52 + 10 dígitos).
+- `firebase/provision/provisionar.js`: crea la cuenta de Authentication de cada teléfono (idempotente; único camino de alta de phone providers sin Identity Platform) y escribe `config/telefonos.telefonos` (la allowlist).
+- `firebase/functions/` (`package.json` + `index.js`): `beforeUserCreated` que autoriza solo teléfonos de la allowlist. **Solo se despliega con el plan Blaze** (documentado en el header y en README).
+- `README.md` "Alta y baja de custodios (teléfono)" + prerrequisito A1 (phone sign-in / Blaze).
+
+## 2026:09:23 09:55 — PHONE_AUTH_TASK_7
+
+**Resumen:** Emulador listo para el flujo telefónico + cableado final + documentación viva.
+
+**Cambios:**
+
+- `firebase/seed/auth_export/accounts.json`: el usuario de seed pasa de correo+contraseña a **teléfono `+525544880512`** (provider `phone`), el mismo que usa `DatosDemo` y la app en el emulador.
+- `strings.xml`: reescrita la sección Login (teléfono, código, reenviar) y CerrarSesión muestra `cierre_sesion_telefono`.
+- `AGENTS.md`: actualizado con el estado PHONE_AUTH (identidad por teléfono, allowlist, beforeCreate, provisioning).
+
+## 2026:09:23 09:50 — PHONE_AUTH_TASK_6
+
+**Resumen:** Ajustes y diálogo de cierre de sesión muestran el teléfono del custodio, no el correo.
+
+**Cambios:**
+
+- `AjustesScreen`: `estado.custodio?.telefono` en el resumen de sesión y en `DialogoCerrarSesion`.
+- `Dialogos.kt`: parámetro `correo` → `telefono`; string `cierre_sesion_correo` → `cierre_sesion_telefono`; previews con `DatosDemo.custodio.telefono`.
+
+## 2026:09:23 09:45 — PHONE_AUTH_TASK_5
+
+**Resumen:** Login de dos fases por SMS: número → OTP, con cuenta regresiva de reenvío y verificación automática al completar 6 dígitos.
+
+**Cambios:**
+
+- `LoginUiState`: `FaseLogin` (INGRESANDO_NUMERO/ESPERANDO_CODIGO), `telefonoEscrito`, `codigoEscrito`, `enviandoSms`, `verificando`, `segundosParaReenviar`.
+- `LoginViewModel`: `enviarCodigo(activity?, telefono)`/`reenviarCodigo` vía `EventoVerificacion` (el `verificationId`/`resendToken` solo viven en el ViewModel), `verificarCodigoTecleado`, normalización de teléfono (10 dígitos → `+52…`, 12 con prefijo), countdown 60 s y la validación de allowlist tras autenticar.
+- `LoginScreen`: dos fases con campo de teléfono / código; `onVerificar` cableado al botón.
+
+## 2026:09:23 09:40 — PHONE_AUTH_TASK_4
+
+**Resumen:** Allowlist de teléfonos del lado de la app (opción B del plan): se consulta DESPUÉS del OTP.
+
+**Cambios:**
+
+- `AllowlistRepositorio.contiene(telefono)` + `FirestoreAllowlistRepositorio` leyendo `config/telefonos.telefonos` (sin documento → nadie autorizado, cierre seguro).
+- `PipelineModule.proveeAllowlistRepositorio`.
+- `firestore.rules`: `config/telefonos` con `allow read: if autenticado()` (excepción de `config/*` que es ilegible/ilegible+noescribible).
+- `reglas.test.js`: custodio lee `config/telefonos`, sin-auth no, nadie la modifica; regresión de `custodioTelefono` obligatorio en el contrato del reporte.
+
+## 2026:09:23 09:35 — PHONE_AUTH_TASK_3
+
+**Resumen:** Firebase Phone Auth en `SesionRepositorio`: OTP por SMS con evento único de verificación.
+
+**Cambios:**
+
+- `EventoVerificacion` (sealed): `CodigoEnviado(verificationId, resendToken opaco Long)` / `VerificacionAutomatica(custodio)` / `Fallo(error)`.
+- `SesionRepositorio` reemplaza `iniciarSesion(correo, contraseña)` por `enviarCodigo(activity?, telefono)`/`reenviarCodigo(...)`/`verificarCodigo(verificationId, codigo)`; `Activity` es opcional solo para SMS Retriever/reCAPTCHA (nullable para pruebas JVM).
+- `FirebaseAuthSesionRepositorio`: `PhoneAuthOptions` + `PhoneAuthProvider`, registro interno de `ForceResendingToken` → `Long`, `signInWithCredential`, `observarCustodio` lee `usuario.phoneNumber`.
+- `DominioError` nuevo: `NumeroInvalido`, `CodigoInvalido`, `CodigoExpirado`, `DemasiadosIntentos`, `TelefonoNoAutorizado` (se retira `CredencialesInvalidas`); mapeo en `excepcionSesionAError` (por errorCode con respaldo de tipo) y strings nuevas.
+- `FakeSesionRepositorio` con `alEnviarSms`; `AuthErrorMappingTest` reescrito; nuevo `LoginViewModelTest` (5 casos de Task 4/5).
+
+## 2026:09:23 09:30 — PHONE_AUTH_TASK_2
+
+**Resumen:** El contrato Firestore usa `custodioTelefono` (nada de `custodioCorreo`) y las pruebas de reglas lo cubren.
+
+**Cambios:**
+
+- `firebase/test/reglas.test.js`: fixtures `custodioCorreo` → `custodioTelefono`; seed de `config/telefonos` para Task 4.
+
+## 2026:09:23 09:00 — PHONE_AUTH_TASK_1
+
+**Resumen:** La identidad del custodio pasa de `correo` a `telefono` de punta a punta en el dominio y la persistencia local: `Custodio.correo`→`Custodio.telefono`, `Reporte.custodioCorreo`→`custodioTelefono`, columna Room `custodioCorreo`→`custodioTelefono` con la migración **3→4** no destructiva (`RENAME COLUMN`), y todos los mappers/use cases/previews/tests ajustados.
+
+**Cambios:**
+
+- **Modelo:** `Custodio(uid, correo)` → `Custodio(uid, telefono)`; `Reporte.custodioCorreo` → `Reporte.custodioTelefono`.
+- **Room:** `ReporteEntity` columna `custodioCorreo` → `custodioTelefono` (`NOT NULL`); `AppCustodioDatabase.version` 3→**4** con `MIGRACION_3_4` que hace `ALTER TABLE reportes RENAME COLUMN custodioCorreo TO custodioTelefono` tras dropear el índice único parcial (patrón de `MIGRACION_2_3`; `onOpen` lo recrea). Se registró en `addMigrations`.
+- **Mappers/use cases/previews:** `ReporteMappers` (ambas direcciones), `DocumentoMappers` (comentario de coordinación cross-repo con el panel), `CrearReporte` (`custodioTelefono = custodio.telefono`), `DatosDemo` con teléfono demo `+525544880512`.
+- **Regresión nueva:** `MigracionCorreoATelefonoTest` siembra una base v3 con `custodioCorreo` y un valor conocido; abre con la configuración de producción y verifica que el dato quedó en `custodioTelefono` y que la columna vieja desapareció.
+- **Tests ajustados:** todos los `Custodio(cretificacion)` con `correo`→`telefono` y los `custodioCorreo = ...` de fixtures (unitarias y androidTest), salvo `MigracionIndiceActivoTest` que siembra el DDL v1 REAL del dispositivo (esa migración se propaga 1→2→3→4 renombrando al final).
+
+**Archivos modificados:**
+
+- `app/src/main/java/com/ai27/app/custodio/domain/model/Custodio.kt`, `domain/model/Reporte.kt`, `domain/usecase/CrearReporte.kt`, `data/local/db/ReporteEntity.kt`, `data/local/db/AppCustodioDatabase.kt`, `data/mapper/ReporteMappers.kt`, `data/mapper/DocumentoMappers.kt`, `ui/previews/DatosDemo.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/local/db/MigracionCorreoATelefonoTest.kt` (nueva regresión)
+- 15 archivos de prueba ajustados al nuevo campo, `CHANGELOG.md`
+
+## 2026:09:23 00:00
+
+**Resumen:** Se redactó el plan de migración del login de correo+contraseña a verificación real por teléfono (Firebase Phone Auth / OTP), con el número como identidad, allowlist app-side (opción B, verificada tras autenticar) y renombre de `custodioCorreo` a `custodioTelefono` de punta a punta. Solo documentación; aún no se toca código.
+
+**Cambios:**
+
+- Se creó `docs/PHONE_AUTH_PLAN.md` con el plan completo: requisitos confirmados, antecedentes verificados en el código, decisiones de diseño/trade-offs y un desglose de 8 tareas incrementales (dominio + migración Room 3→4, contrato Firestore, flujo Phone Auth en el repositorio, allowlist `config/telefonos` opción B, UI de login de dos fases, Ajustes/diálogo, seed/emulador/wiring, aprovisionamiento Admin SDK + `beforeCreate` para Blaze).
+- Se documentaron los puntos de pausa (inyección de `Activity`, verificación de dependencias/Sync, CSV de números E.164) y las tareas del humano en consola Firebase (proveedor Teléfono, SHA-256, despliegue en Blaze).
+
+**Archivos modificados:**
+
+- `docs/PHONE_AUTH_PLAN.md` (creado)
+
 ## 2026:09:22 17:00
 
 **Resumen:** Hallazgo de campo **U17** — la hoja de etiquetado "aparecía dos veces": se volvía a animar desde abajo en cuanto se elegía la primera etiqueta de Situación (y en cualquier recomposición con la hoja abierta). Arreglado con su regresión instrumentada (RED 706 px → GREEN 0 px en el teléfono CPH2769) y el catalogo de espreso subido a 3.7.0, necesario para correr cualquier test de UI en dispositivos Android 16+.

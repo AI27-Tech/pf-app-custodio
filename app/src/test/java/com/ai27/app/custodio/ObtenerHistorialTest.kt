@@ -19,7 +19,7 @@ import org.junit.Test
 
 class ObtenerHistorialTest {
 
-    private val custodio = Custodio(uid = "c-1", correo = "custodio@test.mx")
+    private val custodio = Custodio(uid = "c-1", telefono = "+525544880512")
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
 
     @Test
@@ -53,7 +53,7 @@ class ObtenerHistorialTest {
         assertEquals(listOf("CCC3333", "BBB2222", "AAA1111"), historial.map { it.placas })
         assertTrue(historial.all { it.ciclo == Ciclo.CERRADO })
 
-        crear(Custodio("otro", "otro@test.mx"), "d2", "c2", "EEE-5555")
+        crear(Custodio("otro", "+525544880513"), "d2", "c2", "EEE-5555")
         val historialOtro = ObtenerHistorial(repoReportes, ahora = { reloj })("otro").first()
         assertTrue(historialOtro.isEmpty())
     }

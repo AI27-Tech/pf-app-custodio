@@ -18,7 +18,7 @@ class HistorialFiltroTest {
         placas = placas,
         placasCapturadas = placas.uppercase(),
         custodioUid = "c-1",
-        custodioCorreo = "a@b.cl",
+        custodioTelefono = "a@b.cl",
         clienteId = "cli-tmp",
         deviceId = "dev-1",
         fechaLocal = "2026-09-18",
