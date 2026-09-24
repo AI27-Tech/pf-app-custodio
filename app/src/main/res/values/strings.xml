@@ -133,6 +133,7 @@
 
     <!-- Viaje: Reporte -->
     <string name="reporte_sin_activo">Sin reporte activo</string>
+    <string name="reporte_cargando">Buscando tu reporte…</string>
     <string name="reporte_sin_activo_descripcion">Inicia un nuevo reporte de viaje para registrar evidencias y trayecto.</string>
     <string name="reporte_iniciar_nuevo">Iniciar nuevo reporte</string>
     <string name="reporte_protocolo">Protocolo AI27 Custodio</string>

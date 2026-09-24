@@ -306,6 +306,16 @@ fun AppNavHost() {
                 navController.navigate(Rutas.INICIO) {
                     popUpTo(Rutas.LOGIN) { inclusive = true }
                 }
+                // G3-A/R1: al arrancar con un viaje activo, la app abre de una en la cámara
+                // en lugar de quedarse en el hub. INICIO queda debajo en la pila, así que
+                // back vuelve al hub Reporte. La sonda es una consulta única de Room; solo
+                // se decide el destino inicial, no se pinta nada con ella.
+                val custodio = estadoRoot.custodio
+                if (custodio != null && rootViewModel.hayReporteActivo(custodio.uid)) {
+                    navController.navigate(Rutas.CAPTURA) {
+                        launchSingleTop = true
+                    }
+                }
             }
 
             EstadoSesion.NO_SESION -> if (rutaActual != Rutas.LOGIN) {

@@ -274,6 +274,45 @@ class CapturaViewModelTest {
             )
         }
 
+    // region arranque y estado de carga (R2 / G3-A)
+
+    @Test
+    fun `el estado inicial es cargando sin reporte`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // R2: el hub no puede asumir "sin reporte activo" mientras la raíz no haya
+            // resuelto el primer valor real. `uiState` arranca en su initialValue.
+            val vm = crearViewModel()
+            assertTrue("arranca cargando", vm.uiState.value.cargando)
+            assertNull("sin que se sepa aún si hay viaje", vm.uiState.value.reporte)
+        }
+
+    @Test
+    fun `sin viaje activo la primera emision resuelve la carga con reporte nulo`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            val estado = vm.uiState.value
+            assertFalse("la carga se resuelve con el primer valor real", estado.cargando)
+            assertNull("y ahí sí se puede decir que no hay viaje", estado.reporte)
+        }
+
+    @Test
+    fun `con viaje activo la primera emision resuelve la carga con el reporte`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val reporte = seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            val estado = vm.uiState.value
+            assertFalse(estado.cargando)
+            assertEquals(reporte.id, estado.reporte?.id)
+        }
+
+    // endregion
+
     // region nota de voz (hallazgo E5)
 
     @Test

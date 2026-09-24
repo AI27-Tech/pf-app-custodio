@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.data.conectividad.ConectividadMonitor
+import com.ai27.app.custodio.domain.repository.ReporteRepository
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -23,6 +24,7 @@ data class EstadoRaiz(
 class RootViewModel @Inject constructor(
     sesionRepositorio: SesionRepositorio,
     conectividadMonitor: ConectividadMonitor,
+    private val reporteRepository: ReporteRepository,
 ) : ViewModel() {
 
     val conectado: StateFlow<Boolean> = conectividadMonitor.observadorConectividad()
@@ -50,4 +52,12 @@ class RootViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = EstadoRaiz(EstadoSesion.CARGANDO),
         )
+
+    /**
+     * Sonda de arranque (G3-A/R1): si al entrar con sesión ya hay un viaje activo, la app
+     * abre de una en la cámara. Es una consulta única (`obtenerActivo`), no un stream: la
+     * raíz solo necesita decidir el destino inicial, no pintar nada.
+     */
+    suspend fun hayReporteActivo(custodioUid: String): Boolean =
+        reporteRepository.obtenerActivo(custodioUid) != null
 }

@@ -99,11 +99,14 @@ class CapturaViewModel @Inject constructor(
         custodioYPendientes,
         interno,
     ) { (reporte, medios), (custodio, pendientes), base ->
+        // El primer valor real de reporteYMedios (sin el cual `combine` no emite) resuelve
+        // la carga: el hub ya puede distinguir "sin viaje" de "todavía cargando" (R2).
         base.copy(
             custodio = custodio,
             reporte = reporte,
             medios = medios,
             pendientesSinSubir = pendientes,
+            cargando = false,
         )
     }.stateIn(
         scope = viewModelScope,

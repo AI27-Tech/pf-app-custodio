@@ -9,6 +9,9 @@ import com.ai27.app.custodio.domain.model.Reporte
 
 data class CapturaUiState(
     val custodio: Custodio? = null,
+    // R2 del Grupo 3: mientras la raíz resuelve el primer valor real de reporteYMedios, el
+    // hub no debe saltar a "Sin reporte activo"; `cargando` separa ese caso de "no hay viaje".
+    val cargando: Boolean = true,
     val reporte: Reporte? = null,
     val etiquetas: List<Etiqueta> = emptyList(),
     val medios: List<Medio> = emptyList(),

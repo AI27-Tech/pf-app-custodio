@@ -31,6 +31,7 @@ import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.components.BotonPendientes
 import com.ai27.app.custodio.ui.components.BotonPrimario
 import com.ai27.app.custodio.ui.components.BotonSecundario
+import com.ai27.app.custodio.ui.components.CajaCargaReportes
 import com.ai27.app.custodio.ui.components.CampoPlaca
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
@@ -63,14 +64,18 @@ fun ReporteScreen(
 ) {
     Column(modifier.fillMaxSize()) {
         val reporte = estado.reporte
-        if (reporte == null) {
-            SinReporte(
+        when {
+            // R2: mientras la raíz resuelve el primer valor real, no asumir "sin viaje".
+            estado.cargando && reporte == null ->
+                CajaCargaReportes(titulo = stringResource(R.string.reporte_cargando))
+
+            reporte == null -> SinReporte(
                 estado = estado,
                 onPlacaCambio = onPlacaCambio,
                 onIniciarViaje = onIniciarViaje,
             )
-        } else {
-            ReporteAbierto(
+
+            else -> ReporteAbierto(
                 estado = estado,
                 conectado = conectado,
                 onIrACaptura = onIrACaptura,
