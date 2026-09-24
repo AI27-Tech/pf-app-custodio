@@ -29,6 +29,7 @@ import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.TipoMedio
 import com.ai27.app.custodio.ui.components.BarraSuperior
+import com.ai27.app.custodio.ui.components.ContenedorConAviso
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
 import com.ai27.app.custodio.ui.components.RenglonPendiente
@@ -48,6 +49,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun PendientesScreen(
     pendientes: List<Medio>,
+    conectado: Boolean?,
     error: Int?,
     refrescando: Boolean,
     onRecargar: () -> Unit,
@@ -56,7 +58,11 @@ fun PendientesScreen(
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier.fillMaxSize()) {
+    ContenedorConAviso(
+        conectado = conectado,
+        sinConexion = stringResource(R.string.reporte_sin_conexion),
+        modifier = modifier.fillMaxSize(),
+    ) {
         BarraSuperior(
             titulo = stringResource(R.string.boton_pendientes_titulo),
             onAtras = onAtras,
@@ -124,7 +130,14 @@ fun PendientesScreen(
     }
 
     error?.let { codigo ->
-        DialogoError(mensaje = stringResource(codigo), onCerrar = onConsumirError)
+        // U7: el error de un reintento (o de la reconciliación) no es un callejón: la
+        // acción vuelve a recargar/reconciliar la cola en lugar de cerrar en seco.
+        DialogoError(
+            mensaje = stringResource(codigo),
+            onCerrar = onConsumirError,
+            textoAccion = stringResource(R.string.comun_reintentar),
+            onAccion = onRecargar,
+        )
     }
 }
 
@@ -169,6 +182,7 @@ private fun PendientesVistaClaro() {
     Vitrina(oscuro = false) {
         PendientesScreen(
             pendientes = DatosDemo.mediosPendientes,
+            conectado = true,
             error = null,
             refrescando = false,
             onRecargar = {},
@@ -185,6 +199,7 @@ private fun PendientesVistaOscuro() {
     Vitrina(oscuro = true) {
         PendientesScreen(
             pendientes = DatosDemo.mediosPendientes,
+            conectado = true,
             error = null,
             refrescando = false,
             onRecargar = {},
@@ -201,6 +216,7 @@ private fun PendientesVacioVistaClaro() {
     Vitrina(oscuro = false) {
         PendientesScreen(
             pendientes = emptyList(),
+            conectado = true,
             error = null,
             refrescando = false,
             onRecargar = {},
@@ -217,6 +233,7 @@ private fun PendientesVacioVistaOscuro() {
     Vitrina(oscuro = true) {
         PendientesScreen(
             pendientes = emptyList(),
+            conectado = true,
             error = null,
             refrescando = false,
             onRecargar = {},

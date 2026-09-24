@@ -1,6 +1,8 @@
 package com.ai27.app.custodio.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -10,7 +12,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -59,7 +65,11 @@ fun DialogoConfirmacion(
 }
 
 /**
- * Diálogo de descarte de viaje: exige un motivo obligatorio antes de permitir confirmar.
+ * Diálogo de descarte de reporte (U12): el motivo se elige con [ChipCategoria]; el campo
+ * libre solo aparece con el chip "Otro". Confirmar queda deshabilitado sin motivo.
+ *
+ * La decisión de qué se muestra vive en funciones puras ([seleccionDeMotivo] /
+ * [descarteConfirmable]) para poder aseverarla sin Compose.
  */
 @Composable
 fun DialogoDescarte(
@@ -72,6 +82,20 @@ fun DialogoDescarte(
     modifier: Modifier = Modifier,
 ) {
     if (!visible) return
+    val motivos = listOf(
+        stringResource(R.string.descarte_motivo_placa_equivocada),
+        stringResource(R.string.descarte_motivo_cancelado_cliente),
+        stringResource(R.string.descarte_motivo_duplicado),
+        stringResource(R.string.descarte_motivo_prueba_error),
+        stringResource(R.string.descarte_motivo_otro),
+    )
+    val otro = motivos.last()
+    val seleccion = seleccionDeMotivo(motivo, motivos)
+    val mostrarCampo = seleccion == SeleccionDeMotivo.OTRO
+    val pedirEnfoque = remember { FocusRequester() }
+    LaunchedEffect(mostrarCampo) {
+        if (mostrarCampo) pedirEnfoque.requestFocus()
+    }
     AlertDialog(
         onDismissRequest = onCancelar,
         title = { Text(stringResource(R.string.descarte_titulo)) },
@@ -79,20 +103,43 @@ fun DialogoDescarte(
             Column {
                 Text(stringResource(R.string.descarte_texto))
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = motivo,
-                    onValueChange = onMotivoCambio,
-                    label = { Text(stringResource(R.string.descarte_motivo_rotulo)) },
-                    placeholder = { Text(stringResource(R.string.descarte_motivo_placeholder)) },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    motivos.forEach { nombre ->
+                        ChipCategoria(
+                            texto = nombre,
+                            seleccionada = when (seleccion) {
+                                // "Otro" nunca es el motivo: si lo está es un texto libre.
+                                SeleccionDeMotivo.OTRO -> nombre == otro
+                                SeleccionDeMotivo.PREDEFINIDO -> nombre == motivo
+                                SeleccionDeMotivo.NINGUNO -> false
+                            },
+                            onClick = {
+                                onMotivoCambio(if (nombre == otro) "" else nombre)
+                            },
+                        )
+                    }
+                }
+                if (mostrarCampo) {
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = motivo,
+                        onValueChange = onMotivoCambio,
+                        label = { Text(stringResource(R.string.descarte_motivo_rotulo)) },
+                        placeholder = { Text(stringResource(R.string.descarte_motivo_placeholder)) },
+                        minLines = 2,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(pedirEnfoque),
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { onConfirmar(motivo) },
-                enabled = motivo.isNotBlank() && !descartando,
+                enabled = descarteConfirmable(motivo) && !descartando,
             ) {
                 Text(
                     if (descartando) {
@@ -109,6 +156,20 @@ fun DialogoDescarte(
         modifier = modifier,
     )
 }
+
+/**
+ * Cómo se lee el motivo escrito en [DialogoDescarte]: en blanco (nada elegido), un chip
+ * predefinido exacto, o un texto libre (chip "Otro"). Aseverado por `DescarteMotivosTest`.
+ */
+enum class SeleccionDeMotivo { NINGUNO, PREDEFINIDO, OTRO }
+
+internal fun seleccionDeMotivo(motivo: String, motivos: List<String>): SeleccionDeMotivo = when {
+    motivo.isBlank() -> SeleccionDeMotivo.NINGUNO
+    motivo in motivos -> SeleccionDeMotivo.PREDEFINIDO
+    else -> SeleccionDeMotivo.OTRO
+}
+
+internal fun descarteConfirmable(motivo: String): Boolean = motivo.isNotBlank()
 
 /**
  * Diálogo de cierre de sesión con advertencia de archivos pendientes.
@@ -162,20 +223,38 @@ fun DialogoCerrarSesion(
 }
 
 /**
- * Diálogo de aviso/error con un único botón de cierre.
+ * Diálogo de aviso/error (U7). Cuando hay una recuperación genuina que ofrecer se pasan
+ * [textoAccion] y [onAccion] y el diálogo muestra dos botones: la acción como primaria y
+ * "Entendido" para cerrar. Sin acción, un único "Entendido". Quien invoca decide si el
+ * reintento es honesto: re-despachar la operación fallida, no cerrar el diálogo con
+ * disfraz de botón.
  */
 @Composable
 fun DialogoError(
     mensaje: String,
     onCerrar: () -> Unit,
     modifier: Modifier = Modifier,
+    textoAccion: String? = null,
+    onAccion: (() -> Unit)? = null,
 ) {
+    val conAccion = textoAccion != null && onAccion != null
     AlertDialog(
         onDismissRequest = onCerrar,
         title = { Text(stringResource(R.string.comun_aviso)) },
         text = { Text(mensaje) },
         confirmButton = {
-            TextButton(onClick = onCerrar) { Text(stringResource(R.string.comun_entendido)) }
+            if (conAccion) {
+                TextButton(onClick = onAccion) { Text(textoAccion) }
+            } else {
+                TextButton(onClick = onCerrar) { Text(stringResource(R.string.comun_entendido)) }
+            }
+        },
+        dismissButton = if (conAccion) {
+            {
+                TextButton(onClick = onCerrar) { Text(stringResource(R.string.comun_entendido)) }
+            }
+        } else {
+            null
         },
         modifier = modifier,
     )
@@ -217,7 +296,7 @@ private fun DialogoDescarteVistaClaro() {
     Vitrina(oscuro = false) {
         DialogoDescarte(
             visible = true,
-            motivo = "Placa registrada equivocada.",
+            motivo = stringResource(R.string.descarte_motivo_duplicado),
             descartando = false,
             onMotivoCambio = {},
             onConfirmar = {},
@@ -230,6 +309,21 @@ private fun DialogoDescarteVistaClaro() {
 @Composable
 private fun DialogoDescarteVistaOscuro() {
     Vitrina(oscuro = true) {
+        DialogoDescarte(
+            visible = true,
+            motivo = stringResource(R.string.descarte_motivo_cancelado_cliente),
+            descartando = false,
+            onMotivoCambio = {},
+            onConfirmar = {},
+            onCancelar = {},
+        )
+    }
+}
+
+@Preview(name = "Descarte con otro · Claro")
+@Composable
+private fun DialogoDescarteOtroVistaClaro() {
+    Vitrina(oscuro = false) {
         DialogoDescarte(
             visible = true,
             motivo = "Placa registrada equivocada.",
@@ -287,6 +381,19 @@ private fun DialogoErrorVistaOscuro() {
         DialogoError(
             mensaje = stringResource(R.string.error_sin_conexion),
             onCerrar = {},
+        )
+    }
+}
+
+@Preview(name = "Error con acción · Claro")
+@Composable
+private fun DialogoErrorConAccionVistaClaro() {
+    Vitrina(oscuro = false) {
+        DialogoError(
+            mensaje = stringResource(R.string.error_sin_conexion),
+            onCerrar = {},
+            textoAccion = stringResource(R.string.comun_reintentar),
+            onAccion = {},
         )
     }
 }

@@ -52,7 +52,7 @@ import com.ai27.app.custodio.ui.previews.DatosDemo
 @Composable
 fun ReporteScreen(
     estado: CapturaUiState,
-    conectado: Boolean,
+    conectado: Boolean?,
     onPlacaCambio: (String) -> Unit,
     onIniciarViaje: () -> Unit,
     onIrACaptura: () -> Unit,
@@ -162,7 +162,7 @@ private fun SinReporte(
 @Composable
 private fun ReporteAbierto(
     estado: CapturaUiState,
-    conectado: Boolean,
+    conectado: Boolean?,
     onIrACaptura: () -> Unit,
     onIrAAudio: () -> Unit,
     onIrAArchivos: () -> Unit,
@@ -175,12 +175,13 @@ private fun ReporteAbierto(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (!conectado) {
+        if (conectado == false) {
             FranjaAviso(texto = stringResource(R.string.reporte_sin_conexion))
         }
         BloqueUnidad(
             placas = estado.reporte?.placasCapturadas.orEmpty(),
             contador = estado.medios.size,
+            pendientesSinSubir = estado.pendientesSinSubir,
             onIrACierre = onIrACierre,
         )
 
@@ -197,19 +198,6 @@ private fun ReporteAbierto(
                     estado.mediosSinEtiquetar.size,
                     estado.mediosSinEtiquetar.size,
                 ),
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CeldaDato(
-                titulo = stringResource(R.string.reporte_evidencias),
-                valor = "${estado.medios.size}",
-                modifier = Modifier.weight(1f),
-            )
-            CeldaDato(
-                titulo = stringResource(R.string.reporte_pendientes),
-                valor = "${estado.pendientesSinSubir}",
-                modifier = Modifier.weight(1f),
             )
         }
 
@@ -242,6 +230,7 @@ private fun ReporteAbierto(
 private fun BloqueUnidad(
     placas: String,
     contador: Int,
+    pendientesSinSubir: Int,
     onIrACierre: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -262,15 +251,50 @@ private fun BloqueUnidad(
                     maxLines = 1,
                 )
             }
-            Text(
-                text = stringResource(R.string.conteo_de_50, contador),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = 8.dp),
+            // U15: el contador degradado ("x de 50") ya no compite con las celdas; lo que
+            // se destaca es cuántas evidencias faltan por enviar (0 → "Todo enviado").
+            EstadoDeEnvio(
+                contador = contador,
+                pendientesSinSubir = pendientesSinSubir,
             )
             BotonCerrarReporte(onClick = onIrACierre)
         }
         ChipEnCurso()
+    }
+}
+
+@Composable
+private fun EstadoDeEnvio(
+    contador: Int,
+    pendientesSinSubir: Int,
+) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        modifier = Modifier.padding(end = 8.dp),
+    ) {
+        Text(
+            text = if (pendientesSinSubir > 0) {
+                pluralStringResource(
+                    R.plurals.reporte_faltan_subir,
+                    pendientesSinSubir,
+                    pendientesSinSubir,
+                )
+            } else {
+                stringResource(R.string.reporte_todo_enviado)
+            },
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            color = if (pendientesSinSubir > 0) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+        Text(
+            text = stringResource(R.string.conteo_de_50, contador),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -304,33 +328,6 @@ private fun BotonCerrarReporte(onClick: () -> Unit) {
             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
         )
-    }
-}
-
-@Composable
-private fun CeldaDato(
-    titulo: String,
-    valor: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = modifier,
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = titulo.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = valor,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            )
-        }
     }
 }
 

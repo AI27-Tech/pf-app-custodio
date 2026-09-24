@@ -9,6 +9,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -83,6 +84,33 @@ fun FranjaAviso(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+}
+
+/**
+ * Contenedor de las pantallas del flujo que muestra la franja de "sin conexión" (U9).
+ *
+ * La conectividad es tri-estado: `null` = aún desconocida (RootViewModel ya no afirma
+ * "conectado" a ciegas al arrancar), así que la franja solo se pinta cuando el monitor
+ * emitió explícitamente `false`.
+ */
+fun franjaSinConexionVisible(conectado: Boolean?): Boolean = conectado == false
+
+@Composable
+fun ContenedorConAviso(
+    conectado: Boolean?,
+    sinConexion: String,
+    modifier: Modifier = Modifier,
+    contenido: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier) {
+        if (franjaSinConexionVisible(conectado)) {
+            FranjaAviso(
+                texto = sinConexion,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+        contenido()
     }
 }
 

@@ -30,6 +30,7 @@ import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonPrimario
 import com.ai27.app.custodio.ui.components.BotonSecundario
+import com.ai27.app.custodio.ui.components.ContenedorConAviso
 import com.ai27.app.custodio.ui.components.DialogoConfirmacion
 import com.ai27.app.custodio.ui.components.DialogoDescarte
 import com.ai27.app.custodio.ui.components.DialogoError
@@ -50,6 +51,7 @@ import com.ai27.app.custodio.ui.previews.DatosDemo
 @Composable
 fun CierreScreen(
     estado: CapturaUiState,
+    conectado: Boolean?,
     onAtras: () -> Unit,
     onCerrarViaje: (comentario: String?, hayNovedad: Boolean) -> Unit,
     onDescartarViaje: (motivo: String) -> Unit,
@@ -76,13 +78,18 @@ fun CierreScreen(
         durationMsTotal = estado.medios.sumOf { it.durationMs ?: 0L },
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
+    ContenedorConAviso(
+        conectado = conectado,
+        sinConexion = stringResource(R.string.reporte_sin_conexion),
+        modifier = modifier.fillMaxSize(),
     ) {
-        BarraSuperior(
-            titulo = stringResource(R.string.cerrar_viaje),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            BarraSuperior(
+                titulo = stringResource(R.string.cerrar_viaje),
             // U11: si el custodio toca atrás con novedad o comentario escritos no se pierden
             // en silencio: atrás abre la confirmación en lugar de salir de una (AUDIT.md U11).
             onAtras = {
@@ -170,6 +177,7 @@ fun CierreScreen(
             )
         }
     }
+}
 
     val archivosAlCerrar = pluralStringResource(
         R.plurals.cantidad_archivos,
@@ -247,6 +255,7 @@ private fun CierreVistaClaro() {
                 medios = DatosDemo.mediosViaje,
                 pendientesSinSubir = 1,
             ),
+            conectado = true,
             onAtras = {},
             onCerrarViaje = { _, _ -> },
             onDescartarViaje = {},
@@ -267,6 +276,7 @@ private fun CierreVistaOscuro() {
                 medios = DatosDemo.mediosViaje,
                 pendientesSinSubir = 1,
             ),
+            conectado = true,
             onAtras = {},
             onCerrarViaje = { _, _ -> },
             onDescartarViaje = {},

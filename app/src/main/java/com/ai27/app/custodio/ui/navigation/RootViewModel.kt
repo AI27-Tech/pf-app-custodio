@@ -27,11 +27,16 @@ class RootViewModel @Inject constructor(
     private val reporteRepository: ReporteRepository,
 ) : ViewModel() {
 
-    val conectado: StateFlow<Boolean> = conectividadMonitor.observadorConectividad()
+    // U9: la conectividad es TRI-ESTADO. `null` = aún desconocida: afirmar "conectado"
+    // en el arranque (initialValue = true) hacía que las pantallas empezaran sin la franja
+    // de sin conexión aunque el teléfono estuviera sin red; el monitor emite el primer
+    // valor real al suscribirse, y hasta entonces el estado honesto es "no lo sé".
+    val conectado: StateFlow<Boolean?> = conectividadMonitor.observadorConectividad()
+        .map<Boolean, Boolean?> { it }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = true,
+            initialValue = null,
         )
 
     val estado: StateFlow<EstadoRaiz> = sesionRepositorio.observarCustodio()

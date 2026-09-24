@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -50,7 +52,9 @@ import com.ai27.app.custodio.domain.model.TipoMedio
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.components.BarraSuperior
+import com.ai27.app.custodio.ui.components.BotonPrimario
 import com.ai27.app.custodio.ui.components.ChipEstadoSubida
+import com.ai27.app.custodio.ui.components.ContenedorConAviso
 import com.ai27.app.custodio.ui.components.DialogoConfirmacion
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
@@ -76,6 +80,7 @@ import java.io.File
 @Composable
 fun ArchivosScreen(
     estado: CapturaUiState,
+    conectado: Boolean?,
     onAtras: () -> Unit,
     onBorrarPendiente: (medioId: String) -> Unit,
     onReintentar: (medioId: String) -> Unit,
@@ -84,6 +89,7 @@ fun ArchivosScreen(
     onUbicacionTextoCambio: (String) -> Unit,
     onCerrarHoja: () -> Unit,
     onConsumirError: () -> Unit,
+    onIrACaptura: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var medioABorrar by remember { mutableStateOf<Medio?>(null) }
@@ -102,59 +108,75 @@ fun ArchivosScreen(
     val nombresEtiqueta = estado.etiquetas.associate { it.id to it.nombre }
 
     Column(modifier.fillMaxSize()) {
-        BarraSuperior(
-            titulo = stringResource(R.string.archivos_con_conteo, estado.medios.size),
-            onAtras = onAtras,
-        )
-
-        if (sinEtiquetar > 0) {
-            FranjaAviso(
-                texto = pluralStringResource(
-                    R.plurals.archivos_aviso_sin_etiquetar,
-                    sinEtiquetar,
-                    sinEtiquetar,
-                ),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        ContenedorConAviso(
+            conectado = conectado,
+            sinConexion = stringResource(R.string.reporte_sin_conexion),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            BarraSuperior(
+                titulo = stringResource(R.string.archivos_con_conteo, estado.medios.size),
+                onAtras = onAtras,
             )
-        }
 
-        if (estado.medios.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                EstadoVacio(
-                    titulo = stringResource(R.string.archivos_sin_evidencias),
-                    descripcion = stringResource(R.string.archivos_vacio_descripcion),
-                    modifier = Modifier.padding(32.dp),
+            if (sinEtiquetar > 0) {
+                FranjaAviso(
+                    texto = pluralStringResource(
+                        R.plurals.archivos_aviso_sin_etiquetar,
+                        sinEtiquetar,
+                        sinEtiquetar,
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(estado.medios, key = { it.id }) { medio ->
-                    LaunchedEffect(medio.id, medio.estadoSubida) {
-                        if (reintentandoId == medio.id && medio.estadoSubida != EstadoSubida.FALLIDA) {
-                            reintentandoId = null
-                        }
+
+            if (estado.medios.isEmpty()) {
+                // U15: del vacío se sale hacia adelante (el atajo a la cámara), no de
+                // vuelta a la pestaña Reporte: ahuecar la rejilla no debe mandar a buscar
+                // la acción donde ya estaba.
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        EstadoVacio(
+                            titulo = stringResource(R.string.archivos_sin_evidencias),
+                            descripcion = stringResource(R.string.archivos_vacio_descripcion),
+                            modifier = Modifier.padding(horizontal = 32.dp),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        BotonPrimario(
+                            texto = stringResource(R.string.archivos_capturar_evidencia),
+                            onClick = onIrACaptura,
+                        )
                     }
-                    CeldaArchivo(
-                        medio = medio,
-                        idsSituacion = idsSituacion,
-                        nombresEtiqueta = nombresEtiqueta,
-                        onConfirmarBorrar = { medioABorrar = medio },
-                        onReintentar = {
-                            reintentandoId = medio.id
-                            onReintentar(medio.id)
-                        },
-                        enReintento = reintentandoId == medio.id,
-                        onEtiquetar = { onRetomarEtiquetado(medio.id) },
-                    )
+                }
+} else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(estado.medios, key = { it.id }) { medio ->
+                        LaunchedEffect(medio.id, medio.estadoSubida) {
+                            if (reintentandoId == medio.id && medio.estadoSubida != EstadoSubida.FALLIDA) {
+                                reintentandoId = null
+                            }
+                        }
+                        CeldaArchivo(
+                            medio = medio,
+                            idsSituacion = idsSituacion,
+                            nombresEtiqueta = nombresEtiqueta,
+                            onConfirmarBorrar = { medioABorrar = medio },
+                            onReintentar = {
+                                reintentandoId = medio.id
+                                onReintentar(medio.id)
+                            },
+                            enReintento = reintentandoId == medio.id,
+                            onEtiquetar = { onRetomarEtiquetado(medio.id) },
+                        )
+                    }
                 }
             }
         }
@@ -360,6 +382,7 @@ private fun ArchivosVistaClaro() {
                 etiquetas = DatosDemo.etiquetas,
                 medios = DatosDemo.mediosViaje,
             ),
+            conectado = true,
             onAtras = {},
             onBorrarPendiente = {},
             onReintentar = {},
@@ -383,6 +406,7 @@ private fun ArchivosVistaOscuro() {
                 etiquetas = DatosDemo.etiquetas,
                 medios = DatosDemo.mediosViaje,
             ),
+            conectado = true,
             onAtras = {},
             onBorrarPendiente = {},
             onReintentar = {},
@@ -408,6 +432,7 @@ private fun ArchivosSinEtiquetarVistaClaro() {
                     if (indice < 2) medio.copy(etiquetas = emptyList()) else medio
                 },
             ),
+            conectado = true,
             onAtras = {},
             onBorrarPendiente = {},
             onReintentar = {},
@@ -433,6 +458,7 @@ private fun ArchivosSinEtiquetarVistaOscuro() {
                     if (indice < 2) medio.copy(etiquetas = emptyList()) else medio
                 },
             ),
+            conectado = true,
             onAtras = {},
             onBorrarPendiente = {},
             onReintentar = {},

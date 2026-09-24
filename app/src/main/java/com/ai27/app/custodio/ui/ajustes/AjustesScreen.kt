@@ -129,7 +129,14 @@ fun AjustesScreen(
         onCancelar = onCancelarCerrarSesion,
     )
     estado.error?.let { codigo ->
-        DialogoError(mensaje = stringResource(codigo), onCerrar = onConsumirError)
+        // U7: un error al cerrar la sesión no debe quedar en callejón sin salida: la
+        // acción repite el intento de cerrar en lugar de solo "Entendido".
+        DialogoError(
+            mensaje = stringResource(codigo),
+            onCerrar = onConsumirError,
+            textoAccion = stringResource(R.string.comun_reintentar),
+            onAccion = onConfirmarCerrarSesion,
+        )
     }
 }
 

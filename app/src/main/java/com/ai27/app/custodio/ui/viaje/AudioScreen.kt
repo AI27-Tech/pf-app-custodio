@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -41,6 +43,7 @@ import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonGrabacion
 import com.ai27.app.custodio.ui.components.BotonPrimario
 import com.ai27.app.custodio.ui.components.BotonSecundario
+import com.ai27.app.custodio.ui.components.ContenedorConAviso
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.TicDeEncolado
@@ -66,6 +69,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun AudioScreen(
     estado: CapturaUiState,
+    conectado: Boolean?,
     onAtras: () -> Unit,
     onIniciarAudio: () -> Unit,
     onDetenerAudio: () -> Unit,
@@ -105,7 +109,12 @@ fun AudioScreen(
     }
 
     Box(modifier.fillMaxSize()) {
-        Column(modifier.fillMaxSize()) {
+        // U9: la franja de sin conexión vive en todo el flujo, también aquí.
+        ContenedorConAviso(
+            conectado = conectado,
+            sinConexion = stringResource(R.string.reporte_sin_conexion),
+            modifier = Modifier.fillMaxSize(),
+        ) {
             BarraSuperior(titulo = stringResource(R.string.nota_de_voz), onAtras = onAtras)
 
             Column(
@@ -119,7 +128,16 @@ fun AudioScreen(
                     FranjaAviso(texto = stringResource(R.string.audio_nota_perdida))
                     Spacer(Modifier.height(12.dp))
                 }
-                FranjaAviso(texto = stringResource(R.string.audio_aviso))
+                // U13: el texto de apoyo ("máximo 5:00") es informativo, no una advertencia:
+                // se pinta como texto secundario y se deja FranjaAviso para los avisos reales
+                // (sin micrófono, nota perdida, sin conexión).
+                Text(
+                    text = stringResource(R.string.audio_aviso),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Spacer(Modifier.height(32.dp))
 
                 if (estado.grabandoAudio) {
@@ -276,6 +294,7 @@ private fun AudioVistaClaro() {
                 grabandoAudio = true,
                 segundosAudio = 187L,
             ),
+            conectado = true,
             onAtras = {},
             onIniciarAudio = {},
             onDetenerAudio = {},
@@ -302,6 +321,7 @@ private fun AudioVistaOscuro() {
                 grabandoAudio = true,
                 segundosAudio = 187L,
             ),
+            conectado = true,
             onAtras = {},
             onIniciarAudio = {},
             onDetenerAudio = {},
@@ -329,6 +349,7 @@ private fun AudioPausadoVistaClaro() {
                 audioPausado = true,
                 segundosAudio = 187L,
             ),
+            conectado = true,
             onAtras = {},
             onIniciarAudio = {},
             onDetenerAudio = {},
@@ -356,6 +377,7 @@ private fun AudioPausadoVistaOscuro() {
                 audioPausado = true,
                 segundosAudio = 187L,
             ),
+            conectado = true,
             onAtras = {},
             onIniciarAudio = {},
             onDetenerAudio = {},
@@ -381,6 +403,7 @@ private fun AudioNotaPerdidaVistaOscuro() {
                 reporte = DatosDemo.reporteActivo,
                 avisoNotaPerdida = true,
             ),
+            conectado = true,
             onAtras = {},
             onIniciarAudio = {},
             onDetenerAudio = {},

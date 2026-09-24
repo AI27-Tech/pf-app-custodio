@@ -177,6 +177,7 @@ fun AppNavHost() {
                     val estado by viewModel.uiState.collectAsState()
                     CapturaEvidenciaScreen(
                         estado = estado,
+                        conectado = rootViewModel.conectado.collectAsState().value,
                         onAtras = { navController.popBackStack() },
                         onTomarFoto = viewModel::capturarFoto,
                         onFallaDeCaptura = viewModel::fallaDeCaptura,
@@ -196,6 +197,7 @@ fun AppNavHost() {
                     val estado by viewModel.uiState.collectAsState()
                     AudioScreen(
                         estado = estado,
+                        conectado = rootViewModel.conectado.collectAsState().value,
                         onAtras = { navController.popBackStack() },
                         onIniciarAudio = viewModel::iniciarGrabacionDeAudio,
                         onDetenerAudio = viewModel::detenerGrabacionDeAudio,
@@ -219,6 +221,7 @@ fun AppNavHost() {
                     val estado by viewModel.uiState.collectAsState()
                     ArchivosScreen(
                         estado = estado,
+                        conectado = rootViewModel.conectado.collectAsState().value,
                         onAtras = { navController.popBackStack() },
                         onBorrarPendiente = viewModel::borrarPendiente,
                         onReintentar = viewModel::reintentar,
@@ -227,6 +230,7 @@ fun AppNavHost() {
                         onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
                         onCerrarHoja = viewModel::descartarEtiquetado,
                         onConsumirError = viewModel::consumirError,
+                        onIrACaptura = { navController.navigate(Rutas.CAPTURA) { launchSingleTop = true } },
                         modifier = Modifier
                             .fillMaxSize()
                             .statusBarsPadding()
@@ -240,6 +244,7 @@ fun AppNavHost() {
                     val estado by viewModel.uiState.collectAsState()
                     CierreScreen(
                         estado = estado,
+                        conectado = rootViewModel.conectado.collectAsState().value,
                         onAtras = { navController.popBackStack() },
                         onCerrarViaje = viewModel::cerrarViaje,
                         onDescartarViaje = viewModel::descartarViaje,
@@ -260,6 +265,7 @@ fun AppNavHost() {
                 val pendientesRefrescando by pendientesViewModel.refrescando.collectAsState()
                 PendientesScreen(
                     pendientes = pendientes,
+                    conectado = rootViewModel.conectado.collectAsState().value,
                     error = pendientesError,
                     refrescando = pendientesRefrescando,
                     onRecargar = pendientesViewModel::recargar,

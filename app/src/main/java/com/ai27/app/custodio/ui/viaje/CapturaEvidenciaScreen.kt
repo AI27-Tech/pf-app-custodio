@@ -52,6 +52,7 @@ import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.DialogoError
+import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.TicDeEncolado
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.components.abrirAjustesDelSistema
@@ -79,6 +80,7 @@ private data class PermisosCamara(
 @Composable
 fun CapturaEvidenciaScreen(
     estado: CapturaUiState,
+    conectado: Boolean?,
     onAtras: () -> Unit,
     onTomarFoto: (jpeg: ByteArray, miniatura: ByteArray) -> Unit,
     onFallaDeCaptura: (causa: Throwable) -> Unit,
@@ -275,6 +277,18 @@ fun CapturaEvidenciaScreen(
             }
         }
 
+        // U9: la franja de sin conexión también vive sobre el visor, como el aviso de
+        // encolado, para que capturar nunca se lea como "ya se envió".
+        if (conectado == false) {
+            FranjaAviso(
+                texto = stringResource(R.string.reporte_sin_conexion),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 100.dp),
+            )
+        }
+
         AvisoSubidaFlotante(
             evento = estado.avisoEncolado,
             texto = stringResource(R.string.aviso_subida_en_breve),
@@ -318,6 +332,7 @@ private fun CapturaEvidenciaVistaClaro() {
                 reporte = DatosDemo.reporteActivo,
                 etiquetas = DatosDemo.etiquetas,
             ),
+            conectado = true,
             onAtras = {},
             onTomarFoto = { _, _ -> },
             onFallaDeCaptura = {},
@@ -339,6 +354,7 @@ private fun CapturaEvidenciaVistaOscuro() {
                 reporte = DatosDemo.reporteActivo,
                 etiquetas = DatosDemo.etiquetas,
             ),
+            conectado = true,
             onAtras = {},
             onTomarFoto = { _, _ -> },
             onFallaDeCaptura = {},
