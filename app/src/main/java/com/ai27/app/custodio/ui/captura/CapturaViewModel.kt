@@ -528,7 +528,9 @@ class CapturaViewModel @Inject constructor(
     }
 
     private companion object {
-        const val CLIENTE_PROVISIONAL = "cliente-provisional"
+        // Cliente fijo del piloto: todas las capturas de estos custodios son de Colgate.
+        // Sigue siendo un valor único por ahora (no hay catálogo de clientes todavía).
+        const val CLIENTE_PROVISIONAL = "Colgate"
         const val TIEMPO_OBTENER_UBICACION_MS = 8_000L
         const val CONTEXTO_CAPTURA_FOTO = "captura_foto"
         const val CONTEXTO_GRABACION = "grabacion_audio"
