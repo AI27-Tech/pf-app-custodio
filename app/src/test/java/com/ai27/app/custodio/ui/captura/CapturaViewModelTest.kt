@@ -616,4 +616,29 @@ class CapturaViewModelTest {
         }
 
     // endregion
+
+    // region confirmación no visual (G3-C / U3)
+
+    @Test
+    fun `guardar etiqueta incrementa el contador que dispara el tic de encolado`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // U3 depende de plataforma (háptica + sonido) y no se asevera en JVM; el único
+            // punto testeable es que `avisoEncolado` crece cuando la subida se encola, que es
+            // justo lo que la UI observa para tocar el canal no visual.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+            vm.guardarEtiqueta(repoMedios.medios.single().id, listOf("sin-novedad"))
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            assertEquals(1, vm.uiState.value.avisoEncolado)
+        }
+
+    // endregion
 }

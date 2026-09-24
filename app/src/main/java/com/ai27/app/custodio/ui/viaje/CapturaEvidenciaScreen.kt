@@ -52,8 +52,10 @@ import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.DialogoError
+import com.ai27.app.custodio.ui.components.TicDeEncolado
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.components.abrirAjustesDelSistema
+import com.ai27.app.custodio.ui.components.recordarRetroalimentacion
 import com.ai27.app.custodio.ui.previews.DatosDemo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
@@ -109,6 +111,9 @@ fun CapturaEvidenciaScreen(
     // se simula el visor negro de la pantalla para que el HUD se pueda comparar contra
     // `captura_de_evidencia_c_mara_visor_negro/screen.png`.
     val inspeccion = LocalInspectionMode.current
+
+    // U3: confirmación no visual del disparo y del encolado.
+    val retroalimentacion = recordarRetroalimentacion()
 
     fun permisosActuales(): PermisosCamara = PermisosCamara(
         camara = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -227,6 +232,9 @@ fun CapturaEvidenciaScreen(
                     // no impide el segundo toque (hallazgo E1). Se libera en los dos
                     // callbacks de tomarFoto, que son excluyentes.
                     disparoEnCurso = true
+                    // U3: la confirmación háptica+sonido va EN el toque, como el flash, no en
+                    // el callback de éxito (que llega cientos de ms después de comprimir).
+                    retroalimentacion.disparo()
                     // El flash va ANTES de disparar, no en el callback de éxito: el toque
                     // tiene que producir señal inmediata, porque la ausencia de señal es
                     // justo lo que hace que el custodio vuelva a tocar.
@@ -284,6 +292,8 @@ fun CapturaEvidenciaScreen(
             )
         }
     }
+
+    TicDeEncolado(avisoEncolado = estado.avisoEncolado, retroalimentacion = retroalimentacion)
 
     estado.medioPendienteDeEtiquetar?.let {
         HojaEtiqueta(

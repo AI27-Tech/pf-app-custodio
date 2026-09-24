@@ -43,8 +43,10 @@ import com.ai27.app.custodio.ui.components.BotonPrimario
 import com.ai27.app.custodio.ui.components.BotonSecundario
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.FranjaAviso
+import com.ai27.app.custodio.ui.components.TicDeEncolado
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.components.abrirAjustesDelSistema
+import com.ai27.app.custodio.ui.components.recordarRetroalimentacion
 import com.ai27.app.custodio.ui.previews.DatosDemo
 import com.ai27.app.custodio.ui.theme.TabularNumberStyle
 import kotlinx.coroutines.delay
@@ -82,6 +84,8 @@ fun AudioScreen(
     // dejar que el grabador falle con `error_grabacion_no_inicio`.
     val context = LocalContext.current
     val inspeccion = LocalInspectionMode.current
+    // U3: confirmación no visual del encolado.
+    val retroalimentacion = recordarRetroalimentacion()
     fun tieneMicrofono(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
@@ -229,6 +233,8 @@ fun AudioScreen(
                 .padding(top = 100.dp),
         )
     }
+
+    TicDeEncolado(avisoEncolado = estado.avisoEncolado, retroalimentacion = retroalimentacion)
 
     estado.medioPendienteDeEtiquetar?.let {
         HojaEtiqueta(

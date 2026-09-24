@@ -53,7 +53,9 @@ import com.ai27.app.custodio.ui.components.DialogoConfirmacion
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
 import com.ai27.app.custodio.ui.components.FranjaAviso
+import com.ai27.app.custodio.ui.components.TicDeEncolado
 import com.ai27.app.custodio.ui.components.Vitrina
+import com.ai27.app.custodio.ui.components.recordarRetroalimentacion
 import com.ai27.app.custodio.ui.previews.DatosDemo
 import java.io.File
 
@@ -83,6 +85,9 @@ fun ArchivosScreen(
     modifier: Modifier = Modifier,
 ) {
     var medioABorrar by remember { mutableStateOf<Medio?>(null) }
+    // U3: confirmación no visual del encolado (la rejilla también hospeda la HojaEtiqueta,
+    // así que guardar una etiqueta retomada también produce el tic).
+    val retroalimentacion = recordarRetroalimentacion()
     val sinEtiquetar = estado.mediosSinEtiquetar.size
     val idsSituacion = estado.etiquetas
         .filter { it.activo && it.categoria == CategoriaEtiqueta.SITUACION }
@@ -161,6 +166,7 @@ fun ArchivosScreen(
             onCerrar = onCerrarHoja,
         )
     }
+    TicDeEncolado(avisoEncolado = estado.avisoEncolado, retroalimentacion = retroalimentacion)
     estado.error?.let { error ->
         DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
