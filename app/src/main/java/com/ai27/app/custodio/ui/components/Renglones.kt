@@ -100,7 +100,8 @@ fun RenglonReporte(
  * Renglón de archivo pendiente de subir: relleno, nombre, hora y botón de reintento.
  *
  * [esAudio] cambia el icono del recuadro; el reintento (icono de refresco) sólo se pinta
- * cuando [onReintentar] no es nulo.
+ * cuando [onReintentar] no es nulo. [detalle] es el estado de subida; [secundario] la
+ * información adicional (p. ej. las etiquetas) debajo de él (U4).
  */
 @Composable
 fun RenglonPendiente(
@@ -110,6 +111,7 @@ fun RenglonPendiente(
     esAudio: Boolean,
     onReintentar: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    secundario: String? = null,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -152,6 +154,15 @@ fun RenglonPendiente(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (secundario != null) {
+                    Text(
+                        text = secundario,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             Text(
@@ -380,14 +391,16 @@ private fun RenglonPendienteMuestra() {
     ) {
         RenglonPendiente(
             titulo = "IMG_20260920_104312.jpg",
-            detalle = "ABEJO · 2.4 MB",
+            detalle = "Enviando…",
+            secundario = "ABEJO",
             hora = "10:43",
             esAudio = false,
             onReintentar = {},
         )
         RenglonPendiente(
             titulo = "nota_carga_01.m4a",
-            detalle = "CARGA · 0:34",
+            detalle = "En cola",
+            secundario = "CARGA",
             hora = "10:45",
             esAudio = true,
         )

@@ -46,6 +46,25 @@ class PendientesViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
+    /**
+     * Total pendiente para el badge de la barra (R3). Deriva de un **COUNT** de Room
+     * (`contarPendientes`), no de [pendientes]: el badge deja de reconstruir la cola —y con
+     * ella el grafo de navegación— en cada emisión de la lista.
+     */
+    val totalPendientes: StateFlow<Int> = sesionRepositorio.observarCustodio()
+        .flatMapLatest { custodio ->
+            if (custodio == null) {
+                flowOf(0)
+            } else {
+                medioRepository.observarPendientes(custodio.uid)
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0,
+        )
+
     val error: StateFlow<Int?> = _error
 
     val refrescando: StateFlow<Boolean> = _refrescando

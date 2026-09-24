@@ -31,6 +31,34 @@ interface MedioDao {
 
     @Query(
         """
+        SELECT COUNT(*) FROM medios m
+        INNER JOIN reportes r ON m.reporteId = r.id
+        WHERE r.custodioUid = :custodioUid AND m.tieneSituacion = 0 AND m.estadoSubida != 'COMPLETA'
+        """,
+    )
+    fun contarSinEtiquetar(custodioUid: String): Flow<Int>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM medios m
+        INNER JOIN reportes r ON m.reporteId = r.id
+        WHERE r.custodioUid = :custodioUid AND m.tieneSituacion = 1
+          AND m.estadoSubida IN ('PENDIENTE','EN_PROGRESO')
+        """,
+    )
+    fun contarEnCola(custodioUid: String): Flow<Int>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM medios m
+        INNER JOIN reportes r ON m.reporteId = r.id
+        WHERE r.custodioUid = :custodioUid AND m.estadoSubida = 'FALLIDA'
+        """,
+    )
+    fun contarFallidos(custodioUid: String): Flow<Int>
+
+    @Query(
+        """
         UPDATE medios
         SET etiquetas = :etiquetas, tieneSituacion = :tieneSituacion,
             ubicacionTexto = COALESCE(:ubicacionTexto, ubicacionTexto)

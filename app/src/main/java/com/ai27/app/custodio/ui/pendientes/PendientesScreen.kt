@@ -89,6 +89,7 @@ fun PendientesScreen(
                                 stringResource(R.string.evidencia)
                             },
                             detalle = detalleDe(medio),
+                            secundario = etiquetasDe(medio),
                             hora = horaDe(medio.createdAtDevice),
                             esAudio = medio.tipo == TipoMedio.AUDIO,
                             onReintentar = if (medio.estadoSubida == EstadoSubida.FALLIDA) {
@@ -108,16 +109,35 @@ fun PendientesScreen(
     }
 }
 
-@Composable
-private fun detalleDe(medio: Medio): String = when {
+/**
+ * Estado que la cola de pendientes muestra para un medio (U4). Extraído como función
+ * pura para poder aseverarlo sin Compose; el string lo decide la pantalla.
+ */
+enum class EstadoPendiente { EN_COLA, ENVIANDO, FALLIDA, SIN_ETIQUETA }
+
+fun estadoPendienteDe(medio: Medio): EstadoPendiente = when {
     // Sin Situación el medio NO está en cola: desde §13 la cola lo excluye (E3) y exige al
     // menos una (decisión A del PLAN §14). Decir "en cola" sería mentir y el custodio
     // esperaría eternamente a que subiera solo.
-    medio.etiquetas.isEmpty() -> stringResource(R.string.pendientes_falta_etiqueta)
-    medio.estadoSubida == EstadoSubida.FALLIDA -> stringResource(R.string.pendientes_subida_fallida)
-    medio.estadoSubida == EstadoSubida.EN_PROGRESO -> stringResource(R.string.pendientes_enviando)
-    else -> medio.etiquetas.joinToString(", ")
+    medio.etiquetas.isEmpty() -> EstadoPendiente.SIN_ETIQUETA
+    medio.estadoSubida == EstadoSubida.FALLIDA -> EstadoPendiente.FALLIDA
+    medio.estadoSubida == EstadoSubida.EN_PROGRESO -> EstadoPendiente.ENVIANDO
+    else -> EstadoPendiente.EN_COLA
 }
+
+@Composable
+private fun detalleDe(medio: Medio): String = when (estadoPendienteDe(medio)) {
+    EstadoPendiente.SIN_ETIQUETA -> stringResource(R.string.pendientes_falta_etiqueta)
+    EstadoPendiente.FALLIDA -> stringResource(R.string.pendientes_subida_fallida)
+    EstadoPendiente.ENVIANDO -> stringResource(R.string.pendientes_enviando)
+    EstadoPendiente.EN_COLA -> stringResource(R.string.pendientes_en_cola)
+}
+
+/**
+ * La etiqueta acompaña al estado como información secundaria (D-D1), nunca en su lugar.
+ */
+private fun etiquetasDe(medio: Medio): String? =
+    medio.etiquetas.takeIf { it.isNotEmpty() }?.joinToString(", ")
 
 private val formateadorHora: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 

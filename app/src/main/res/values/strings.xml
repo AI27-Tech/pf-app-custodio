@@ -176,7 +176,6 @@
     <string name="archivos_nota">Nota</string>
     <string name="archivos_borrar_captura">Borrar captura</string>
     <string name="archivos_reintentar_subida">Reintentar subida</string>
-    <string name="archivos_fallida">FALLIDA</string>
     <string name="archivos_sin_etiqueta">SIN SITUACIÓN</string>
     <string name="archivos_etiquetar_ahora">Clasificar este archivo</string>
     <plurals name="archivos_aviso_sin_etiquetar">
@@ -234,6 +233,7 @@
     <string name="pendientes_ninguno">No hay archivos pendientes\nen esta sesión.</string>
     <string name="pendientes_subida_fallida">Subida fallida</string>
     <string name="pendientes_enviando">Enviando…</string>
+    <string name="pendientes_en_cola">En cola</string>
     <string name="pendientes_falta_etiqueta">Falta situación</string>
 
     <!-- Ajustes -->

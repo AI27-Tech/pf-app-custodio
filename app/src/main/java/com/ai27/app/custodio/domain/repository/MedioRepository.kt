@@ -14,6 +14,16 @@ interface MedioRepository {
     fun observarDelReporte(reporteId: String): Flow<List<Medio>>
     fun observarPendientes(custodioUid: String): Flow<Int>
     fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>>
+
+    /**
+     * Desglose del badge de pendientes en sus tres componentes (U6): lo que falta por
+     * etiquetar, lo que espera en cola y lo que quedó fallido. Son `COUNT` aditivos y por
+     * custodio; los usa la ViewModel de pendientes para que el total del badge sea un solo
+     * conteo y no la reconstrucción de la lista (R3).
+     */
+    fun observarSinEtiquetar(custodioUid: String): Flow<Int>
+    fun observarEnCola(custodioUid: String): Flow<Int>
+    fun observarFallidos(custodioUid: String): Flow<Int>
     suspend fun etiquetar(medioId: String, etiquetas: List<String>, ubicacionTexto: String? = null): Result<Medio>
     suspend fun actualizarGps(medioId: String, gps: Gps): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>

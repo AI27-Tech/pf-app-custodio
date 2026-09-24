@@ -68,6 +68,15 @@ class RoomMedioRepository(
     override fun observarPendientes(custodioUid: String): Flow<Int> =
         dao.contarPendientes(custodioUid)
 
+    override fun observarSinEtiquetar(custodioUid: String): Flow<Int> =
+        dao.contarSinEtiquetar(custodioUid)
+
+    override fun observarEnCola(custodioUid: String): Flow<Int> =
+        dao.contarEnCola(custodioUid)
+
+    override fun observarFallidos(custodioUid: String): Flow<Int> =
+        dao.contarFallidos(custodioUid)
+
     override fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>> =
         dao.observarPendientesDe(custodioUid).map { lista -> lista.map { it.aDominio() } }
 

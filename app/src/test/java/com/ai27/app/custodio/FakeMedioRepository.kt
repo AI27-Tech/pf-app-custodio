@@ -17,6 +17,9 @@ class FakeMedioRepository(
 
     private val pendientes = MutableStateFlow(0)
     private val pendientesMedios = MutableStateFlow<List<Medio>>(emptyList())
+    private val sinEtiquetar = MutableStateFlow(0)
+    private val enCola = MutableStateFlow(0)
+    private val fallidos = MutableStateFlow(0)
 
     /**
      * Espejo observable de [medios]. Room devuelve un `Flow` **vivo** que reemite en cada
@@ -34,6 +37,13 @@ class FakeMedioRepository(
     fun actualizarPendientes() {
         pendientes.value = medios.count { it.estadoSubida != EstadoSubida.COMPLETA }
         pendientesMedios.value = medios.filter { it.estadoSubida != EstadoSubida.COMPLETA }
+        sinEtiquetar.value = medios.count {
+            !conSituacion(it) && it.estadoSubida != EstadoSubida.COMPLETA
+        }
+        enCola.value = medios.count {
+            conSituacion(it) && it.estadoSubida in setOf(EstadoSubida.PENDIENTE, EstadoSubida.EN_PROGRESO)
+        }
+        fallidos.value = medios.count { it.estadoSubida == EstadoSubida.FALLIDA }
         todos.value = medios.toList()
     }
 
@@ -67,6 +77,12 @@ class FakeMedioRepository(
     override fun observarPendientes(custodioUid: String): Flow<Int> = pendientes
 
     override fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>> = pendientesMedios
+
+    override fun observarSinEtiquetar(custodioUid: String): Flow<Int> = sinEtiquetar
+
+    override fun observarEnCola(custodioUid: String): Flow<Int> = enCola
+
+    override fun observarFallidos(custodioUid: String): Flow<Int> = fallidos
 
     override suspend fun etiquetar(
         medioId: String,
@@ -169,9 +185,12 @@ class FakeMedioRepository(
         // incluida, para que la reconciliación los reintente) y con Situación marcada.
         medios.filter {
             it.estadoSubida != EstadoSubida.COMPLETA &&
-                it.etiquetas.any { etiqueta -> etiqueta in ETIQUETAS_SITUACION_IDS } &&
+                conSituacion(it) &&
                 esDelCustodio(it.reporteId, custodioUid)
         }
+
+    private fun conSituacion(medio: Medio): Boolean =
+        medio.etiquetas.any { etiqueta -> etiqueta in ETIQUETAS_SITUACION_IDS }
 
     /**
      * El fake de medios no conoce los reportes, así que para poder acotar por custodio las

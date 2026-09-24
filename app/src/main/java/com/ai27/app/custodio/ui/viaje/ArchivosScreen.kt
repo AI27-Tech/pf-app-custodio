@@ -48,6 +48,7 @@ import com.ai27.app.custodio.domain.model.TipoMedio
 import com.ai27.app.custodio.ui.captura.CapturaUiState
 import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.components.BarraSuperior
+import com.ai27.app.custodio.ui.components.ChipEstadoSubida
 import com.ai27.app.custodio.ui.components.DialogoConfirmacion
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.EstadoVacio
@@ -246,21 +247,21 @@ private fun CeldaArchivo(
             }
         }
 
-        if (medio.estadoSubida == EstadoSubida.FALLIDA) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(4.dp),
-                shape = RoundedCornerShape(6.dp),
-                color = MaterialTheme.colorScheme.errorContainer,
-            ) {
-                Text(
-                    text = stringResource(R.string.archivos_fallida),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        // U5: "Enviado" ya no es ausencia de adorno. Se pinta el chip de estado de la
+        // biblioteca para todo lo que dejó de ser PENDIENTE; el PENDIENTE se distingue por
+        // el borde/franja de "sin situación" o por el botón de borrar.
+        when (medio.estadoSubida) {
+            EstadoSubida.COMPLETA, EstadoSubida.EN_PROGRESO, EstadoSubida.FALLIDA ->
+                ChipEstadoSubida(
+                    estado = medio.estadoSubida,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp),
                 )
-            }
+            EstadoSubida.PENDIENTE -> Unit
+        }
+
+        if (medio.estadoSubida == EstadoSubida.FALLIDA) {
             FilledIconButton(
                 onClick = onReintentar,
                 modifier = Modifier.align(Alignment.TopEnd),

@@ -115,9 +115,7 @@ fun AppNavHost() {
     // Tras el primer inicio de sesión se piden TODOS los permisos de captura de una sola
     // vez (ya no al abrir el visor).
     SolicitarPermisosTrasInicioDeSesion(sesionActiva = estadoRoot.estado == EstadoSesion.CON_SESION)
-    val pendientes by pendientesViewModel.pendientes.collectAsState()
-    val pendientesError by pendientesViewModel.error.collectAsState()
-    val pendientesRefrescando by pendientesViewModel.refrescando.collectAsState()
+    val totalPendientes by pendientesViewModel.totalPendientes.collectAsState()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val rutaActual = backStackEntry?.destination?.route
     val destinoSeleccionado = destinoDe(rutaActual)
@@ -128,7 +126,7 @@ fun AppNavHost() {
             val destino = destinoSeleccionado ?: return@Scaffold
             BarraNavegacion(
                 seleccionado = destino,
-                pendientesSinSubir = pendientes.size,
+                pendientesSinSubir = totalPendientes,
                 onSeleccionar = { destino ->
                     navegarADestino(
                         navController = navController,
@@ -254,6 +252,12 @@ fun AppNavHost() {
             }
 
             composable(Rutas.PENDIENTES) {
+                // La lectura de la lista vive dentro del destino, no en el builder del
+                // NavHost: así la lista ya no se captura en la construcción del grafo y el
+                // badge (que lee el COUNT) no reconstruye el grafo en cada emisión (R3).
+                val pendientes by pendientesViewModel.pendientes.collectAsState()
+                val pendientesError by pendientesViewModel.error.collectAsState()
+                val pendientesRefrescando by pendientesViewModel.refrescando.collectAsState()
                 PendientesScreen(
                     pendientes = pendientes,
                     error = pendientesError,

@@ -15,6 +15,7 @@ import com.ai27.app.custodio.domain.repository.ReporteRepository
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -192,6 +193,37 @@ abstract class ContratoRepositoriosTest {
             "La cola no debe incluir evidencia de otro custodio",
             pendientes.any { it.id == medioAjeno.id },
         )
+    }
+
+    @Test
+    fun `los tres conteos del badge separan sin-etiquetar, en-cola y fallidos`() = runBlocking {
+        // U6 + R3: `contarPendientes` mezclaba sin etiquetar, en cola y fallido en un solo
+        // `!= COMPLETA`. Los tres COUNT nuevos desglosan el total en componentes aditivos
+        // y disjuntos para el caso normal (el FALLIDA con Situación, que es lo único que el
+        // pipeline produce).
+        val reporte = reporteGuardado()
+        medioGuardado(reporte.id, etiquetas = emptyList())
+        medioGuardado(reporte.id)
+        val subiendo = medioGuardado(reporte.id)
+        val fallido = medioGuardado(reporte.id)
+        val completo = medioGuardado(reporte.id)
+        medios.actualizarEstadoSubida(subiendo.id, EstadoSubida.EN_PROGRESO)
+        medios.actualizarEstadoSubida(fallido.id, EstadoSubida.FALLIDA)
+        medios.marcarSubidaCompleta(completo.id, "medios/${reporte.id}/${completo.id}.jpg", "sha-1")
+
+        val sinEtiquetar = medios.observarSinEtiquetar(reporte.custodioUid).first()
+        val enCola = medios.observarEnCola(reporte.custodioUid).first()
+        val fallidos = medios.observarFallidos(reporte.custodioUid).first()
+
+        assertEquals(1, sinEtiquetar)
+        assertEquals(2, enCola)
+        assertEquals(1, fallidos)
+        assertEquals(
+            "el total del badge (COUNT) es lo que suman los tres componentes en el caso normal",
+            4,
+            medios.observarPendientes(reporte.custodioUid).first(),
+        )
+        assertEquals(4, sinEtiquetar + enCola + fallidos)
     }
 
     @Test
