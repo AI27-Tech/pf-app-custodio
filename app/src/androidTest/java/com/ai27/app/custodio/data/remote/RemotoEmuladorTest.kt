@@ -1,6 +1,8 @@
 package com.ai27.app.custodio.data.remote
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.ai27.app.custodio.di.ModoEmulador
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
@@ -81,9 +83,35 @@ class RemotoEmuladorTest {
         @JvmStatic
         @BeforeClass
         fun apuntarAlEmulador() {
-            FirebaseAuth.getInstance().useEmulator(HOST, PUERTO_AUTH)
-            FirebaseFirestore.getInstance().useEmulator(HOST, PUERTO_FIRESTORE)
-            FirebaseStorage.getInstance().useEmulator(HOST, PUERTO_STORAGE)
+            // Desde G3-E, DI (`AuthModule`/`PipelineModule`) apunta las instancias al
+            // emulador cuando `ModoEmulador.activo` es true (debug + meta-data). PERO
+            // `AuthModule.proveeFirebaseAuth` es LAZY: solo corre si alguien pide la
+            // instancia de sesión (login), cosa que el proceso instrumentado no hace
+            // siempre → Auth podía quedar en Producción ("This operation is restricted
+            // to administrators only", los 10 fallos de esta tanda). Así que aseguramos
+            // el cableado AQUÍ de forma idempotente: si DI ya lo hizo, `useEmulator()`
+            // lanza `IllegalStateException` y la ignoramos (ya está cableado); si no,
+            // lo cableamos nosotros. Cubre ambos órdenes.
+            val contexto = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            if (com.ai27.app.custodio.di.ModoEmulador.activo(contexto)) {
+                cablearSiNoInicializado { FirebaseAuth.getInstance().useEmulator(HOST, PUERTO_AUTH) }
+                cablearSiNoInicializado { FirebaseFirestore.getInstance().useEmulator(HOST, PUERTO_FIRESTORE) }
+                cablearSiNoInicializado { FirebaseStorage.getInstance().useEmulator(HOST, PUERTO_STORAGE) }
+            }
+        }
+
+        // Idempotente: `useEmulator()` solo puede llamarse una vez por instancia de
+        // Firebase y la segunda llamada lanza `IllegalStateException`. Como el orden
+        // DI-vs-test varía por proceso, si DI ya cableó la instancia ignoramos la
+        // excepción (ya está apuntando al emulador); si nadie la cableó, la cableamos
+        // nosotros. Un `runCatching` genérico no basta: escondería fallos reales
+        // (p. ej. problemas de conexión que sí deberían reventar la suite).
+        private fun cablearSiNoInicializado(bloque: () -> Unit) {
+            try {
+                bloque()
+            } catch (ignorable: IllegalStateException) {
+                // "FirebaseApp already initialized" / "already set" → DI ya lo cableó.
+            }
         }
     }
 

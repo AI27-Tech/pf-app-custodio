@@ -149,6 +149,7 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.storage)
     implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.analytics)
 
     // Task<T>.await() para las escrituras de Firestore/Storage (hallazgo B1).
     // Firebase ya lo arrastra transitivamente; se declara explícito porque el código
