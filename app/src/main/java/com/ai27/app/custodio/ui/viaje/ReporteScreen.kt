@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,7 +99,10 @@ private fun SinReporte(
     onPlacaCambio: (String) -> Unit,
     onIniciarViaje: () -> Unit,
 ) {
-    var mostrarHoja by remember { mutableStateOf(false) }
+    // U11: la hoja de etiquetado abierta sobrevive a una rotación/recreación de la Activity
+    // (AUDIT.md U11, ReporteScreen:96). El custodio puede estar a la mitad del etiquetado y
+    // una rotación no debe cerrar la hoja ni perder lo que ya escribió arrastrándolo al texto.
+    var mostrarHoja by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()

@@ -53,6 +53,7 @@ fun HistorialRoute(
         estado = estado,
         onFiltroCambio = viewModel::onFiltroCambio,
         onVerDetalle = onVerDetalle,
+        onReintentar = viewModel::onReintentar,
         modifier = modifier,
     )
 }
@@ -86,8 +87,15 @@ fun HistorialScreen(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         )
 
-        when {
-            estado.reportesTotales == 0 -> Box(
+        when (estadoVisibileDe(estado)) {
+            EstadoPantallaHistorial.CARGANDO -> CajaCargaReportes()
+
+            EstadoPantallaHistorial.ERROR -> CajaErrorHistorial(
+                mensaje = stringResource(estado.error ?: R.string.historial_error_carga),
+                onReintentar = onReintentar,
+            )
+
+            EstadoPantallaHistorial.VACIO_SIN_REPORTES -> Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
@@ -98,7 +106,7 @@ fun HistorialScreen(
                 )
             }
 
-            estado.reportesVisible.isEmpty() -> Box(
+            EstadoPantallaHistorial.SIN_COINCIDENCIAS -> Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
@@ -109,14 +117,7 @@ fun HistorialScreen(
                 )
             }
 
-            estado.cargando -> CajaCargaReportes()
-
-            estado.error != null -> CajaErrorHistorial(
-                mensaje = stringResource(estado.error),
-                onReintentar = onReintentar,
-            )
-
-            else -> LazyColumn(
+            EstadoPantallaHistorial.LISTA -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

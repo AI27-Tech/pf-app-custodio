@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -101,7 +102,8 @@ fun RenglonReporte(
  *
  * [esAudio] cambia el icono del recuadro; el reintento (icono de refresco) sólo se pinta
  * cuando [onReintentar] no es nulo. [detalle] es el estado de subida; [secundario] la
- * información adicional (p. ej. las etiquetas) debajo de él (U4).
+ * información adicional (p. ej. las etiquetas) debajo de él (U4). [enReintento] sustituye
+ * el botón por un indicador de progreso para dar señal inmediata tras el toque (U10).
  */
 @Composable
 fun RenglonPendiente(
@@ -110,6 +112,7 @@ fun RenglonPendiente(
     hora: String,
     esAudio: Boolean,
     onReintentar: (() -> Unit)? = null,
+    enReintento: Boolean = false,
     modifier: Modifier = Modifier,
     secundario: String? = null,
 ) {
@@ -173,7 +176,12 @@ fun RenglonPendiente(
                 ),
                 fontWeight = FontWeight.Medium,
             )
-            if (onReintentar != null) {
+            if (enReintento) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else if (onReintentar != null) {
                 IconButton(onClick = onReintentar) {
                     Icon(
                         painter = painterResource(R.drawable.ic_reintento),

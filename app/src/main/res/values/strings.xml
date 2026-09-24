@@ -198,6 +198,11 @@
     <string name="cierre_confirmar_titulo">¿Cerrar el viaje?</string>
     <string name="cierre_confirmar_texto">El viaje quedará cerrado con %1$s.</string>
     <string name="cierre_confirmar">Cerrar</string>
+    <!-- U11: salir del cierre a medias con novedad/comentario pide confirmación (AUDIT.md U11). -->
+    <string name="cierre_salir_titulo">¿Salir del cierre?</string>
+    <string name="cierre_salir_texto">La novedad y el comentario que escribiste se perderán. ¿Quieres salir de todos modos?</string>
+    <string name="cierre_salir_confirmar">Salir y descartar</string>
+    <string name="cierre_salir_cancelar">Seguir en el cierre</string>
 
     <!-- Hoja de etiquetado -->
     <string name="aviso_subida_en_breve">Tu archivo se subirá en breve</string>

@@ -159,11 +159,11 @@ fun AppNavHost() {
                         conectado = rootViewModel.conectado.collectAsState().value,
                         onPlacaCambio = viewModel::onPlacaCambio,
                         onIniciarViaje = viewModel::iniciarViaje,
-                        onIrACaptura = { navController.navigate(Rutas.CAPTURA) },
-                        onIrAAudio = { navController.navigate(Rutas.AUDIO) },
-                        onIrAArchivos = { navController.navigate(Rutas.ARCHIVOS) },
-                        onIrACierre = { navController.navigate(Rutas.CIERRE) },
-                        onIrAPendientes = { navController.navigate(Rutas.PENDIENTES) },
+                        onIrACaptura = { navController.navigate(Rutas.CAPTURA) { launchSingleTop = true } },
+                        onIrAAudio = { navController.navigate(Rutas.AUDIO) { launchSingleTop = true } },
+                        onIrAArchivos = { navController.navigate(Rutas.ARCHIVOS) { launchSingleTop = true } },
+                        onIrACierre = { navController.navigate(Rutas.CIERRE) { launchSingleTop = true } },
+                        onIrAPendientes = { navController.navigate(Rutas.PENDIENTES) { launchSingleTop = true } },
                         onConsumirError = viewModel::consumirError,
                         modifier = Modifier
                             .fillMaxSize()
@@ -274,7 +274,9 @@ fun AppNavHost() {
 
             composable(Rutas.HISTORIAL) {
                 HistorialRoute(
-                    onVerDetalle = { reporteId -> navController.navigate(Rutas.detalle(reporteId)) },
+                    onVerDetalle = { reporteId ->
+                        navController.navigate(Rutas.detalle(reporteId)) { launchSingleTop = true }
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .statusBarsPadding(),

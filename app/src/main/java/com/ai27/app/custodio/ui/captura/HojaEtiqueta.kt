@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -68,7 +69,15 @@ fun HojaEtiqueta(
     // D-B1 (U2): arranca con la última Situación confirmada del viaje en vez de vacía; al
     // custodio suele bastarle confirmar de un toque. Al capturar el siguiente medio la hoja
     // la vuelve a preseleccionar (remember por medio.id).
-    var seleccionadas by remember(medio.id) { mutableStateOf(estado.ultimaSituacion.toSet()) }
+    //
+    // U11: un `Set<String>` crudo no es Bundle-saveable, así que la persistencia vive en una
+    // Lista dentro de rememberSaveable (por medio.id, que reinicia la selección al cambiar
+    // de medio) y `seleccionadas` se deriva como Set para que las operaciones abajo
+    // (diferencia/unión/contiene) mantengan semántica de conjunto idéntica (AUDIT.md U11).
+    var seleccionadasLista by rememberSaveable(medio.id) {
+        mutableStateOf(estado.ultimaSituacion.toList())
+    }
+    val seleccionadas = seleccionadasLista.toSet()
     // La hoja se abre siempre totalmente expandida: con el aviso, las etiquetas y el
     // campo de ubicación, la versión parcialmente expandida ocultaría el botón de guardar
     // y obligaría a hacer scroll.
@@ -104,7 +113,8 @@ fun HojaEtiqueta(
         skipPartiallyExpanded = true,
         confirmValueChange = confirmarCierre,
     )
-    var avisoVisible by remember { mutableStateOf(true) }
+    // U11: soporta recomposición y rotación sin perder la selección ni la hoja abierta (AUDIT U11).
+    var avisoVisible by rememberSaveable { mutableStateOf(true) }
     val etiquetasActivas = estado.etiquetas.filter { it.activo }.sortedBy { it.orden }
 
     // La hoja se abre justo cuando un archivo queda capturado (foto tomada o nota de voz
@@ -180,10 +190,10 @@ fun HojaEtiqueta(
                             FilterChip(
                                 selected = etiqueta.id in seleccionadas,
                                 onClick = {
-                                    seleccionadas = if (etiqueta.id in seleccionadas) {
-                                        seleccionadas - etiqueta.id
+                                    seleccionadasLista = if (etiqueta.id in seleccionadas) {
+                                        (seleccionadas - etiqueta.id).toList()
                                     } else {
-                                        seleccionadas + etiqueta.id
+                                        (seleccionadas + etiqueta.id).toList()
                                     }
                                 },
                                 label = { Text(etiqueta.nombre) },

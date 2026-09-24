@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
@@ -55,11 +56,15 @@ fun CierreScreen(
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var novedad by remember { mutableStateOf(false) }
-    var comentario by remember { mutableStateOf("") }
-    var mostrarConfirmacionCierre by remember { mutableStateOf(false) }
-    var mostrarDescarte by remember { mutableStateOf(false) }
-    var motivoDescarte by remember { mutableStateOf("") }
+    var novedad by rememberSaveable { mutableStateOf(false) }
+    var comentario by rememberSaveable { mutableStateOf("") }
+    var mostrarConfirmacionCierre by rememberSaveable { mutableStateOf(false) }
+    var mostrarDescarte by rememberSaveable { mutableStateOf(false) }
+    var motivoDescarte by rememberSaveable { mutableStateOf("") }
+    // U11: si el custodio escribe/activa algo y pulsa atrás, se le pregunta si de verdad quiere
+    // salir: el texto del cierre a medias se pierde silenciosamente hoy (AUDIT.md U11).
+    var mostrarConfirmacionDescarteSalida by rememberSaveable { mutableStateOf(false) }
+    val hayCambiosEnCierre = novedad || comentario.isNotBlank()
 
     LaunchedEffect(estado.reporte) {
         if (estado.reporte == null) onAtras()
@@ -76,7 +81,18 @@ fun CierreScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        BarraSuperior(titulo = stringResource(R.string.cerrar_viaje), onAtras = onAtras)
+        BarraSuperior(
+            titulo = stringResource(R.string.cerrar_viaje),
+            // U11: si el custodio toca atrás con novedad o comentario escritos no se pierden
+            // en silencio: atrás abre la confirmación en lugar de salir de una (AUDIT.md U11).
+            onAtras = {
+                if (hayCambiosEnCierre) {
+                    mostrarConfirmacionDescarteSalida = true
+                } else {
+                    onAtras()
+                }
+            },
+        )
 
         Column(
             modifier = Modifier
@@ -192,6 +208,20 @@ fun CierreScreen(
             mostrarDescarte = false
             motivoDescarte = ""
         },
+    )
+
+    // U11: el custodio tocó atrás con novedad o comentario sin terminar: confirmación de salida
+    // que descarta los cambios escritos (AUDIT.md U11, D-E3).
+    DialogoConfirmacion(
+        visible = mostrarConfirmacionDescarteSalida,
+        titulo = stringResource(R.string.cierre_salir_titulo),
+        texto = stringResource(R.string.cierre_salir_texto),
+        textoConfirmar = stringResource(R.string.cierre_salir_confirmar),
+        onConfirmar = {
+            mostrarConfirmacionDescarteSalida = false
+            onAtras()
+        },
+        onCancelar = { mostrarConfirmacionDescarteSalida = false },
     )
 
     estado.error?.let { error ->

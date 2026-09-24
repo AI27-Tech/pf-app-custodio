@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +87,10 @@ fun ArchivosScreen(
     modifier: Modifier = Modifier,
 ) {
     var medioABorrar by remember { mutableStateOf<Medio?>(null) }
+    // U10: id del medio cuyo reintento está en vuelo. Da señal inmediata (el botón de la
+    // celda se vuelve un indicador de progreso) para que un segundo toque no produzca el
+    // diálogo "ya está en subida". Se limpia solo cuando el medio deja de estar FALLIDA.
+    var reintentandoId by remember { mutableStateOf<String?>(null) }
     // U3: confirmación no visual del encolado (la rejilla también hospeda la HojaEtiqueta,
     // así que guardar una etiqueta retomada también produce el tic).
     val retroalimentacion = recordarRetroalimentacion()
@@ -132,12 +138,21 @@ fun ArchivosScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(estado.medios, key = { it.id }) { medio ->
+                    LaunchedEffect(medio.id, medio.estadoSubida) {
+                        if (reintentandoId == medio.id && medio.estadoSubida != EstadoSubida.FALLIDA) {
+                            reintentandoId = null
+                        }
+                    }
                     CeldaArchivo(
                         medio = medio,
                         idsSituacion = idsSituacion,
                         nombresEtiqueta = nombresEtiqueta,
                         onConfirmarBorrar = { medioABorrar = medio },
-                        onReintentar = { onReintentar(medio.id) },
+                        onReintentar = {
+                            reintentandoId = medio.id
+                            onReintentar(medio.id)
+                        },
+                        enReintento = reintentandoId == medio.id,
                         onEtiquetar = { onRetomarEtiquetado(medio.id) },
                     )
                 }
@@ -180,6 +195,7 @@ private fun CeldaArchivo(
     onConfirmarBorrar: () -> Unit,
     onReintentar: () -> Unit,
     onEtiquetar: () -> Unit,
+    enReintento: Boolean = false,
 ) {
     val faltaSituacion = medio.etiquetas.none { it in idsSituacion }
     val etiquetarAhora = stringResource(R.string.archivos_etiquetar_ahora)
@@ -268,19 +284,29 @@ private fun CeldaArchivo(
         }
 
         if (medio.estadoSubida == EstadoSubida.FALLIDA) {
-            FilledIconButton(
-                onClick = onReintentar,
-                modifier = Modifier.align(Alignment.TopEnd),
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                ),
-            ) {
-                Icon(
-                    Icons.Filled.Refresh,
-                    contentDescription = stringResource(R.string.archivos_reintentar_subida),
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(18.dp),
+            if (enReintento) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(18.dp),
+                    strokeWidth = 2.dp,
                 )
+            } else {
+                FilledIconButton(
+                    onClick = onReintentar,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Icon(
+                        Icons.Filled.Refresh,
+                        contentDescription = stringResource(R.string.archivos_reintentar_subida),
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
 

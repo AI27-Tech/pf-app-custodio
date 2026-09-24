@@ -14,6 +14,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -57,6 +62,11 @@ fun PendientesScreen(
             onAtras = onAtras,
         )
 
+        // U10: id del medio cuyo reintento está en vuelo. Da señal inmediata (el botón se
+        // vuelve un indicador de progreso) para que un segundo toque no dispare el diálogo
+        // "ya está en subida". Se limpia solo cuando el medio deja de estar FALLIDA.
+        var reintentandoId by remember { mutableStateOf<String?>(null) }
+
         PullToRefreshBox(
             isRefreshing = refrescando,
             onRefresh = onRecargar,
@@ -82,6 +92,11 @@ fun PendientesScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(pendientes, key = { it.id }) { medio ->
+                        LaunchedEffect(medio.id, medio.estadoSubida) {
+                            if (reintentandoId == medio.id && medio.estadoSubida != EstadoSubida.FALLIDA) {
+                                reintentandoId = null
+                            }
+                        }
                         RenglonPendiente(
                             titulo = if (medio.tipo == TipoMedio.AUDIO) {
                                 stringResource(R.string.nota_de_voz)
@@ -92,11 +107,15 @@ fun PendientesScreen(
                             secundario = etiquetasDe(medio),
                             hora = horaDe(medio.createdAtDevice),
                             esAudio = medio.tipo == TipoMedio.AUDIO,
-                            onReintentar = if (medio.estadoSubida == EstadoSubida.FALLIDA) {
-                                { onReintentar(medio) }
+                            onReintentar = if (medio.estadoSubida == EstadoSubida.FALLIDA && reintentandoId != medio.id) {
+                                {
+                                    reintentandoId = medio.id
+                                    onReintentar(medio)
+                                }
                             } else {
                                 null
                             },
+                            enReintento = reintentandoId == medio.id,
                         )
                     }
                 }
