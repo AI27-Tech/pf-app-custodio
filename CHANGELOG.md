@@ -2,6 +2,49 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:24 — Grupo 3 (usabilidad en campo): tanda completa cerrada (G3-A…G3-F, §17.1)
+
+**Resumen:** la tanda §17.1 de `docs/PLAN.md` se cerró en seis clústeres que acercan el flujo
+al estándar de 5 s y quitan la fricción contra WhatsApp: la app abre directo en la cámara con un
+reporte activo y Reporte ya distingue "cargando" de "sin reporte" (R1, R2); la hoja de etiquetado
+hereda la última Situación y ya no puede quedar atrapada sin catálogo (U1/U2); el disparo vibra,
+suena obturador y el encolado hace tic (U3); Pendientes muestra estado **y** etiqueta, la rejilla
+marca los enviados y el badge separa sus tres papeles, con el conteo por `COUNT` (U4/U5/U6/R3);
+Historial corrige el `when` y cablea el reintento, todas las idas usan `launchSingleTop` y el
+formulario de cierre sobrevive a back y rotación (U8/U10/U11); y el cierre de la tanda trajo
+errores con acción de recuperación donde el reintento es genuino (U7), motivo de descarte en chips
+con "Otro" como único cajón libre (U12), franja de sin conexión tri-estado en todo el flujo (U9),
+texto informativo sin `FranjaAviso` en Audio (U13) y el glosario canónico **Reporte/Evidencia**
+con sweep viaje→reporte y subir→enviar (U14/U15).
+
+**Cambios:**
+- `ui/navigation/RootViewModel.kt`: `hayReporteActivo` (sonda Room del arranque), `conectado` pasa a
+  tri-estado `Boolean?` (no afirmar conexión al abrir).
+- `ui/navigation/AppNavHost.kt`: arranque al visor con reporte activo; estado de carga de sesión;
+  `launchSingleTop` en las idas del flujo, Pendientes y Detalle; `conectado` cableado a
+  Captura/Audio/Archivos/Pendientes/Cierre; atajo "Capturar evidencia" desde el vacío de Archivos.
+- `ui/captura/`: `CapturaViewModel` con `ultimaSituacion` heredada, `CapturaUiState` con `error`
+  consumible y `pendientesSinSubir`; `VistaCamara` con `tomarFoto` y `onFallaDeCaptura`.
+- `ui/components/`: háptica + `MediaActionSound` (en `AppCustodioApplication`/util), `TicDeEncolado`
+  y `AvisoSubidaFlotante` (U3), `DialogoError` con `textoAccion`/`onAccion` (U7), `DialogoDescarte`
+  con chips + `SeleccionDeMotivo`/`descarteConfirmable` puros (U12), `ContenedorConAviso` +
+  `franjaSinConexionVisible` (U9), `ChipEstadoSubida` en la rejilla (U5), `ChipCategoria` reutilizada
+  en el descarte.
+- `ui/pendientes/`, `ui/historial/`, `ui/ajustes/`: `PendientesViewModel` con `COUNT`, recarga y
+  reintento con señal; Historial con `when` ordenado y `onReintentar` cableado; Ajustes con retry del
+  cierre de sesión.
+- `ui/viaje/`: `ReporteScreen` con estado de carga y encabezado "Faltan por enviar" (sin fila
+  duplicada), `CierreScreen` con `rememberSaveable` y franja offline, `ArchivosScreen` con chip de
+  enviado y vacío accionable, `AudioScreen` con texto informativo.
+- `res/values/strings.xml`: sweeping de glosario U14/P3; keyes muertas eliminadas
+  (`reporte_evidencias`, `reporte_pendientes`, `reporte_cerrar_viaje`); motivos de descarte;
+  plurals `reporte_faltan_subir`; "Enviando"/"En cola" para los estados.
+- Tests: nuevos unit de lógica pura `DescarteMotivosTest` (4) y `AvisoSinConexionTest` (2);
+  `RemotoEmuladorTest` cablea idempotente los emuladores (dispositivo, PENDIENTE-HW).
+
+**Archivos modificados:** 36 archivos entre `app/src/main/java`, `app/src/test/`,
+`app/src/androidTest/` y `res/values/strings.xml`, en 7 commits (`14ffc86`…`75c58a6`).
+
 ## 2026:09:24 11:20 — Permisos de captura: todos a la vez tras el primer inicio de sesión
 
 **Resumen:** los permisos de cámara, micrófono y ubicación (fina + aproximada) ya no se piden

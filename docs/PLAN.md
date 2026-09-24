@@ -1422,6 +1422,38 @@ más nota el custodio.
 verde; algunas pruebas de Compose (flujo de captura, cierre, ajustes). Sin pausa de Sync salvo que
 U-algo pida una dependencia nueva.
 
+#### 17.1.1 Resultado de la tanda (2026-09-24) y desviaciones al ejecutar
+
+**Cerrado en verde.** `./gradlew assembleDebug testDebugUnitTest` verde al cierre; unidades de
+dominio y pipeline intactas y 6 casos nuevos de UI pura (`DescarteMotivosTest` y
+`AvisoSinConexionTest`, sin instrumentación). Se ejecutó en seis clústeres:
+
+- **G3-A (R1, R2):** arranque directo al visor con reporte activo y estado de carga en el hub.
+- **G3-B (U1, U2):** ráfaga desbloqueada, etiqueta de Situación heredada, salida segura de la hoja
+  y su comportamiento con catálogo sin situaciones (4 chips genéricos).
+- **G3-C (U3):** háptica + sonido de obturador y tic de encolado disparados desde la UI.
+- **G3-D (U4, U5, U6, R3):** estado y etiqueta en Pendientes, chip "enviado" en la rejilla,
+  badge con tres papeles y conteo por `COUNT` fuera del cuerpo de `AppNavHost` (adelantado de G4).
+- **G3-E (U8, U10, U11):** `when` de Historial corregido con `onReintentar` cableado,
+  `launchSingleTop` en todas las idas y `rememberSaveable` en el formulario de cierre.
+- **G3-F (U7, U9, U12–U15):** `DialogoError` con acción de recuperación (solo donde el reintento
+  es genuino: colas y cierre de sesión; el flujo conserva "Entendido" — el retry del flujo es el
+  propio redo en pantalla), motivo de descarte en chips con campo libre solo para "otro", franja
+  offline tri-estado en todo el flujo, y el glosario **Reporte/Evidencia** con el sweep
+  viaje→reporte, archivos→evidencias y subir→enviar + encabezado de "faltan por enviar".
+
+**Desviaciones y fuera de alcance (quedan en el plan, no regresan).** La **ráfaga con etiqueta
+diferida** quedó fuera del clúster (P1 de `docs/PLAN_GRUPO_3.md`: se difiere a una versión futura);
+solo se cerró el sub-bug de "trampa sin salida" de U1 (hoja clausurable cuando el catálogo no tiene
+Situaciones). El botón "Guardar" de la hoja **se conserva** —es el punto donde se adjunta la
+ubicación y se encola—; la herencia de Situación (D-B1) es la que quita los ~100 toques
+("tocar chip confirma directo" se descartó porque rompe la multi-selección de §14). La franja de
+sin conexión usa el monitor existente (`Boolean?` tri-estado); el `NET_CAPABILITY_VALIDATED` y el
+control de coste de datos siguen siendo **R14 (Grupo 4)**. El recorrido cronometrado en dispositivo
+real y las pruebas de Compose del cierre de tanda quedan **PENDIENTE-HW**; `U11` deja el
+`verticalScroll` de Login/ReporteAbierto/Audio/Ajustes a **Grupo 5 (A3.9/A4)**. U16 no se tocó
+(Grupo 6).
+
 ### 17.2 Grupo 4 — Rendimiento
 
 **Meta:** que el estándar de 5 s se cumpla de forma fiable y que una subida de 50 medios no queme

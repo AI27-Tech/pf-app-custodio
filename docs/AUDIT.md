@@ -1044,7 +1044,7 @@ El estándar declarado en `docs/PLAN.md` §7 es: **abrir la app y tener una foto
 encolada en menos de cinco segundos.** Hoy no se cumple de forma fiable, y nadie lo está
 midiendo desde el código.
 
-### R1 · La app no abre en la cámara — ALTO · VERIFICADO
+### R1 · La app no abre en la cámara — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-A)
 
 `ui/navigation/AppNavHost.kt:143` arranca en `LOGIN`; cuando la sesión resuelve, un
 `LaunchedEffect` navega a `INICIO`, que es la pestaña **Reporte** (pantalla intermedia de
@@ -1067,7 +1067,7 @@ Suma realista en un equipo barato con viaje ya abierto: **~3-5 s**, es decir jus
 límite, y **por encima** con arranque en frío, diálogo de permisos, o si el GPS no fijó y hay
 que teclear la ubicación. La cámara **no se pre-calienta** en ningún momento.
 
-### R2 · "Sin reporte activo" se muestra aunque haya un viaje abierto — ALTO · VERIFICADO
+### R2 · "Sin reporte activo" se muestra aunque haya un viaje abierto — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-A)
 
 `ui/viaje/ReporteScreen.kt:64-82` + `ui/captura/CapturaViewModel.kt:98-105`
 
@@ -1336,7 +1336,7 @@ cargada. Cero I/O por tecla.
 El competidor es WhatsApp y tiene cero ceremonia (`docs/PLAN.md` §1). Estos son los puntos
 donde la app pierde contra ese estándar.
 
-### U1 · La hoja de etiquetado bloquea la ráfaga y no tiene salida — ALTO · VERIFICADO
+### U1 · La hoja de etiquetado bloquea la ráfaga y no tiene salida — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-B)
 
 `ui/captura/HojaEtiqueta.kt:60-83`. La hoja es una trampa deliberada: `confirmValueChange`
 rechaza `Hidden` sin chip, `onDismissRequest` ignora el back y el toque exterior, y la X se
@@ -1353,7 +1353,7 @@ E3).
 Archivos + bloqueo del cierre de viaje hasta etiquetar), o etiqueta heredada automática con
 opción de corregir.
 
-### U2 · No hay etiqueta recordada, y "Guardar" es un toque redundante — ALTO · VERIFICADO
+### U2 · No hay etiqueta recordada, y "Guardar" es un toque redundante — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-B)
 
 `HojaEtiqueta.kt:55` usa `remember(medio.id) { mutableStateOf<String?>(null) }`: no hay
 etiqueta recordada del último uso. En un viaje de 50 evidencias, casi siempre de la misma
@@ -1366,7 +1366,7 @@ explotar, y faltan las etiquetas obvias del ciclo (inicio de viaje, llegada, sel
 unidad, documentos). Esto es consistente con `docs/PLAN.md` §3.1: el catálogo real sigue
 pendiente y **bloquea la salida a producción**, no la construcción.
 
-### U3 · No hay ningún canal de confirmación no visual — ALTO · VERIFICADO
+### U3 · No hay ningún canal de confirmación no visual — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-C)
 
 Verificado por búsqueda en todo `app/src/main`: **cero `performHapticFeedback`, cero
 `Vibrator`, cero `MediaActionSound`, cero `Snackbar`**. En cabina, a pleno sol, una píldora
@@ -1378,7 +1378,7 @@ de rotar el bitmap y comprimir el JPEG. Entre el toque y cualquier confirmación
 de ms sin nada en pantalla, con el disparador ya deshabilitado. Es exactamente "la acción
 parece no haber ocurrido".
 
-### U4 · `PendientesScreen` oculta el estado de subida en el caso normal — ALTO · VERIFICADO
+### U4 · `PendientesScreen` oculta el estado de subida en el caso normal — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-D)
 
 `ui/pendientes/PendientesScreen.kt:112-118`: `detalleDe` devuelve `medio.etiqueta ?: <estado>`.
 Es decir, **en el caso normal (medio etiquetado) el renglón muestra el nombre de la etiqueta y
@@ -1387,7 +1387,7 @@ oculta el estado**. La pantalla que existe para resolver la ansiedad "¿sí se e
 etiqueta. El botón de reintento tampoco se pinta salvo `FALLIDA`, así que **un renglón
 etiquetado y fallido se ve idéntico a uno etiquetado y en cola**.
 
-### U5 · "Ya llegó al servidor" se comunica por ausencia — ALTO · VERIFICADO
+### U5 · "Ya llegó al servidor" se comunica por ausencia — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-D)
 
 Cuando un medio pasa a `COMPLETA` desaparece de `PendientesScreen` (el DAO filtra
 `estadoSubida != 'COMPLETA'`) y en la rejilla de `ArchivosScreen` **no se dibuja nada**:
@@ -1400,14 +1400,14 @@ ni "3 de 7 enviados en este viaje". Con red intermitente, "En cola" puede durar 
 igual que "va a salir ya". `docs/PLAN.md` §11.7 ya identificaba la falta de progreso; sigue
 pendiente.
 
-### U6 · El badge mezcla tres cosas distintas — ALTO · VERIFICADO
+### U6 · El badge mezcla tres cosas distintas — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-D)
 
 `MedioDao.kt:22-30` define "pendiente" como todo lo que no es `COMPLETA`, lo que junta **sin
 etiquetar** (nunca encolado), **en cola** y **fallido**. Son tres situaciones con acciones
 distintas y el custodio no puede distinguirlas. Combinado con E3, un medio huérfano mantiene
 el badge en ≥1 para siempre y bloquea el cierre de sesión.
 
-### U7 · Los errores son callejones sin salida — ALTO · VERIFICADO
+### U7 · Los errores son callejones sin salida — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-F)
 
 `ui/components/Dialogos.kt:158-172`: `DialogoError` tiene un solo botón "Entendido". Todos los
 errores del flujo lo usan, incluido `error_sin_conexion` y los fallos de captura y etiquetado:
@@ -1418,7 +1418,7 @@ El copy en sí está bien: sin jerga técnica, sin stack traces ni códigos filt
 excepción de vocabulario es `reporte_limite_alcanzado` ("límite de 50 **medios**"), que
 convive con `error_limite_medios` ("50 **archivos**") para el mismo límite.
 
-### U8 · Carga, error y vacío son indistinguibles en Historial — ALTO · VERIFICADO
+### U8 · Carga, error y vacío son indistinguibles en Historial — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-E)
 
 `ui/historial/HistorialScreen.kt:88`. El orden del `when` está invertido:
 `estado.reportesTotales == 0` se evalúa **antes** de `estado.cargando` y de `estado.error`, y
@@ -1432,7 +1432,7 @@ lo cablea** al ViewModel: el botón de reintento no haría nada aunque fuese alc
 Esto vuelve inefectivo el trabajo de la fase C5 del plan, que existió precisamente para
 añadir esos estados.
 
-### U9 · La franja de sin conexión solo cubre una pantalla — ALTO · VERIFICADO
+### U9 · La franja de sin conexión solo cubre una pantalla — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-F)
 
 `ui/viaje/ReporteScreen.kt:171-175`: `FranjaAviso(reporte_sin_conexion)` solo se pinta en
 `ReporteAbierto`. **No aparece en Captura, Audio, Archivos, Pendientes ni Cierre**, o sea
@@ -1441,7 +1441,7 @@ que al abrir la app sin red hay una ventana en la que se afirma que hay conexió
 contrario de lo que documenta el comentario de `ConectividadAndroidMonitor`. Ver también R14
 (portal cautivo).
 
-### U10 · Doble toque duplica pantallas — ALTO · VERIFICADO
+### U10 · Doble toque duplica pantallas — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-E)
 
 Ninguna navegación usa `launchSingleTop` (`AppNavHost.kt:160-164, 265`). Doble toque en
 "Capturar evidencia" **apila dos veces la ruta CAPTURA** → dos `CapturaEvidenciaScreen`, dos
@@ -1459,7 +1459,7 @@ encolado. Detalle asociado: el botón de reintento no cambia de aspecto tras el 
 un segundo toque produce un diálogo de error ("ya está en subida") por no haber dado señal de
 respuesta.
 
-### U11 · El estado del formulario de cierre se pierde con un back o una rotación — ALTO · VERIFICADO
+### U11 · El estado del formulario de cierre se pierde con un back o una rotación — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-E; `verticalScroll` del resto de destinos queda en Grupo 5/A3.9)
 
 `rememberSaveable` se usa **exactamente una vez** en toda la app (`Avisos.kt:140`). Con
 `remember` —que se pierde en cualquier recreación de Activity, no solo en muerte de proceso—:
@@ -1474,7 +1474,7 @@ respuesta.
 Salir del cierre a medias es gratis y silencioso: no hay confirmación de descarte de cambios.
 El **motivo de descarte** tecleado es el más sensible, porque es obligatorio.
 
-### U12 · El motivo de descarte es texto libre en un diálogo — ALTO · VERIFICADO
+### U12 · El motivo de descarte es texto libre en un diálogo — ALTO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-F)
 
 `ui/components/Dialogos.kt:66-110`: `OutlinedTextField` libre de `minLines = 2` **dentro de un
 `AlertDialog`**, con placeholder "Obligatorio" y **sin un solo motivo predefinido**. Es el peor
@@ -1487,14 +1487,14 @@ duplicado, prueba/error, otro) y el campo de texto solo para "otro".
 
 El copy del descarte **sí** está bien: `descarte_texto` explica que lo ya subido no se borra.
 
-### U13 · `FranjaAviso` se usa para texto informativo permanente — MEDIO · VERIFICADO
+### U13 · `FranjaAviso` se usa para texto informativo permanente — MEDIO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-F)
 
 `ui/viaje/AudioScreen.kt:71` usa `FranjaAviso` (superficie ámbar de advertencia, con icono de
 alerta) para un texto puramente informativo y permanente: "Máximo 5:00 por nota. Habla
 claro…". Devalúa el único affordance de advertencia del sistema; cuando aparezca un aviso real
 (sin conexión), el custodio ya lo habrá aprendido a ignorar.
 
-### U14 · Vocabulario inconsistente en tres ejes — MEDIO · VERIFICADO
+### U14 · Vocabulario inconsistente en tres ejes — MEDIO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-F)
 
 - **reporte / viaje** para lo mismo: pestaña "Reporte", vacío "Sin **reporte** activo / Iniciar
   nuevo **reporte**", hoja "Nuevo **viaje** / Comenzar **viaje**", "Cerrar **viaje**",
@@ -1506,7 +1506,7 @@ claro…". Devalúa el único affordance de advertencia del sistema; cuando apar
 El tono general del español es bueno (tuteo, frases cortas, sin anglicismos). El problema no
 es el tono, es la falta de un glosario único.
 
-### U15 · Repetición y jerarquía en `ReporteScreen` — MEDIO · VERIFICADO
+### U15 · Repetición y jerarquía en `ReporteScreen` — MEDIO · VERIFICADO · ✅ ATENDIDO 2026-09-24 (G3-F)
 
 `ui/viaje/ReporteScreen.kt:190-212`: el mismo número aparece **tres veces** en una pantalla
 (contador "x de 50" en el encabezado, celda "EVIDENCIAS", fila "N evidencias capturadas"), y
@@ -2294,7 +2294,7 @@ cumplió E6) y **S13 pasó al Grupo 6** (contexto de Crashlytics con T7). Arné 
 suite de dispositivo verde (33). El despliegue de las reglas endurecidas a la consola real se hizo
 el 2026-09-23 (Firestore + Storage, `firebase deploy --only firestore:rules,storage`).
 
-### Grupo 3 — Que la app sea usable en campo
+### Grupo 3 — Que la app sea usable en campo ✅ atendido (2026-09-24, tanda §17.1 de `docs/PLAN.md`)
 
 R1 y R2 (abrir en el visor y estado de carga en Reporte: elimina el falso "Sin reporte activo" y
 acerca los 5 s), U1 y U2 (desbloquear la ráfaga, etiqueta heredada, chips a 48 dp, quitar el toque
@@ -2303,6 +2303,13 @@ Pendientes, estado en la rejilla, separar "sin etiquetar" de "en cola" en el bad
 `when` de Historial y cablear `onReintentar`), U10 (`launchSingleTop`), U11 (`rememberSaveable`),
 U12 (motivos de descarte predefinidos), U9 (franja de sin conexión en todas las pantallas del
 flujo), E5 (ciclo de vida del `MediaRecorder`), S9/S10 (rationale y ruta a Ajustes del sistema).
+
+Cerrado en seis clústeres G3-A…G3-F (2026-09-24): cada hallazgo lleva su marca arriba. R1, R2,
+U1–U11 quedaron atendidos en G3-A…G3-E con señales no visuales (U3), seña de reintento y estado
+persistente; U7/U9/U12–U15 en G3-F, con `testDebugUnitTest` verde (6 casos nuevos de
+`DescarteMotivosTest`/`AvisoSinConexionTest`) y `assembleDebug` verde. Quedan fuera: U16 (chips y
+`MiniaturaMedio`, Grupo 6) y el recorrido cronometrado en dispositivo real y las pruebas de Compose
+del cierre de tanda (§17.1) — **PENDIENTE-HW**, sin ejecutables aquí.
 
 ### Grupo 4 — Rendimiento
 
