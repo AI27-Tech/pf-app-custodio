@@ -388,6 +388,7 @@ class CapturaViewModel @Inject constructor(
                             medioPendienteDeEtiquetar = null,
                             ubicacionTextoEscrita = "",
                             avisoEncolado = it.avisoEncolado + 1,
+                            ultimaSituacion = etiquetas.filter { it in idsSituacion() },
                         )
                     }
                     is Result.Failure -> it.copy(error = resultado.error.aRecurso())

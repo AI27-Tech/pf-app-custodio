@@ -47,6 +47,15 @@ import com.ai27.app.custodio.ui.previews.DatosDemo
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
+/**
+ * Predicado puro del cierre de la hoja (sub-bug de U1): la hoja se puede cerrar cuando hay
+ * una Situación elegida, o cuando el catálogo no trae NINGUNA Situación —ahí no hay forma de
+ * clasificar y el pin de guardar es inútil, así que se deja salir en vez de atascar al
+ * custodio (la rejilla de Archivos lo reaparece después vía [retomarEtiquetado]).
+ */
+fun hojaPuedeCerrarse(idsSituacion: Set<String>, tieneSituacion: Boolean): Boolean =
+    idsSituacion.isEmpty() || tieneSituacion
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HojaEtiqueta(
@@ -56,7 +65,10 @@ fun HojaEtiqueta(
     onCerrar: () -> Unit,
 ) {
     val medio = estado.medioPendienteDeEtiquetar ?: return
-    var seleccionadas by remember(medio.id) { mutableStateOf(setOf<String>()) }
+    // D-B1 (U2): arranca con la última Situación confirmada del viaje en vez de vacía; al
+    // custodio suele bastarle confirmar de un toque. Al capturar el siguiente medio la hoja
+    // la vuelve a preseleccionar (remember por medio.id).
+    var seleccionadas by remember(medio.id) { mutableStateOf(estado.ultimaSituacion.toSet()) }
     // La hoja se abre siempre totalmente expandida: con el aviso, las etiquetas y el
     // campo de ubicación, la versión parcialmente expandida ocultaría el botón de guardar
     // y obligaría a hacer scroll.
@@ -74,12 +86,17 @@ fun HojaEtiqueta(
             .toSet()
     }
     val tieneSituacion = seleccionadas.any { it in idsSituacion }
+    // Sub-bug de U1: con idsSituacion vacío `tieneSituacion` no puede volverse nunca true, y
+    // el pin de salida (gesto de baja, toque fuera, botón atrás y la X) quedaría bloqueado
+    // para siempre. `hojaPuedeCerrarse` abre la puerta en ese caso (medio queda sin clasificar;
+    // la rejilla de Archivos lo señala después vía retomarEtiquetado).
+    val puedeCerrar = hojaPuedeCerrarse(idsSituacion, tieneSituacion)
     // rememberModalBottomSheetState enruta confirmValueChange por rememberSaveable: si la
     // lambda se re-creara en cada recomposición (su referencia cambia aunque el resultado
     // sea el mismo), el SheetState nacería de nuevo con valor inicial Hidden y ModalBottomSheet
     // volvería a lanzar show() — la hoja "aparecía dos veces" al elegir el primer chip de
     // Situación. Se recuerda una lambda estable que lee el dato vivo vía rememberUpdatedState.
-    val permiteCerrar = rememberUpdatedState(tieneSituacion)
+    val permiteCerrar = rememberUpdatedState(puedeCerrar)
     val confirmarCierre = remember {
         { valor: SheetValue -> if (valor == SheetValue.Hidden) permiteCerrar.value else true }
     }
@@ -98,7 +115,7 @@ fun HojaEtiqueta(
     }
 
     ModalBottomSheet(
-        onDismissRequest = { if (tieneSituacion) onCerrar() },
+        onDismissRequest = { if (puedeCerrar) onCerrar() },
         sheetState = sheetState,
     ) {
         Column(
@@ -133,7 +150,7 @@ fun HojaEtiqueta(
                 )
                 IconButton(
                     onClick = onCerrar,
-                    enabled = tieneSituacion,
+                    enabled = puedeCerrar,
                 ) {
                     Icon(
                         Icons.Filled.Close,

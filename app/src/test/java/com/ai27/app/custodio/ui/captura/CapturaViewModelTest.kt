@@ -534,4 +534,86 @@ class CapturaViewModelTest {
         }
 
     // endregion
+
+    // region herencia de Situación (G3-B / D-B1, U2)
+
+    @Test
+    fun `guardar etiqueta recuerda la situacion para el siguiente medio`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // U2: el custodio ya sabe qué pasó en la foto anterior; la hoja siguiente debe
+            // arrancar con esa última Situación confirmada, no vacía.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+            vm.guardarEtiqueta(repoMedios.medios.single().id, listOf("sin-novedad", "accidente"))
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            assertEquals(
+                "solo la Situación se hereda; la Evidencia es opcional y no se presume",
+                listOf("sin-novedad"),
+                vm.uiState.value.ultimaSituacion,
+            )
+        }
+
+    @Test
+    fun `la ultima situacion sobrevive al capturar otro medio`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // El estado no se resetea al volcar una nueva captura: la hoja del segundo
+            // medio se compone desde `ultimaSituacion` y encuentra la heredada.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+            vm.guardarEtiqueta(repoMedios.medios.single().id, listOf("sin-novedad"))
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+
+            assertEquals(listOf("sin-novedad"), vm.uiState.value.ultimaSituacion)
+        }
+
+    @Test
+    fun `la herencia se renueva con la situacion de la ultima confirmacion`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Si la última vez eligió otra Situación, la herencia le sigue el ritmo: lo que
+            // se recuerda es la última confirmada, no la primera.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+            vm.guardarEtiqueta(repoMedios.medios.single().id, listOf("sin-novedad"))
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+            vm.guardarEtiqueta(repoMedios.medios.last().id, listOf("con-novedad", "otro"))
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            assertEquals(
+                "se recuerda la última Situación, con su evidencia opcional al lado",
+                listOf("con-novedad"),
+                vm.uiState.value.ultimaSituacion,
+            )
+        }
+
+    // endregion
 }
