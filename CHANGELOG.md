@@ -2,6 +2,63 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:24 — Hoja de etiquetado: botón Guardar estable y copia local del catálogo (A4)
+
+**Resumen:** dos mejoras en la `HojaEtiqueta` pedidas en el Grupo 3. (1) El botón de acción
+siempre dice **"Guardar"** y está presente desde que abre la hoja, gris y deshabilitado hasta
+elegir una Situación (antes cambiaba de etiqueta según el estado y el custodio "esperaba a que
+apareciera"). (2) El catálogo de etiquetas se **calienta al abrir la app** y se **copia en local**
+(`data/local/CatalogoEtiquetasCodificador` + `CatalogoEtiquetasOffline` por SharedPreferences);
+el `EtiquetaRepository` pasa a ser `CacheEtiquetasRepositorio` (memoria → copia local → remoto,
+un solo refresco de fondo por proceso y llamadas concurrentes coalescidas con `Mutex`). Como el
+`get()` de Firestore con red espera al servidor, esto elimina el round-trip de los pocos segundos
+en que la hoja abría sin chips en la primera captura.
+
+**Cambios:**
+- `HojaEtiqueta.kt`: botón único "Guardar" deshabilitado hasta tener Situación; se quitó la cadena
+  `hoja_selecciona_etiqueta`.
+- `data/local/CatalogoEtiquetasCodificador.kt` (nuevo): codificación compacta y sin dependencias
+  de `List<Etiqueta>` con escapes.
+- `data/local/CatalogoEtiquetasOffline.kt` (nuevo): interfaz `CatalogoEtiquetasAlmacen` +
+  implementación SharedPreferences; un guardado corrupto se limpia y cae al remoto.
+- `data/repository/CacheEtiquetasRepositorio.kt` (nuevo): decorador con caché en memoria y copia
+  local; los fallos de prefs nunca rompen el etiquetado ni la subida.
+- `di/DatabaseModule.kt`: el `EtiquetaRepository` envuelve el repo Firestore con la caché.
+- `AppCustodioApplication.kt`: calentamiento del catálogo en `onCreate` en un scope de fondo.
+- Pruebas unitarias: `CatalogoEtiquetasCodificadorTest` y `CacheEtiquetasRepositorioTest`.
+
+**Verificación:** `./gradlew assembleDebug testDebugUnitTest` verde. Sin cambios de scripts de
+build (no requirió Sync).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/CatalogoEtiquetasCodificador.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/local/CatalogoEtiquetasOffline.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/repository/CacheEtiquetasRepositorio.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/DatabaseModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/AppCustodioApplication.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/local/CatalogoEtiquetasCodificadorTest.kt` (nuevo)
+- `app/src/test/java/com/ai27/app/custodio/data/repository/CacheEtiquetasRepositorioTest.kt` (nuevo)
+- `app/src/main/res/values/strings.xml`
+- `CHANGELOG.md`
+
+## 2026:09:23 — Grupo 3 (usabilidad en campo): plan de tanda en modo TDD
+
+**Resumen:** se creó el documento de plan `docs/PLAN_GRUPO_3.md` que detalla en modo TDD la
+siguiente tanda de `docs/PLAN.md` §17.1 (Grupo 3 — que la app sea usable en campo). Recoge las
+tres decisiones de producto acordadas con el usuario (U1/ráfaga diferida a versión futura;
+motivos de descarte en chips; glosario canónico "Reporte"/"Evidencias"), confirma los hallazgos
+R1/R2/R3 y U2–U15 contra el código actual, y los organiza en seis clústeres (G3-A…G3-F) con
+dependencias, pruebas y riesgos. No se tocó código de la app todavía.
+
+**Cambios:**
+- Se agregó `docs/PLAN_GRUPO_3.md` con el detalle de la tanda del Grupo 3.
+- Se registró esta entrada en el CHANGELOG.
+
+**Archivos modificados:**
+- `docs/PLAN_GRUPO_3.md`
+- `CHANGELOG.md`
+
 ## 2026:09:23 17:11 — Infraestructura Firebase movida a `pf-infra-firebase`
 
 **Resumen:** la carpeta `firebase/` (reglas de Firestore/Storage, arnés `reglas.test.js`, funciones,

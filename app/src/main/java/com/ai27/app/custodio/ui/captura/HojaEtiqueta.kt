@@ -45,6 +45,7 @@ import com.ai27.app.custodio.ui.components.AvisoSubida
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.previews.DatosDemo
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -92,7 +93,7 @@ fun HojaEtiqueta(
     // La hoja se abre justo cuando un archivo queda capturado (foto tomada o nota de voz
     // terminada): el aviso confirma que quedó en la cola y se subirá en breve.
     LaunchedEffect(Unit) {
-        delay(AVISO_SUBIDA_DURACION_MS)
+        delay(AVISO_SUBIDA_DURACION_MS.milliseconds)
         avisoVisible = false
     }
 
@@ -189,13 +190,7 @@ fun HojaEtiqueta(
                 enabled = tieneSituacion,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    if (!tieneSituacion) {
-                        stringResource(R.string.hoja_selecciona_etiqueta)
-                    } else {
-                        stringResource(R.string.hoja_guardar)
-                    },
-                )
+                Text(stringResource(R.string.hoja_guardar))
             }
         }
     }

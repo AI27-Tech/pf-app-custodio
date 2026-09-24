@@ -206,7 +206,6 @@
     <string name="hoja_etiqueta_obligatoria">Situación (obligatoria):</string>
     <string name="hoja_evidencia_opcional">Evidencia (opcional):</string>
     <string name="hoja_ubicacion_sin_gps">Ubicación (sin GPS)</string>
-    <string name="hoja_selecciona_etiqueta">Selecciona una situación</string>
     <string name="hoja_guardar">Guardar</string>
 
     <!-- Historial -->

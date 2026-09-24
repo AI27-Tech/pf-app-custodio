@@ -1,10 +1,12 @@
 package com.ai27.app.custodio.di
 
 import android.content.Context
+import com.ai27.app.custodio.data.local.CatalogoEtiquetasOffline
 import com.ai27.app.custodio.data.local.archivo.AlmacenArchivos
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
 import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
 import com.ai27.app.custodio.data.remote.FirestoreCatalogoEtiquetasRepositorio
+import com.ai27.app.custodio.data.repository.CacheEtiquetasRepositorio
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
 import com.ai27.app.custodio.domain.repository.EtiquetaRepository
@@ -43,8 +45,15 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun proveeEtiquetaRepository(firestore: FirebaseFirestore): EtiquetaRepository =
-        FirestoreCatalogoEtiquetasRepositorio(firestore)
+    fun proveeEtiquetaRepository(
+        @ApplicationContext context: Context,
+        firestore: FirebaseFirestore,
+    ): EtiquetaRepository = CacheEtiquetasRepositorio(
+        remoto = FirestoreCatalogoEtiquetasRepositorio(firestore),
+        almacen = CatalogoEtiquetasOffline(
+            context.getSharedPreferences("catalogo_etiquetas", Context.MODE_PRIVATE),
+        ),
+    )
 
     @Provides
     @Singleton
