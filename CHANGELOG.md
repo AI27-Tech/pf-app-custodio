@@ -2,6 +2,44 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:24 11:20 — Permisos de captura: todos a la vez tras el primer inicio de sesión
+
+**Resumen:** los permisos de cámara, micrófono y ubicación (fina + aproximada) ya no se piden
+al abrir el visor de captura: se solicitan **todos juntos en un solo diálogo** justo después del
+primer inicio de sesión (bandera persistente en `preferencias`, se pregunta una sola vez por
+instalación). La pantalla de cámara conserva su re-petición manual y el acceso a los Ajustes del
+sistema para lo que quede denegado.
+
+**Cambios:**
+- `ui/navigation/PermisosTrasLogin.kt` (nuevo): `SolicitarPermisosTrasInicioDeSesion` lanza
+  `RequestMultiplePermissions` con los 4 permisos cuando la sesión pasa a `CON_SESION` y aún no
+  se habían pedido.
+- `ui/navigation/AppNavHost.kt`: se invoca el solicitador anclado a `estadoRoot.estado`.
+- `ui/viaje/CapturaEvidenciaScreen.kt`: se elimina el lanzado automático de permisos al componer
+  la pantalla; la re-petición queda solo bajo el botón "Permitir cámara".
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/PermisosTrasLogin.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+
+## 2026:09:24 10:40 — Cliente fijo del piloto y plan detallado del Grupo 3
+
+**Resumen:** el cliente provisional pasa a ser **Colgate** (constante `CLIENTE_PROVISIONAL` en
+`CapturaViewModel`; sigue siendo un valor único hasta que exista el catálogo de clientes, R4) y
+se incorpora `docs/PLAN_GRUPO_3.md`, el plan en modo TDD de la tanda §17.1 de `docs/PLAN.md`.
+Se elimina `docs/PHONE_AUTH_PLAN.md`, absorbido por `docs/PLAN.md` y `AGENTS.md`.
+
+**Cambios:**
+- `ui/captura/CapturaViewModel.kt`: `CLIENTE_PROVISIONAL` cambia de `"cliente-provisional"` a `"Colgate"`.
+- `docs/PLAN_GRUPO_3.md` (nuevo): decisiones P1–P3 y plan de trabajo del Grupo 3.
+- `docs/PHONE_AUTH_PLAN.md` (eliminado): su contenido quedó integrado en `docs/PLAN.md` y `AGENTS.md`.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `docs/PLAN_GRUPO_3.md` (nuevo)
+- `docs/PHONE_AUTH_PLAN.md` (eliminado)
+
 ## 2026:09:24 — Hoja de etiquetado: botón Guardar estable y copia local del catálogo (A4)
 
 **Resumen:** dos mejoras en la `HojaEtiqueta` pedidas en el Grupo 3. (1) El botón de acción

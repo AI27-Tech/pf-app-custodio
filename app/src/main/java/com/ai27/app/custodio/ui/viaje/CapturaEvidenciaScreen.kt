@@ -24,7 +24,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -136,15 +135,12 @@ fun CapturaEvidenciaScreen(
             if (inspeccion) PermisosCamara(camara = true, mic = true, ubicacion = true) else permisosActuales(),
         )
     }
+    // Los permisos se piden todos juntos tras el primer inicio de sesión (ver
+    // `SolicitarPermisosTrasInicioDeSesion`); aquí solo se re-piden a petición del custodio
+    // con el botón de permiso, nunca al abrir el visor.
     val lanzadorPermisos = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { permisos = permisosActuales() }
-
-    LaunchedEffect(Unit) {
-        if (!inspeccion && (!permisos.camara || !permisos.mic || !permisos.ubicacion)) {
-            lanzadorPermisos.launch(permisosSolicitados())
-        }
-    }
 
     // S9: al volver de los Ajustes del sistema (o de un diálogo que ya pidió todo) el
     // estado de permisos pudo cambiar; se re-chequea en ON_RESUME para que la pantalla

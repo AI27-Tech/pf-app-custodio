@@ -111,6 +111,10 @@ fun AppNavHost() {
     val rootViewModel: RootViewModel = hiltViewModel()
     val pendientesViewModel: PendientesViewModel = hiltViewModel()
     val estadoRoot by rootViewModel.estado.collectAsState()
+
+    // Tras el primer inicio de sesión se piden TODOS los permisos de captura de una sola
+    // vez (ya no al abrir el visor).
+    SolicitarPermisosTrasInicioDeSesion(sesionActiva = estadoRoot.estado == EstadoSesion.CON_SESION)
     val pendientes by pendientesViewModel.pendientes.collectAsState()
     val pendientesError by pendientesViewModel.error.collectAsState()
     val pendientesRefrescando by pendientesViewModel.refrescando.collectAsState()
