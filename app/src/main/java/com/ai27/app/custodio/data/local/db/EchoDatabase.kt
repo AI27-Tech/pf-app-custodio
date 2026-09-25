@@ -28,6 +28,11 @@ abstract class EchoDatabase : RoomDatabase() {
          * cada instalación existente abriera una base vacía y quedaran huérfanos los reportes sin
          * subir y los archivos de `filesDir/medios` que aún no se han enviado. Este nombre va
          * también en `res/xml/backup_rules.xml` y `res/xml/data_extraction_rules.xml`.
+         *
+         * La razón original era preservar instalaciones ya en campo. A 2026-09-25 no hay ninguna
+         * (todas las instalaciones son frescas), así que cambiar el nombre hoy ya no
+         * rompe nada. Se conserva solo por coherencia: el nombre no lo ve nadie y cambiarlo
+         * obligaría a tocar también las reglas de backup y de extracción de datos.
          */
         const val NOMBRE = "app_custodio.db"
 

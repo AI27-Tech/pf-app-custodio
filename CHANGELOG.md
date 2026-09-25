@@ -57,6 +57,26 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
 **Pendiente natural (no pedido):** la pantalla de login (`ui/login/LoginScreen.kt`) no tiene hoy ningún elemento de marca; se puede añadir el logo ahí si se quiere, con un `drawable/echo_logo` generado desde el mismo maestro.
 
+## 2026:09:25 15:55
+
+**Resumen:** El keystore de release se regenera con `CN=Echo` y se corrige la razón que en la entrada de las 14:19 Justificaba dejar el resto de los nombres viejos. Ningún cambio de código.
+
+**Por qué ahora:** la entrada anterior dejó el keystore con `CN=App Custodio` bajo la condición explícita de regenerarlo *"solo si la app aún no se ha distribuido a equipos reales"*. Se confirmó que **no hay ningún equipo en campo: todas las instalaciones serán frescas**. La condición se cumplió, así que la ventana para cambiarlo sin costo estaba abierta y se usó. Un keystore distinto solo obliga a reinstalar cuando ya hay instalaciones que actualizar, y reinstalar borra la cola local de evidencia y los reportes sin subir.
+
+**Cambios:**
+- **Keystore regenerado:** `CN=App Custodio, OU=AI27, O=AI27, L=CDMX, ST=CDMX, C=MX` (alias `custodio`) → `CN=Echo, OU=AI27, O=AI27, L=CDMX, ST=CDMX, C=MX` (alias `echo`). Se replicó todo lo demás del cert anterior para que el cambio sea solo de nombre: PKCS12, RSA 2048, SHA256withRSA, v3, 25 años, y **las mismas contraseñas** (así `keystore.properties` no cambió más que en `keyAlias`).
+- **Respaldo del cert anterior:** `~/Documents/ai-27/keystore-respaldo-2026-09-25/` (fuera de todo repo; `~/Documents/ai-27` no está versionado), con `release-CN-AppCustodio.jks` y una copia del `keystore.properties` viejo. Se verificó que el respaldo abre con `keytool` y es byte a byte el mismo archivo. **Solo sirve como referencia histórica: no permite volver a firmar en el futuro**, porque la app ya está firmada con el nuevo.
+- **Docs corregidas** (la entrada de las 14:19 razonaba sobre instalaciones que no existen):
+  - `AGENTS.md` §Config notes: el package se justifies ahora por el amarre de `google-services.json` (`mobilesdk_app_id` + `package_name`), no por preservar actualizaciones; `app_custodio.db` queda marcado como legacy sin efecto funcional; y se registra el cert nuevo, su respaldo y la regla de que **el primer APK que llegue a un equipo real congela el keystore para siempre**.
+  - `AGENTS.md` §Toolchain: misma regla en la viñeta de firma.
+  - KDoc de `EchoDatabase.NOMBRE`: dice que la razón original perdió efecto.
+  - `CHANGELOG.md`: las tres menciones de las 14:19 quedan marcadas como superadas, sin reescribir la entrada (describe el estado en el momento en que se escribió).
+- **Lo que NO se tocó, y ahora por una razón distinta:** `app_custodio.db` y el `applicationId`. El primero ya se puede renombrar sin costo, pero no lo aporta: es un nombre de archivo local que nadie ve, y cambiarlo obligaría a tocar `backup_rules.xml` y `data_extraction_rules.xml`. El segundo sigue atado al cliente Android de Firebase en `app/google-services.json`, así que moverlo exigiría dar de alta otro cliente en la consola.
+
+**Verificación ejecutada:** `keytool -list -v` sobre el keystore nuevo: `CN=Echo, OU=AI27, O=AI27, L=CDMX, ST=CDMX, C=MX`, alias `echo`, SHA256withRSA, RSA 2048, v3, válido hasta 2051. `./gradlew assembleRelease` → BUILD SUCCESSFUL. `apksigner verify --print-certs` sobre `app/build/outputs/apk/release/app-release.apk`: **un solo firmante**, `certificate DN: CN=Echo, OU=AI27, O=AI27, L=CDMX, ST=CDMX, C=MX`, SHA-256 `61d31a98…72`. `aapt2 dump badging`: `package: name='com.ai27.app.custodio'` y `application-label:'Echo'`, ambos intactos.
+
+**Pendiente:** ninguno por el renombrado. Queda decidir si el respaldo del cert viejo se borra (hoy está fuera de todo repo) o se conserva como referencia.
+
 ## 2026:09:25 14:19
 
 **Resumen:** La app se renombra de "App Custodio" a **Echo**. El renombrado es **deliberadamente parcial**: cambian la etiqueta del launcher y los identificadores internos, pero se dejan intactos cuatro nombres que, de tocarse, romperían instalaciones ya desplegadas. Ningún cambio de comportamiento; los 239 tests unitarios pasan sin tocar una sola aserción y la etiqueta del APK se verificó con `aapt2`.
@@ -65,14 +85,14 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 - **Identidad visible:** `app_name` = "Echo" (esta es también la etiqueta que ve App Distribution, así que el nombre nuevo aparece ahí en la siguiente distribución). Verificado en el APK: `application-label:'Echo'`.
 - **Identificadores internos:** `AppCustodioApplication` → `EchoApplication` (archivo y clase, registrado en el manifest), `AppCustodioTheme` → `EchoTheme` (composable, 4 archivos), `AppCustodioDatabase` → `EchoDatabase` (archivo y clase, 15 archivos: los `_Impl` que genera Room siguen el nombre de la clase solos), `Theme.AppCustodio` → `Theme.Echo` (`values/themes.xml` + 2 referencias del manifest), y `rootProject.name` = "Echo".
 - **Lo que NO cambió, a propósito** (documentado en `AGENTS.md` §Config notes y en el KDoc de `EchoDatabase.NOMBRE`):
-  - El package y el `applicationId` siguen siendo `com.ai27.app.custodio`: es lo que permite actualizar las instalaciones ya desplegadas. Verificado en el APK.
+  - El package y el `applicationId` siguen siendo `com.ai27.app.custodio`: es lo que permite actualizar las instalaciones ya desplegadas. Verificado en el APK. **_(Razón corregida a las 15:55: no hay instalaciones en campo; la razón real es que `google-services.json` amarra el cliente Android de Firebase a ese `package_name`.)_**
   - El archivo de Room sigue siendo `app_custodio.db`. Room no puede renombrar un archivo ya creado, así que cambiarlo haría que cada instalación existente abriera una base vacía y quedaran huérfanos los reportes sin subir y los archivos de `filesDir/medios` no enviados. Las exclusiones de `backup_rules.xml` y `data_extraction_rules.xml` lo nombran por eso y se dejaron como están.
-  - El keystore de release sigue con `CN=App Custodio, OU=AI27`: otro keystore no puede actualizar lo ya firmado con este, y desinstalar para reinstalar borra la cola local de evidencia. Se regenera solo si la app aún no llegó a equipos reales.
+  - El keystore de release sigue con `CN=App Custodio, OU=AI27`: otro keystore no puede actualizar lo ya firmado con este, y desinstalar para reinstalar borra la cola local de evidencia. Se regenera solo si la app aún no llegó a equipos reales. **_(Superado a las 15:55, mismo día: la condición se cumplió y el keystore se regeneró como `CN=Echo`.)_**
   - `reporte_protocolo` sigue siendo "Protocolo AI27 Custodio": nombra el protocolo del cliente, no la app.
 - **Documentación:** títulos de `README.md`, `docs/PLAN.md`, `docs/AUDIT.md`, `.gitignore` y `.idea/.name`; `AGENTS.md` registra la decisión y los límites del renombrado. Las menciones históricas en entradas previas de este CHANGELOG y en `docs/AUDIT.md` se dejaron como están: describen el nombre que la app tenía cuando se escribieron.
 - **Fricción encontrada:** el primer build falló con `Could not find class file for 'com.ai27.app.custodio.AppCustodioApplication'` en `hiltJavaCompileDebug`. No era código fuente: eran 25 archivos generados por Hilt/KSP en `app/build/` con el nombre viejo (el sentinel de raíz agregada y los `_ComponentTreeDeps`). Se resolvió con `./gradlew clean`; conviene recordarlo para el próximo renombrado de una clase con `@HiltAndroidApp`.
 
-**Verificación ejecutada:** `./gradlew clean testDebugUnitTest` **239/239**, `assembleDebug` verdes. `aapt2 dump badging` sobre el APK: `application-label:'Echo'` y `package: name='com.ai27.app.custodio'`. `rg "AppCustodio|App Custodio" app/src` → cero coincidencias. Pendiente de verificación en dispositivo: la actualización sobre una instalación real (que la base y la cola local sobreviven) y el aspecto del launcher con el logo nuevo cuando se entregue.
+**Verificación ejecutada:** `./gradlew clean testDebugUnitTest` **239/239**, `assembleDebug` verdes. `aapt2 dump badging` sobre el APK: `application-label:'Echo'` y `package: name='com.ai27.app.custodio'`. `rg "AppCustodio|App Custodio" app/src` → cero coincidencias. Pendiente de verificación en dispositivo: la actualización sobre una instalación real (que la base y la cola local sobreviven) y el aspecto del launcher con el logo nuevo cuando se entregue. **_(A las 15:55 se confirmó que no hay equipos en campo: toda instalación será fresca, así que la actualización sobre una instalación real queda descartada como escenario y el aspecto del launcher ya se verificó.)_**
 
 **Archivos modificados:**
 - `app/src/main/res/values/strings.xml`

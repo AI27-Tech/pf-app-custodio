@@ -130,6 +130,7 @@ La firma vive en `app/keystore/release.jks` con sus contraseñas en `keystore.pr
 - **Respaldo obligatorio:** copiar `app/keystore/release.jks` y `keystore.properties` fuera del repo (gestor de secretos o caja fuerte) y anotar quién los custodia.
 - Si se pierden, cualquier APK nuevo firmado con otra llave no podrá pisotear una instalación previa: habría que desinstalar y perder lo que haya en cola sin subir.
 - No se suben al repo ni al CI mientras no exista un mecanismo seguro de secretos.
+- **El cert actual es `CN=Echo, OU=AI27, O=AI27, L=CDMX, ST=CDMX, C=MX`** (alias `echo`), regenerado el 2026-09-25 con las mismas contraseñas, algoritmo y vigencia que el anterior (`CN=App Custodio`). Se hizo porque en ese momento **todavía no había ningún equipo en campo**. En cuanto el primer APK llegue a uno, el keystore queda congelado: cambiarlo obligaría a reinstalar y perder la cola local de evidencia.
 
 ### App Distribution
 
