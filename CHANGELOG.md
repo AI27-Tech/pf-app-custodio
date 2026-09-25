@@ -2,6 +2,39 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026:09:25 12:17
+
+**Resumen:** Implementado el plan `docs/PLAN_ALLOWLIST_POR_DOCUMENTO.md` (B1 de infra, P1-6): la allowlist de custodios pasa de un documento enumerable (`config/telefonos` con un arreglo `telefonos`) a **un documento por número** en `telefonos_autorizados/{e164}`. La app ahora consulta la existencia de su propio documento, lo que la regla de Firestore permite (`request.auth.token.phone_number == e164`) y que ya no expone la PII de los demás custodios.
+
+**Cambios:**
+- `FirestoreAllowlistRepositorio.contiene()` hace `get()` a `telefonos_autorizados/{telefono}` y devuelve `documento.exists()`; se conserva el envoltorio `ejecutarRemoto` y el cierre seguro por omisión (documento inexistente → nadie autorizado). Constantes `CONFIG`/`TELEFONOS` sustituidas por `TELEFONOS_AUTORIZADOS`.
+- KDoc de la clase reescrito con el motivo del cambio de modelo (PII enumerable) y la nota de por qué el propio custodio sí puede leer su documento; KDoc de `AllowlistRepositorio.contiene` y de `DominioError.TelefonoNoAutorizado` alineados al modelo nuevo.
+- Sin cambios en la interfaz `AllowlistRepositorio`, el DI (`PipelineModule`), `LoginViewModel` ni los tests: el `grep` de `config/telefonos` en `app/src/` confirma que la única referencia viva era el repositorio, ya eliminada.
+- `README.md`: alta/baja de custodios describen el documento por número, se advierte que omitir un número en el CSV **no** lo da de baja (hay que borrar su documento) y que el seed del emulador es del modelo viejo.
+- `docs/PLAN.md`: §5.1 (árbol de Firestore), §5.3 (reglas), §5.4 (identidad) y §9 A2/A3 alineados al modelo `telefonos_autorizados/{e164}`; `AGENTS.md` registra el cambio y el pendiente del seed.
+- El plan `docs/PLAN_ALLOWLIST_POR_DOCUMENTO.md` pasa a estado "Implementado".
+- Verificación ejecutada: `./gradlew testDebugUnitTest` **239/239** (los 11 de `LoginViewModelTest` incluidos, sin tocar) y `./gradlew assembleDebug` verdes. La verificación funcional contra el emulador sigue pendiente del lado de infra: el seed (`../pf-infra-firebase/seed`) es una exportación del modelo viejo y hay que re-exportarlo con los documentos de `telefonos_autorizados`.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirestoreAllowlistRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/AllowlistRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioError.kt`
+- `README.md`
+- `AGENTS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_ALLOWLIST_POR_DOCUMENTO.md`
+- `CHANGELOG.md`
+
+## 2026:09:25 11:30
+
+**Resumen:** Se agregó el documento de planeación del paso B1 (allowlist por documento): la app debe leer su propio documento `telefonos_autorizados/{e164}` en vez del arreglo enumerable `config/telefonos`, alineándose con el modelo nuevo del perímetro en `pf-infra-firebase` (hallazgo P1-6). Solo documentación; sin cambios de código todavía.
+
+**Cambios:**
+- Se creó el plan con el estado actual verificado (la lectura está aislada en `FirestoreAllowlistRepositorio.contiene`), las tareas, el alcance excluido, el riesgo de orden de despliegue y el prerequisito de lectura de `GENERIC_RULES.md`.
+
+**Archivos modificados:**
+- `docs/PLAN_ALLOWLIST_POR_DOCUMENTO.md`
+
 ## 2026-09-24 — Hoja de etiquetado: "Guardar" anclado al pie con scroll del contenido medio
 
 **Resumen:** el botón "Guardar" de la hoja de etiquetado quedaba recortado bajo el borde

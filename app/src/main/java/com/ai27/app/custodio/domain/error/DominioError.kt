@@ -27,7 +27,7 @@ sealed interface DominioError {
     /** El envío del SMS no obtuvo respuesta a tiempo (p. ej. el broker de Phone Auth no responde). */
     data object SinRespuestaSms : DominioError
 
-    /** El número verificó el OTP pero no está en la allowlist `config/telefonos` (Task 4). */
+    /** El número verificó el OTP pero no tiene documento en `telefonos_autorizados` (Task 4). */
     data object TelefonoNoAutorizado : DominioError
 
     data object SinConexion : DominioError

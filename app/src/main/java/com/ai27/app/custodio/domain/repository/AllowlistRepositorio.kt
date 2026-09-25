@@ -9,6 +9,6 @@ import com.ai27.app.custodio.domain.Result
  */
 interface AllowlistRepositorio {
 
-    /** Si `telefono` (E.164, p. ej. +525544880512) está en `config/telefonos.telefonos`. */
+    /** Si `telefono` (E.164, p. ej. +525544880512) tiene documento en `telefonos_autorizados`. */
     suspend fun contiene(telefono: String): Result<Boolean>
 }

@@ -83,16 +83,17 @@ Para correr una sola clase:
 
 La identidad del custodio es su **número de teléfono verificado por SMS** (PHONE_AUTH_PLAN): sin correo ni PIN. Las altas/bajas son manuales por diseño (37 personas; `docs/PLAN.md` §2, E5).
 
-- **Alta:** correr el aprovisionamiento (Admin SDK), idempotente — crea la cuenta de Authentication por teléfono y escribe la allowlist `config/telefonos.telefonos` (E.164, prefijo +52):
+- **Alta:** correr el aprovisionamiento (Admin SDK), idempotente — crea la cuenta de Authentication por teléfono y escribe un documento por número en la colección `telefonos_autorizados` (id = E.164, prefijo +52):
 
   ```bash
   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/custodio-service-account.json"   # gitignored
   cd ../pf-infra-firebase/provision && node provisionar.js telefonos.csv
   ```
 
-- **Baja:** Firestore → `config/telefonos.telefonos` → quitar el número, y revocar la cuenta en Authentication. Los documentos ya subidos no se tocan (inmutabilidad, §6.1).
+- **Baja:** borrar el documento del número en `telefonos_autorizados` (Firestore) y revocar la cuenta en Authentication. Los documentos ya subidos no se tocan (inmutabilidad, §6.1).
+- La app **solo puede leer el documento de su propio número**: la regla `telefonos_autorizados/{e164}` exige `request.auth.token.phone_number == e164`, así que nadie puede enumerar la lista. Ojo: omitting un número en el CSV **no** lo da de baja —hay que borrar su documento.
 - El **candado real** en producción es la función `beforeCreate` (`../pf-infra-firebase/functions`): autoriza únicamente teléfonos de la allowlist. **Se despliega solo cuando exista el plan Blaze** (`cd ../pf-infra-firebase/functions && firebase deploy --only functions`). En Spark, la app igualmente cierra la sesión de quien no esté en la lista (verificación tras el OTP, opción B).
-- En el **emulador** no hay SMS reales: el Auth emulator simula el envío y la verificación. El seed (`../pf-infra-firebase/seed`) ya trae el custodio de demostración `+525544880512`.
+- En el **emulador** no hay SMS reales: el Auth emulator simula el envío y la verificación. Para que el login pase hace falta el documento del número de demostración `+525544880512` en `telefonos_autorizados` (crea una cuenta con el Auth emulator + escribe el documento por REST en la Emulator UI). El seed (`../pf-infra-firebase/seed`) es una exportación del modelo viejo (`config/telefonos`): **no** sirve para este paso, hay que re-exportarlo en infra.
 
 ### Alta de analistas (panel web, solo lectura)
 
