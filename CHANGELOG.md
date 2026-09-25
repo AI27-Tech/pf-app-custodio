@@ -2,6 +2,20 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:09:25 16:20
+
+**Resumen:** Se actualizó el README para reflejar que el carril A (consola de Firebase) quedó cerrado el 2026-09-25. El README decía que el carril A "sigue abierto" y que sin él no se podía repartir la app, lo cual ya no era cierto (el propio `docs/PLAN.md` §9 tenía A1–A4 hechas, y en esta fecha se activó el candado `beforeCreate` tras el upgrade a GCIP).
+
+**Cambios:**
+- Sección "Estado": el carril A pasa de "abierto" a "cerrado" con resumen del estado de producción.
+- Nueva sección "Estado de producción (2026-09-25)": lista lo desplegado/verificado en `custodio-906e7268` (GCIP `IDENTITY_PLATFORM`, reglas e índices, allowlist `telefonos_autorizados`, `beforeCreate` activo) y los pendientes menores que no bloquean el reparto (`config/analistas`, catálogo R4, seed del emulador, verificación en dispositivo).
+- "Prerrequisitos del carril A" → "Referencia del carril A — ya ejecutado" (se conserva como referencia de reprovisión, ya no como checklist pendiente).
+- Bullet del candado `beforeCreate`: de "se despliega solo con Blaze / en Spark la app cierra sesión" a "desplegada y activa desde 2026-09-25 (GCIP)", con nota del diseño A y el runbook.
+- Crashlytics y "Verificación manual del ciclo completo": se quita el condicional "cuando exista la consola" / "con el carril A disponible".
+
+**Archivos modificados:**
+- `README.md`
+
 ## 2026:09:25 16:05
 
 **Resumen:** La marca entra en la pantalla de login, sobre el título "Echo". Va **sin** el fondo del badge (la marca suelta) a 84dp. Como el glifo del logo es blanco y la app tiene tema claro, se generaron **dos variantes** desde el mismo maestro y `MarcaEcho` elige con `LocalTemaOscuro`: sobre el lienzo claro el glifo se remapea al token de texto del tema (`#1A2130`), porque de otro modo sería invisible.

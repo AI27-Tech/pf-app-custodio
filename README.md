@@ -7,7 +7,33 @@ Para el diseño, el contrato de datos y el roadmap completo: `docs/PLAN.md`.
 ## Estado
 
 - B1 andamiaje, B2 dominio + persistencia local, B3 captura, B4 autenticación, B5 pipeline de subida (reglas de seguridad validadas con el Emulator Suite), B6 historial/estados y B7 release/documentación: completados según `docs/PLAN.md` §9.
-- El **carril A** (consola de Firebase) sigue abierto: ver `docs/PLAN.md` §9 — carril A. Sin él no se puede desplegar el APK al campo.
+- **Carril A (consola de Firebase) cerrado.** Al 2026-09-25: servicios habilitados, reglas e índices desplegados a producción, allowlist poblada, y el candado real `beforeCreate` **desplegado y activo** tras el upgrade a Identity Platform (GCIP). La app ya puede repartirse al campo. Detalle y matices abajo, en "Estado de producción".
+
+## Estado de producción (2026-09-25)
+
+El carril A quedó cerrado en esta fecha. Lo verificado en el proyecto real
+(`custodio-906e7268`) durante el despliegue:
+
+- **Identity Platform (GCIP) habilitado** (upgrade irreversible): `subtype: IDENTITY_PLATFORM`.
+- **Reglas de Firestore y Storage desplegadas** con el modelo nuevo de allowlist.
+- **Índices de Firestore desplegados.**
+- **Allowlist poblada** en `telefonos_autorizados/{e164}` (aprovisionamiento con Admin SDK);
+  el documento legado `config/telefonos` quedó eliminado.
+- **`beforeCreate` (`bloquearTelefonoNoAutorizado`) desplegado y con el trigger registrado.**
+  Ya no está inerte: es un control de servidor. Un intento de alta con un número no
+  autorizado se rechaza en el backend (el sign-up por teléfono desde el cliente está
+  restringido a administradores — diseño A: las cuentas nacen solo del aprovisionamiento).
+
+Pendientes menores (no bloquean el reparto):
+
+- **`config/analistas`** debe poblarse en producción para que el panel del analista lea
+  (script `../pf-infra-firebase/provision/analistas.js`). No afecta a la app de custodio.
+- **Catálogo de etiquetas (R4):** los valores sembrados siguen siendo provisionales; se
+  sustituyen por los reales sin recompilar (es dato en `catalogos/etiquetas`).
+- **Seed del emulador** desactualizado al modelo viejo; se regenera en infra para pruebas
+  locales (no afecta producción).
+- **Verificación manual en dispositivo** del ciclo completo (ver el final de este README):
+  conviene correrla antes del reparto amplio.
 
 ## Build y verificación
 
@@ -61,7 +87,11 @@ Para correr una sola clase:
 
 ## Provisión de equipos y cuentas
 
-### Prerrequisitos del carril A (consola Firebase, `custodio-906e7268`)
+### Referencia del carril A (consola Firebase, `custodio-906e7268`) — ya ejecutado
+
+> Estos pasos ya se realizaron (carril A cerrado el 2026-09-25); se conservan como
+> referencia para reprovisionar o para levantar un proyecto nuevo. El estado actual está
+> arriba en "Estado de producción".
 
 1. **A1 — Habilitar servicios:** Authentication (**phone sign-in**), Firestore en modo producción y Storage. El proyecto Firebase al que apunta la app lo define `app/google-services.json`. El SMS OTP exige el plan **Blaze** (Identity Platform): en Spark el emulador sirve para probar el flujo completo, pero los SMS reales no salen.
 2. **A3 — Desplegar reglas de seguridad** (`docs/PLAN.md` §5.3):
@@ -92,7 +122,7 @@ La identidad del custodio es su **número de teléfono verificado por SMS** (PHO
 
 - **Baja:** borrar el documento del número en `telefonos_autorizados` (Firestore) y revocar la cuenta en Authentication. Los documentos ya subidos no se tocan (inmutabilidad, §6.1).
 - La app **solo puede leer el documento de su propio número**: la regla `telefonos_autorizados/{e164}` exige `request.auth.token.phone_number == e164`, así que nadie puede enumerar la lista. Ojo: omitting un número en el CSV **no** lo da de baja —hay que borrar su documento.
-- El **candado real** en producción es la función `beforeCreate` (`../pf-infra-firebase/functions`): autoriza únicamente teléfonos de la allowlist. **Se despliega solo cuando exista el plan Blaze** (`cd ../pf-infra-firebase/functions && firebase deploy --only functions`). En Spark, la app igualmente cierra la sesión de quien no esté en la lista (verificación tras el OTP, opción B).
+- El **candado real** en producción es la función `beforeCreate` (`../pf-infra-firebase/functions`): autoriza únicamente teléfonos de la allowlist. **Desplegada y activa desde el 2026-09-25** (tras el upgrade a Identity Platform/GCIP): un alta con un número no autorizado se rechaza en el backend. El sign-up por teléfono desde el cliente está restringido a administradores, así que las cuentas nacen solo del aprovisionamiento (diseño A). Runbook: `../pf-infra-firebase/functions/DESPLIEGUE.md`.
 - En el **emulador** no hay SMS reales: el Auth emulator simula el envío y la verificación. Para que el login pase hace falta el documento del número de demostración `+525544880512` en `telefonos_autorizados` (crea una cuenta con el Auth emulator + escribe el documento por REST en la Emulator UI). El seed (`../pf-infra-firebase/seed`) es una exportación del modelo viejo (`config/telefonos`): **no** sirve para este paso, hay que re-exportarlo en infra.
 
 ### Alta de analistas (panel web, solo lectura)
@@ -147,14 +177,14 @@ Flujo sugerido: grupo `testers` (verificación) primero y grupo `campo` (los 37 
 
 ## Crashlytics
 
-Integrado desde B7: plugin de Gradle aplicado y SDK inicializado en `AppCustodioApplication`. La recolección está explícitamente habilitada en el manifest. **El reporte real de crashes queda operativo cuando exista la consola (carril A)**; sin proyecto configurado, el SDK arranca en silencio —no registra arriba, pero tampoco rompe la app—.
+Integrado desde B7: plugin de Gradle aplicado y SDK inicializado en `AppCustodioApplication`. La recolección está explícitamente habilitada en el manifest. Con el proyecto de producción ya configurado (carril A cerrado, 2026-09-25), el reporte de crashes queda operativo. Nota: con R8 apagado no hay archivo de mapping, así que las trazas no vienen desofuscadas (es aceptable con el código sin ofuscar).
 
 ## Verificación manual del ciclo completo
 
-Con un equipo real y el carril A disponible:
+Con un equipo real (producción ya disponible, carril A cerrado):
 
 1. Iniciar sesión, crear un viaje por placa y capturar foto/audio con GPS.
 2. Cerrar el viaje y comprobar que aparece en Historial (y su detalle en solo lectura).
 3. Descartar otro viaje con motivo y verificar que se sincroniza y que no sube evidencia nueva.
 4. En modo avión: capturar, recuperar red y ver cómo la cola sube sola; reintentar manualmente una celda FALLIDA.
-5. Derribar la app con una excepción y confirmar el crash en Crashlytics (cuando exista la consola).
+5. Derribar la app con una excepción y confirmar el crash en Crashlytics.
