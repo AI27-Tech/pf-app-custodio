@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -131,91 +133,100 @@ fun HojaEtiqueta(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AnimatedVisibility(
-                visible = avisoVisible,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                AvisoSubida(
-                    texto = stringResource(R.string.aviso_subida_en_breve),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = when (medio.tipo) {
-                        TipoMedio.FOTO -> stringResource(R.string.hoja_foto_capturada)
-                        TipoMedio.AUDIO -> stringResource(R.string.nota_de_voz)
-                    },
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                IconButton(
-                    onClick = onCerrar,
-                    enabled = puedeCerrar,
+                AnimatedVisibility(
+                    visible = avisoVisible,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
                 ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.hoja_descartar),
+                    AvisoSubida(
+                        texto = stringResource(R.string.aviso_subida_en_breve),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-            }
 
-            CategoriaEtiqueta.entries.forEach { categoria ->
-                Text(
-                    text = stringResource(
-                        when (categoria) {
-                            CategoriaEtiqueta.SITUACION -> R.string.hoja_etiqueta_obligatoria
-                            CategoriaEtiqueta.EVIDENCIA -> R.string.hoja_evidencia_opcional
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-
-                FlowRow(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
-                    etiquetasActivas
-                        .filter { it.categoria == categoria }
-                        .forEach { etiqueta ->
-                            FilterChip(
-                                selected = etiqueta.id in seleccionadas,
-                                onClick = {
-                                    seleccionadasLista = if (etiqueta.id in seleccionadas) {
-                                        (seleccionadas - etiqueta.id).toList()
-                                    } else {
-                                        (seleccionadas + etiqueta.id).toList()
-                                    }
-                                },
-                                label = { Text(etiqueta.nombre) },
-                            )
-                        }
+                    Text(
+                        text = when (medio.tipo) {
+                            TipoMedio.FOTO -> stringResource(R.string.hoja_foto_capturada)
+                            TipoMedio.AUDIO -> stringResource(R.string.nota_de_voz)
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    IconButton(
+                        onClick = onCerrar,
+                        enabled = puedeCerrar,
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.hoja_descartar),
+                        )
+                    }
                 }
-            }
 
-            if (medio.gps == null) {
-                OutlinedTextField(
-                    value = estado.ubicacionTextoEscrita,
-                    onValueChange = onUbicacionTextoCambio,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.hoja_ubicacion_sin_gps)) },
-                    singleLine = true,
-                )
+                CategoriaEtiqueta.entries.forEach { categoria ->
+                    Text(
+                        text = stringResource(
+                            when (categoria) {
+                                CategoriaEtiqueta.SITUACION -> R.string.hoja_etiqueta_obligatoria
+                                CategoriaEtiqueta.EVIDENCIA -> R.string.hoja_evidencia_opcional
+                            },
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        etiquetasActivas
+                            .filter { it.categoria == categoria }
+                            .forEach { etiqueta ->
+                                FilterChip(
+                                    selected = etiqueta.id in seleccionadas,
+                                    onClick = {
+                                        seleccionadasLista = if (etiqueta.id in seleccionadas) {
+                                            (seleccionadas - etiqueta.id).toList()
+                                        } else {
+                                            (seleccionadas + etiqueta.id).toList()
+                                        }
+                                    },
+                                    label = { Text(etiqueta.nombre) },
+                                )
+                            }
+                    }
+                }
+
+                if (medio.gps == null) {
+                    OutlinedTextField(
+                        value = estado.ubicacionTextoEscrita,
+                        onValueChange = onUbicacionTextoCambio,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.hoja_ubicacion_sin_gps)) },
+                        singleLine = true,
+                    )
+                }
             }
 
             Button(
                 onClick = { onGuardar(medio.id, seleccionadas.toList()) },
                 enabled = tieneSituacion,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
             ) {
                 Text(stringResource(R.string.hoja_guardar))
             }

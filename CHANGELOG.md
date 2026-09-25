@@ -2,6 +2,21 @@
 
 Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
 
+## 2026-09-24 — Hoja de etiquetado: "Guardar" anclado al pie con scroll del contenido medio
+
+**Resumen:** el botón "Guardar" de la hoja de etiquetado quedaba recortado bajo el borde
+mientras la nota "se subirá en breve" ocupaba espacio en la parte superior (unos 2 s), y al
+colapsar volvía a "aparecer". El contenido medio de la hoja se hace desplazable
+(`verticalScroll`) y el botón queda fijado fuera del scroll, siempre visible; se conserva el
+`Button` estándar de Material3 con `enabled = tieneSituacion`.
+
+**Cambios:**
+- `ui/captura/HojaEtiqueta.kt`: el bloque superior (banner de subida, título, categorías y campo
+  de ubicación) pasa a una columna con `weight(1f, fill = false)` + `verticalScroll`; el botón
+  "Guardar" sale del scroll y se ancla al pie del sheet.
+
+**Verificación:** `assembleDebug` + `installDebug` en CPH2769 contra el Emulator Suite.
+
 ## 2026:09:24 — Grupo 3 (usabilidad en campo): tanda completa cerrada (G3-A…G3-F, §17.1)
 
 **Resumen:** la tanda §17.1 de `docs/PLAN.md` se cerró en seis clústeres que acercan el flujo
