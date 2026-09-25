@@ -1,7 +1,7 @@
 package com.ai27.app.custodio.data.repository
 
 import com.ai27.app.custodio.data.local.archivo.AlmacenArchivos
-import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.mapper.aDominio
 import com.ai27.app.custodio.data.mapper.aEntidad
 import com.ai27.app.custodio.data.remote.aTextoPersistible
@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class RoomMedioRepository(
-    private val database: AppCustodioDatabase,
+    private val database: EchoDatabase,
     private val almacenArchivos: AlmacenArchivos,
     private val etiquetaRepository: EtiquetaRepository,
 ) : MedioRepository {

@@ -1,4 +1,4 @@
-# PLAN — App Custodio: captura en campo y envío a base de datos
+# PLAN — Echo: captura en campo y envío a base de datos
 
 ## 1. Para qué existe esta app
 

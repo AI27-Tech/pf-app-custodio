@@ -16,12 +16,19 @@ import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
     version = 4,
 )
 @ColumnTypeConverters(EtiquetasConverter::class)
-abstract class AppCustodioDatabase : RoomDatabase() {
+abstract class EchoDatabase : RoomDatabase() {
 
     abstract fun reporteDao(): ReporteDao
     abstract fun medioDao(): MedioDao
 
     companion object {
+        /**
+         * Nombre del archivo en disco. **Legacy a propósito**: la app se renombró a Echo, pero
+         * Room no tiene forma de renombrar un archivo ya creado, así que cambiarlo haría que
+         * cada instalación existente abriera una base vacía y quedaran huérfanos los reportes sin
+         * subir y los archivos de `filesDir/medios` que aún no se han enviado. Este nombre va
+         * también en `res/xml/backup_rules.xml` y `res/xml/data_extraction_rules.xml`.
+         */
         const val NOMBRE = "app_custodio.db"
 
         /**
@@ -116,12 +123,12 @@ abstract class AppCustodioDatabase : RoomDatabase() {
             }
         }
 
-        fun crearBaseDatos(context: Context): AppCustodioDatabase =
+        fun crearBaseDatos(context: Context): EchoDatabase =
             crearBaseDatos(ruta = context.getDatabasePath(NOMBRE).absolutePath)
 
         // Ruta explícita para poder usar la misma configuración en pruebas JVM de host.
-        fun crearBaseDatos(ruta: String): AppCustodioDatabase =
-            Room.databaseBuilder(name = ruta) { AppCustodioDatabase_Impl() }
+        fun crearBaseDatos(ruta: String): EchoDatabase =
+            Room.databaseBuilder(name = ruta) { EchoDatabase_Impl() }
                 .setDriver(BundledSQLiteDriver())
                 .addCallback(callback)
                 .addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4)

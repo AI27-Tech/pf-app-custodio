@@ -4,7 +4,7 @@ import android.content.Context
 import com.ai27.app.custodio.data.local.CatalogoEtiquetasOffline
 import com.ai27.app.custodio.data.local.archivo.AlmacenArchivos
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
-import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.remote.FirestoreCatalogoEtiquetasRepositorio
 import com.ai27.app.custodio.data.repository.CacheEtiquetasRepositorio
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
@@ -27,18 +27,18 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun proveeBaseDatos(@ApplicationContext context: Context): AppCustodioDatabase =
-        AppCustodioDatabase.crearBaseDatos(context)
+    fun proveeBaseDatos(@ApplicationContext context: Context): EchoDatabase =
+        EchoDatabase.crearBaseDatos(context)
 
     @Provides
     @Singleton
-    fun proveeReporteRepository(database: AppCustodioDatabase): ReporteRepository =
+    fun proveeReporteRepository(database: EchoDatabase): ReporteRepository =
         RoomReporteRepository(database)
 
     @Provides
     @Singleton
     fun proveeMedioRepository(
-        database: AppCustodioDatabase,
+        database: EchoDatabase,
         almacenArchivos: AlmacenArchivos,
         etiquetaRepository: EtiquetaRepository,
     ): MedioRepository = RoomMedioRepository(database, almacenArchivos, etiquetaRepository)

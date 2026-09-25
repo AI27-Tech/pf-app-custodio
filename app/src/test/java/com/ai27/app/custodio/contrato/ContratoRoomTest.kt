@@ -1,7 +1,7 @@
 package com.ai27.app.custodio.contrato
 
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
-import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
 import com.ai27.app.custodio.domain.repository.MedioRepository
@@ -18,7 +18,7 @@ import org.junit.Before
  */
 class ContratoRoomTest : ContratoRepositoriosTest() {
 
-    private lateinit var database: AppCustodioDatabase
+    private lateinit var database: EchoDatabase
     private lateinit var archivoDb: File
     private lateinit var directorioMedios: File
 
@@ -28,7 +28,7 @@ class ContratoRoomTest : ContratoRepositoriosTest() {
     @Before
     fun preparar() {
         archivoDb = File.createTempFile("contrato-", ".db").also { it.delete() }
-        database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        database = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = Files.createTempDirectory("contrato-medios").toFile()
         reportes = RoomReporteRepository(database)
         medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), com.ai27.app.custodio.FakeEtiquetaRepository())

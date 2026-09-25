@@ -11,7 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.ai27.app.custodio.ui.navigation.AppNavHost
-import com.ai27.app.custodio.ui.theme.AppCustodioTheme
+import com.ai27.app.custodio.ui.theme.EchoTheme
 import com.ai27.app.custodio.ui.theme.LocalCambiarTemaOscuro
 import com.ai27.app.custodio.ui.theme.LocalTemaOscuro
 import dagger.hilt.android.AndroidEntryPoint
@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
                     prefs.edit().putBoolean(CLAVE_TEMA_OSCURO, nuevoOscuro).apply()
                 },
             ) {
-                AppCustodioTheme(oscuro = oscuro) {
+                EchoTheme(oscuro = oscuro) {
                     AppNavHost()
                 }
             }

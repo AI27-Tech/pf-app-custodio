@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">App Custodio</string>
+    <string name="app_name">Echo</string>
 
     <!-- Biblioteca de componentes: navegación inferior -->
     <string name="destino_reporte">Reporte</string>

@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icono adaptativo de Echo (API 26+; minSdk = 26, asi que no hace falta una variante
+  "legacy" de mapa de bits: `mipmap-anydpi` gana a cualquier carpeta de densidad).
+  `ic_launcher` e `ic_launcher_round` comparten capas a proposito: en API 26+ el
+  sistema decide la forma, el recurso round ya no cambia nada.
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
 </adaptive-icon>

@@ -18,7 +18,7 @@ import org.junit.Test
  *
  * Sin exportar esquema de Room (decisión de §14.6), el camino es directo: se construye
  * una base con el DDL que Room v1 generaba para [MedioEntity], se siembran filas y se le
- * aplica [AppCustodioDatabase.MIGRACION_1_2] por la API pública. Así la migración se
+ * aplica [EchoDatabase.MIGRACION_1_2] por la API pública. Así la migración se
  * prueba contra datos reales sin depender de la validación interna de Room.
  */
 class MigracionEtiquetasTest {
@@ -98,7 +98,7 @@ class MigracionEtiquetasTest {
 
     @Test
     fun `agrega etiquetas y tieneSituacion y elimina etiqueta`() = runBlocking {
-        AppCustodioDatabase.MIGRACION_1_2.migrate(connection)
+        EchoDatabase.MIGRACION_1_2.migrate(connection)
 
         assertTrue(tenerColumna("etiquetas"))
         assertTrue(tenerColumna("tieneSituacion"))
@@ -110,7 +110,7 @@ class MigracionEtiquetasTest {
         insertarMedio("m-1", "sin-novedad")
         insertarMedio("m-2", "dano")
 
-        AppCustodioDatabase.MIGRACION_1_2.migrate(connection)
+        EchoDatabase.MIGRACION_1_2.migrate(connection)
 
         assertEquals("[\"sin-novedad\"]" to 1L, leerValores("m-1"))
         assertEquals("[\"dano\"]" to 0L, leerValores("m-2"))
@@ -120,7 +120,7 @@ class MigracionEtiquetasTest {
     fun `sin valor la lista queda vacia y sin situacion`() = runBlocking {
         insertarMedio("m-3", null)
 
-        AppCustodioDatabase.MIGRACION_1_2.migrate(connection)
+        EchoDatabase.MIGRACION_1_2.migrate(connection)
 
         assertEquals("[]" to 0L, leerValores("m-3"))
     }
@@ -129,7 +129,7 @@ class MigracionEtiquetasTest {
     fun `una evidencia vieja no se marca como situacion`() = runBlocking {
         insertarMedio("m-4", "estado-transporte")
 
-        AppCustodioDatabase.MIGRACION_1_2.migrate(connection)
+        EchoDatabase.MIGRACION_1_2.migrate(connection)
 
         assertEquals("[\"estado-transporte\"]" to 0L, leerValores("m-4"))
     }

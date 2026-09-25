@@ -1,6 +1,90 @@
 # CHANGELOG
 
-Registro de cambios del proyecto App Custodio. Las entradas más recientes van primero.
+Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
+
+## 2026:09:25 16:05
+
+**Resumen:** La marca entra en la pantalla de login, sobre el título "Echo". Va **sin** el fondo del badge (la marca suelta) a 84dp. Como el glifo del logo es blanco y la app tiene tema claro, se generaron **dos variantes** desde el mismo maestro y `MarcaEcho` elige con `LocalTemaOscuro`: sobre el lienzo claro el glifo se remapea al token de texto del tema (`#1A2130`), porque de otro modo sería invisible.
+
+**Cambios:**
+- `brand/generar_icono.py` ahora emite también la marca in-app: `drawable-*dpi/echo_logo.png` (tema oscuro) y `echo_logo_claro.png` (tema claro), en las cinco densidades a partir de `MARCA_DP = 84`. El lienzo es cuadrado con la marca inscrita, así que `ContentScale.Fit` —el valor por defecto de `Image`— la dibuja 1:1 sin deformarla.
+- La variante clara **no repinta el maestro**: mapea al token de tinta solo los píxeles poco saturados (el glifo) y deja intactas las ondas azules. El umbral es seguro por un margen amplio: el azul de las ondas tiene saturación ~192 y el glifo blanco ~0, así que el borde difuminado de cada uno cae limpiamente a un lado o al otro. Se conservó el alfa del maestro, de modo que el antialiasing del glifo no hubo que difuminarlo a mano.
+- **Verificado byte a byte** que extender el script **no alteró** las capas del icono del launcher de la entrada anterior (`shasum` antes/después idéntico): el generador tiene una sola fuente de verdad y las dos salidas pueden regenerarse por separado sin efectos colaterales.
+- `ui/components/Marca.kt` (nuevo): `MarcaEcho(tamano = 84.dp)`, siguiendo la convención de la biblioteca —KDoc con el porqué y `@Preview` Oscuro/Claro. El `contentDescription` es `null` a propósito: el nombre "Echo" se escribe justo debajo, y describir la imagen haría que el lector de pantalla lo dijera dos veces.
+- **`Vitrina` ahora provee `LocalTemaOscuro`** además de `EchoTheme`, igual que `MainActivity` en ejecución. Sin este cambio la vista previa "Claro" de `MarcaEcho` habría dibujado la variante oscura, porque el `CompositionLocal` tiene `true` por defecto y `Vitrina` solo cambiaba el esquema de color. Es un arreglo de la biblioteca, no un detalle de esta pantalla: cualquier componente futuro que lea esa preferencia suffería lo mismo.
+- `ui/login/LoginScreen.kt`: `MarcaEcho()` + `Spacer(24.dp)` encima del título, **fuera** del `when` de fase, así que aparece igual en la fase de número y en la de código.
+
+**Verificación ejecutada:** `./gradlew testDebugUnitTest` **239/239** (sin tocar) y `assembleDebug` + `compileDebugAndroidTestKotlin` verdes. `aapt2 dump resources`: `echo_logo` y `echo_logo_claro` presentes con las cinco densidades. Comprobado por lectura de píxeles que la variante clara quedó con el glifo en `#1A2130` y las ondas sin cambio. **No verificado en dispositivo**: no había ninguno conectado, así que ni el aspecto final en pantalla ni el comportamiento con el teclado abierto se comprobaron en un teléfono real.
+
+**Nota de composición:** con teclado abierto la columna de login se desborda y `verticalScroll` la alinea arriba, de modo que la marca no se recorta (el `Arrangement.Center` no centra cuando no hay holgura porque el scroll mide el contenido sin alto acotado). Aun así, los 108dp de cabecera que suma la marca empujan el campo de teléfono hacia abajo en pantallas cortas: conviene mirarlo en un equipo real antes de la distribución.
+
+**Archivos modificados:**
+- `brand/generar_icono.py` (emite también la marca in-app, dos variantes)
+- `app/src/main/res/drawable-*dpi/echo_logo.png`, `echo_logo_claro.png` (nuevos)
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Marca.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Vitrina.kt` (provee `LocalTemaOscuro`)
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginScreen.kt`
+- `AGENTS.md`
+
+## 2026:09:25 15:40
+
+**Resumen:** Entra el logo de Echo como icono del launcher. El icono de la app era todavía el robot verde de la plantilla de Android Studio. El logo se instaló como **icono adaptativo de dos capas** (fondo + marca), no como la imagen tal cual, porque el maestro viene "compuesto" y no sobrevive al recorte que hace el lanzador. Las capas son un **artefacto generado**: la fuente de verdad es `brand/echo-logo.png` y `brand/generar_icono.py` las produce de forma reproducible.
+
+**Cambios:**
+- **El maestro salió de `res/`.** Estaba en `app/src/main/res/echo-logo.png`, donde un archivo suelto en la raíz de `res/` es un error de build. Se movió a `brand/echo-logo.png`, fuera de `res/`, para que además no viaje dentro del APK (49 KB que no usa nadie).
+- **Separación en capas.** Midiendo el logo: el fondo es un degradado diagonal oscuro (`#171F2E` arriba-izquierda → `#0C1321` abajo-derecha) y la marca es un glifo blanco más unas ondas azules (`#1848D8`) en x 31%..91%, con centro óptico al 61%. Como el contenido llega al 98% del lienzo, usarlo entero como `foreground` lo expondría al recorte del lanzador, que solo conserva el 72dp central de 108dp: las ondas azules se cortarían. Por eso:
+  - `drawable/ic_launcher_background.xml` = el degradado medido sobre el maestro, como vector con `<gradient>` (sustituye al robot verde). Vector y no PNG porque pesa cuatro líneas y es nítido en cualquier densidad.
+  - `drawable-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher_foreground.png` = la marca extraída del fondo, re-centrada y escalada al 66% del lienzo. La extracción separa por dos rampas (brillo y saturación) aprovechando que el fondo no pasa de `0x2E` en ningún canal y la marca es blanca o azul saturada; el margen entre ambos es enorme, así que no hay ambigüedad. El reescalado es promedio de caja con alpha premultiplicado y halves sucesivos, porque mdpi es una reducción de 4.3x y el muestreo directo habría aliaseado.
+  - `drawable-*dpi/ic_launcher_monochrome.png` = la misma silueta en blanco, para los iconos temáticos de Android 13+. El `monochrome` de la plantilla apuntaba al foreground de color, que al tintarse deja un borrón.
+- **`brand/generar_icono.py`**: generador sin dependencias (trae su propio lector y escritor de PNG, porque en esta máquina no hay Pillow ni ImageMagick) con el porqué de cada decisión en el docstring. Verificado **idempotente**: ejecutarlo de nuevo reproduce las capas byte a byte.
+- **Plantilla muerta borrada:** el `ic_launcher_foreground.xml` del robot y los diez `ic_launcher.webp`/`ic_launcher_round.webp` de las carpetas de densidad. Con `minSdk = 26` esos webp son inalcanzables (`mipmap-anydpi` gana a cualquier carpeta de densidad), así que nunca llegaban a mostrarse; dejaban el robot verde a un `git checkout` de distancia.
+- `ic_launcher.xml` e `ic_launcher_round.xml`: `monochrome` apuntando a la capa nueva, con una nota de por qué no hay mapa de bits de respaldo.
+- `AGENTS.md` §Config notes documenta el pipeline, la perilla `LADO_MARCA` y el motivo de no sustituir el badge por el foreground.
+
+**Verificación ejecutada:** `./gradlew testDebugUnitTest` **239/239** (sin tocar) y `assembleDebug` verdes. `aapt2 dump resources` sobre el APK: `ic_launcher_background` como XML y `ic_launcher_foreground`/`ic_launcher_monochrome` con las cinco densidades (mdpi→xxxhdpi). Se **simuló** lo que ve el lanzador componiendo las dos capas y aplicando las máscaras: con máscara circular de 72/108 (la que más recorta) y con squircle, la marca entra completa, con márgenes de 1 px a cada lado (marca x 73..357 dentro del círculo visible x 72..360). La comprobación visual en un dispositivo o en el Image Asset Studio de Android Studio sigue pendiente: en esta máquina no hay forma de ver la imagen.
+
+**Nota de diseño (no se cambió nada):** el azul de las ondas queda a ~2.6:1 de contraste contra el fondo, según la fórmula de WCAG. Es una propiedad del logo, no un defecto de la implementación, y se conservó tal cual; si en tamaños pequeños se ve apagado, el ajuste es de diseño (aclarar el azul de la marca en el maestro) y luego `python3 brand/generar_icono.py`.
+
+**Archivos modificados:**
+- `brand/echo-logo.png` (nuevo; antes `app/src/main/res/echo-logo.png`)
+- `brand/generar_icono.py` (nuevo)
+- `app/src/main/res/drawable/ic_launcher_background.xml` (reescrito: degradado en vez del robot)
+- `app/src/main/res/drawable-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher_{foreground,monochrome}.png` (nuevos)
+- `app/src/main/res/drawable/ic_launcher_foreground.xml` (borrado: robot verde)
+- `app/src/main/res/mipmap-anydpi/ic_launcher.xml`, `ic_launcher_round.xml` (capa monochrome nueva + notas)
+- `app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.webp`, `ic_launcher_round.webp` (borrados)
+- `AGENTS.md`
+
+**Pendiente natural (no pedido):** la pantalla de login (`ui/login/LoginScreen.kt`) no tiene hoy ningún elemento de marca; se puede añadir el logo ahí si se quiere, con un `drawable/echo_logo` generado desde el mismo maestro.
+
+## 2026:09:25 14:19
+
+**Resumen:** La app se renombra de "App Custodio" a **Echo**. El renombrado es **deliberadamente parcial**: cambian la etiqueta del launcher y los identificadores internos, pero se dejan intactos cuatro nombres que, de tocarse, romperían instalaciones ya desplegadas. Ningún cambio de comportamiento; los 239 tests unitarios pasan sin tocar una sola aserción y la etiqueta del APK se verificó con `aapt2`.
+
+**Cambios:**
+- **Identidad visible:** `app_name` = "Echo" (esta es también la etiqueta que ve App Distribution, así que el nombre nuevo aparece ahí en la siguiente distribución). Verificado en el APK: `application-label:'Echo'`.
+- **Identificadores internos:** `AppCustodioApplication` → `EchoApplication` (archivo y clase, registrado en el manifest), `AppCustodioTheme` → `EchoTheme` (composable, 4 archivos), `AppCustodioDatabase` → `EchoDatabase` (archivo y clase, 15 archivos: los `_Impl` que genera Room siguen el nombre de la clase solos), `Theme.AppCustodio` → `Theme.Echo` (`values/themes.xml` + 2 referencias del manifest), y `rootProject.name` = "Echo".
+- **Lo que NO cambió, a propósito** (documentado en `AGENTS.md` §Config notes y en el KDoc de `EchoDatabase.NOMBRE`):
+  - El package y el `applicationId` siguen siendo `com.ai27.app.custodio`: es lo que permite actualizar las instalaciones ya desplegadas. Verificado en el APK.
+  - El archivo de Room sigue siendo `app_custodio.db`. Room no puede renombrar un archivo ya creado, así que cambiarlo haría que cada instalación existente abriera una base vacía y quedaran huérfanos los reportes sin subir y los archivos de `filesDir/medios` no enviados. Las exclusiones de `backup_rules.xml` y `data_extraction_rules.xml` lo nombran por eso y se dejaron como están.
+  - El keystore de release sigue con `CN=App Custodio, OU=AI27`: otro keystore no puede actualizar lo ya firmado con este, y desinstalar para reinstalar borra la cola local de evidencia. Se regenera solo si la app aún no llegó a equipos reales.
+  - `reporte_protocolo` sigue siendo "Protocolo AI27 Custodio": nombra el protocolo del cliente, no la app.
+- **Documentación:** títulos de `README.md`, `docs/PLAN.md`, `docs/AUDIT.md`, `.gitignore` y `.idea/.name`; `AGENTS.md` registra la decisión y los límites del renombrado. Las menciones históricas en entradas previas de este CHANGELOG y en `docs/AUDIT.md` se dejaron como están: describen el nombre que la app tenía cuando se escribieron.
+- **Fricción encontrada:** el primer build falló con `Could not find class file for 'com.ai27.app.custodio.AppCustodioApplication'` en `hiltJavaCompileDebug`. No era código fuente: eran 25 archivos generados por Hilt/KSP en `app/build/` con el nombre viejo (el sentinel de raíz agregada y los `_ComponentTreeDeps`). Se resolvió con `./gradlew clean`; conviene recordarlo para el próximo renombrado de una clase con `@HiltAndroidApp`.
+
+**Verificación ejecutada:** `./gradlew clean testDebugUnitTest` **239/239**, `assembleDebug` verdes. `aapt2 dump badging` sobre el APK: `application-label:'Echo'` y `package: name='com.ai27.app.custodio'`. `rg "AppCustodio|App Custodio" app/src` → cero coincidencias. Pendiente de verificación en dispositivo: la actualización sobre una instalación real (que la base y la cola local sobreviven) y el aspecto del launcher con el logo nuevo cuando se entregue.
+
+**Archivos modificados:**
+- `app/src/main/res/values/strings.xml`
+- `app/src/main/res/values/themes.xml`
+- `app/src/main/AndroidManifest.xml`
+- `app/src/main/java/com/ai27/app/custodio/EchoApplication.kt` (antes `AppCustodioApplication.kt`)
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/EchoDatabase.kt` (antes `AppCustodioDatabase.kt`)
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/` — 13 pruebas y 4 archivos de `data/`, `di/` que referenciaban la clase
+- `app/src/main/java/com/ai27/app/custodio/ui/theme/Theme.kt` + `MainActivity.kt`, `ui/components/Vitrina.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt`
+- `settings.gradle.kts`
+- `README.md`, `AGENTS.md`, `docs/PLAN.md`, `docs/AUDIT.md`, `.gitignore`, `.idea/.name`
 
 ## 2026:09:25 12:17
 

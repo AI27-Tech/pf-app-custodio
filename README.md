@@ -1,4 +1,4 @@
-# App Custodio
+# Echo
 
 Captura en campo para los custodios de AI27: fotos y notas de voz con metadatos (fecha, hora, GPS, autor, placa y etiqueta) que reemplazan el envío por WhatsApp. Cada archivo sube de inmediato a Firebase; el reporte (un viaje) es el contenedor que los agrupa.
 

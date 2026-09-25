@@ -8,7 +8,7 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
-import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.pipeline.ReporteSyncProceso
 import com.ai27.app.custodio.data.pipeline.SubidaMedioProceso
 import com.ai27.app.custodio.data.remote.MedioRemoto
@@ -59,7 +59,7 @@ import org.junit.runner.RunWith
 class WorkerSubidaMedioTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
-    private lateinit var database: AppCustodioDatabase
+    private lateinit var database: EchoDatabase
     private lateinit var archivoDb: File
     private lateinit var directorioMedios: File
     private lateinit var reportes: ReporteRepository
@@ -154,7 +154,7 @@ class WorkerSubidaMedioTest {
     @Before
     fun preparar() {
         archivoDb = File(context.cacheDir, "worker-${UUID.randomUUID()}.db")
-        database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        database = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = File(context.cacheDir, "worker-medios-${UUID.randomUUID()}").also { it.mkdirs() }
         reportes = RoomReporteRepository(database)
         val catalogosFijos = EtiquetasFijas()

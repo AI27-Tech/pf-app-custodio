@@ -77,7 +77,7 @@ class MigracionCorreoATelefonoTest {
     fun `una base v3 migra a la columna custodioTelefono conservando el valor`() = runBlocking {
         crearBaseV3()
 
-        val db = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        val db = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         try {
             val reporte = db.reporteDao().obtenerPorId("r-1")
             assertNotNull("La migración 3→4 debe recuperar el reporte", reporte)
@@ -95,7 +95,7 @@ class MigracionCorreoATelefonoTest {
         crearBaseV3()
 
         // Room abre BAJO DEMANDA: la migración corre al tocar la base, no al construirla.
-        val db = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        val db = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         db.reporteDao().obtenerPorId("r-1")
         db.close()
 

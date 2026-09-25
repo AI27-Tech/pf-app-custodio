@@ -39,6 +39,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.ui.components.MarcaEcho
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.previews.DatosDemo
 
@@ -85,6 +86,8 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        MarcaEcho()
+        Spacer(Modifier.height(24.dp))
         Text(
             text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.headlineMedium,

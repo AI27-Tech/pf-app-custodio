@@ -1,7 +1,7 @@
 package com.ai27.app.custodio
 
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
-import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
 import com.ai27.app.custodio.domain.Result
@@ -27,7 +27,7 @@ import org.junit.Test
 
 class RoomReporteRepositoryTest {
 
-    private lateinit var database: AppCustodioDatabase
+    private lateinit var database: EchoDatabase
     private lateinit var archivoDb: File
     private lateinit var directorioMedios: File
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
@@ -36,7 +36,7 @@ class RoomReporteRepositoryTest {
     @Before
     fun setUp() {
         archivoDb = File.createTempFile("b6-reportes-", ".db").also { it.delete() }
-        database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        database = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = Files.createTempDirectory("b6-reportes-dir").toFile()
     }
 

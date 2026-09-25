@@ -17,7 +17,7 @@ import org.junit.Test
  * (`ultimoError`, `intentosSubida`) a `medios`, sin tocar el resto de columnas.
  *
  * Mismo patrón que [MigracionEtiquetasTest]: se construye la base con el DDL que Room v2
- * generaba para [MedioEntity], se siembran filas y se aplica [AppCustodioDatabase.MIGRACION_2_3].
+ * generaba para [MedioEntity], se siembran filas y se aplica [EchoDatabase.MIGRACION_2_3].
  */
 class MigracionDiagnosticoSubidaTest {
 
@@ -93,7 +93,7 @@ class MigracionDiagnosticoSubidaTest {
     fun `agrega ultimoError e intentosSubida sin perder lo existente`() = runBlocking {
         insertarMedio("m-1", "sha-previo")
 
-        AppCustodioDatabase.MIGRACION_2_3.migrate(connection)
+        EchoDatabase.MIGRACION_2_3.migrate(connection)
 
         assertTrue(tenerColumna("ultimoError"))
         assertTrue(tenerColumna("intentosSubida"))
@@ -117,7 +117,7 @@ class MigracionDiagnosticoSubidaTest {
     fun `un medio sin sha también migra con sus defaults`() = runBlocking {
         insertarMedio("m-2", null)
 
-        AppCustodioDatabase.MIGRACION_2_3.migrate(connection)
+        EchoDatabase.MIGRACION_2_3.migrate(connection)
 
         assertEquals(null to 0L, leerDiagnostico("m-2"))
     }

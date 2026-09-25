@@ -6,7 +6,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.ai27.app.custodio.ui.previews.DatosDemo
-import com.ai27.app.custodio.ui.theme.AppCustodioTheme
+import com.ai27.app.custodio.ui.theme.EchoTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -27,7 +27,7 @@ class HojaEtiquetaTest {
     @Test
     fun elegirLaPrimeraSituacion_noVuelveAMostrarLaHoja() {
         composeRule.setContent {
-            AppCustodioTheme {
+            EchoTheme {
                 HojaEtiqueta(
                     estado = CapturaUiState(
                         custodio = DatosDemo.custodio,

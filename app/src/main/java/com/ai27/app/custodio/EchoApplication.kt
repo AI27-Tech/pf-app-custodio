@@ -13,7 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
-class AppCustodioApplication : Application(), Configuration.Provider {
+class EchoApplication : Application(), Configuration.Provider {
 
     @Inject
     lateinit var workerFactory: CustodioWorkerFactory

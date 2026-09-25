@@ -1,6 +1,7 @@
 package com.ai27.app.custodio.ui.components
 
 import android.media.MediaActionSound
+import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
 import android.view.View
@@ -40,7 +41,13 @@ class Retroalimentacion(
     /** Disparo de foto: háptica corta + obturador. Confirmación en el instante del toque. */
     fun disparo() {
         if (!activa) return
-        vista.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        vista.performHapticFeedback(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                HapticFeedbackConstants.CONFIRM
+            } else {
+                HapticFeedbackConstants.CONTEXT_CLICK
+            }
+        )
         gestos?.play(MediaActionSound.SHUTTER_CLICK)
     }
 

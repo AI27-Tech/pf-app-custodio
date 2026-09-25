@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "App Custodio"
+rootProject.name = "Echo"
 include(":app")

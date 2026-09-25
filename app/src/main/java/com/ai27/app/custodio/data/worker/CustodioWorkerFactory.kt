@@ -12,7 +12,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 // Factory propia (sin hilt-work) para construir los workers con el grafo de Hilt.
-// Se registra via Configuration.Provider en AppCustodioApplication.
+// Se registra via Configuration.Provider en EchoApplication.
 @Singleton
 class CustodioWorkerFactory @Inject constructor(
     private val procesoSubida: SubidaMedioProceso,

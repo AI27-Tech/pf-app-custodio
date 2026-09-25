@@ -51,7 +51,7 @@ class MigracionIndiceActivoTest {
         connection.execSQL(ddlReportesV1)
         connection.execSQL(ddlMediosV1)
         // El índice parcial que crea el onOpen de la versión anterior quedaba persistido en disco:
-        connection.execSQL(AppCustodioDatabase.INDICE_UNICO_ACTIVO)
+        connection.execSQL(EchoDatabase.INDICE_UNICO_ACTIVO)
         connection.execSQL(
             "INSERT INTO reportes (id, placas, placasCapturadas, custodioUid, custodioCorreo, " +
                 "clienteId, deviceId, fechaLocal, createdAtDevice, ciclo, subida, completo, " +
@@ -86,7 +86,7 @@ class MigracionIndiceActivoTest {
     fun `una base v1 real con el indice parcial abre y migra`() = runBlocking {
         crearBaseV1()
 
-        val db = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        val db = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         try {
             val reporte = db.reporteDao().obtenerPorId("r-1")
             assertNotNull("La migración debe recuperar el reporte ACTIVO", reporte)
@@ -105,7 +105,7 @@ class MigracionIndiceActivoTest {
     fun `tras migrar el indice parcial vuelve a existir`() = runBlocking {
         crearBaseV1()
 
-        val db = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        val db = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         db.close()
 
         assertTrue("onOpen debe recrear ux_reportes_activo_por_custodio", tenerIndice())

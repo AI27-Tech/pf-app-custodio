@@ -1,4 +1,4 @@
-# AUDIT — App Custodio
+# AUDIT — Echo
 
 Auditoría técnica y de experiencia de uso levantada el **2026-09-21** sobre el estado
 del repositorio en el commit `fix: hoja de etiquetado expandida y no descartable…`

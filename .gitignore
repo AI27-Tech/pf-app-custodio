@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# App Custodio — .gitignore
+# Echo — .gitignore
 #
 # Nota deliberada: `google-services.json` NO se ignora. Se commitea a propósito
 # (ver PLAN.md §9): no es un secreto y simplifica un repo de una sola app.
@@ -104,6 +104,10 @@ lint-baseline.xml
 .externalNativeBuild
 .cxx/
 obj/
+
+# --- Generador del icono (brand/generar_icono.py es Python; esto es su bytecode) ---
+__pycache__/
+*.pyc
 
 # --- Mockups de diseño (fuente en Stitch, no se versionan: ~8MB de PNG/HTML) ---
 mock-app-design-language/

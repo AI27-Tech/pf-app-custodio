@@ -117,7 +117,7 @@ private val EsquemaClaro = lightColorScheme(
  * cuando esa pantalla exista (fase C4). Mientras no exista, la app se ve oscura siempre.
  */
 @Composable
-fun AppCustodioTheme(
+fun EchoTheme(
     oscuro: Boolean = true,
     content: @Composable () -> Unit,
 ) {

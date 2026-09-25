@@ -1,6 +1,6 @@
 package com.ai27.app.custodio
 
-import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.local.db.ReporteDao
 import com.ai27.app.custodio.data.mapper.aEntidad
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
@@ -30,7 +30,7 @@ import org.junit.Test
  */
 class InvarianteUnSoloActivoTest {
 
-    private lateinit var database: AppCustodioDatabase
+    private lateinit var database: EchoDatabase
     private lateinit var archivo: File
     private lateinit var dao: ReporteDao
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
@@ -39,7 +39,7 @@ class InvarianteUnSoloActivoTest {
     @Before
     fun setUp() {
         archivo = File.createTempFile("b2-invariante-", ".db").also { it.delete() }
-        database = AppCustodioDatabase.crearBaseDatos(archivo.absolutePath)
+        database = EchoDatabase.crearBaseDatos(archivo.absolutePath)
         dao = database.reporteDao()
     }
 

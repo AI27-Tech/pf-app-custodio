@@ -9,7 +9,7 @@ import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
-import com.ai27.app.custodio.data.local.db.AppCustodioDatabase
+import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
 import com.ai27.app.custodio.domain.Result
@@ -52,7 +52,7 @@ import org.junit.runner.RunWith
 class ReconciliacionColaTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
-    private lateinit var database: AppCustodioDatabase
+    private lateinit var database: EchoDatabase
     private lateinit var archivoDb: File
     private lateinit var directorioMedios: File
     private lateinit var reportes: ReporteRepository
@@ -72,7 +72,7 @@ class ReconciliacionColaTest {
         workManager = WorkManager.getInstance(context)
 
         archivoDb = File(context.cacheDir, "recon-${UUID.randomUUID()}.db")
-        database = AppCustodioDatabase.crearBaseDatos(archivoDb.absolutePath)
+        database = EchoDatabase.crearBaseDatos(archivoDb.absolutePath)
         directorioMedios = File(context.cacheDir, "recon-medios-${UUID.randomUUID()}").also { it.mkdirs() }
         reportes = RoomReporteRepository(database)
         medios = RoomMedioRepository(database, FilesDirAlmacenArchivos(directorioMedios), EtiquetasFijas())
