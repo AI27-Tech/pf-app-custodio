@@ -1,7 +1,10 @@
 package com.ai27.app.custodio
 
 import android.app.Activity
+import com.ai27.app.custodio.data.diagnostico.MetodoAuth
+import com.ai27.app.custodio.data.diagnostico.RegistroDeEventos
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
+import com.ai27.app.custodio.data.diagnostico.ResultadoLogin
 import com.ai27.app.custodio.data.local.media.EventoGrabacion
 import com.ai27.app.custodio.data.local.media.Grabacion
 import com.ai27.app.custodio.data.local.media.Grabadora
@@ -202,5 +205,16 @@ class FakeRegistroDeFallos : RegistroDeFallos {
     val registrados = mutableListOf<Pair<String, Throwable>>()
     override fun registrar(contexto: String, causa: Throwable) {
         registrados.add(contexto to causa)
+    }
+}
+
+/**
+ * Registro de eventos falso. Solo acumula, para que las pruebas del login puedan afirmar
+ * qué desenlace se registró sin tocar Firebase Analytics (que no tiene emulador).
+ */
+class FakeRegistroDeEventos : RegistroDeEventos {
+    val registrados = mutableListOf<Pair<MetodoAuth, ResultadoLogin>>()
+    override fun registroLogin(metodo: MetodoAuth, resultado: ResultadoLogin) {
+        registrados.add(metodo to resultado)
     }
 }

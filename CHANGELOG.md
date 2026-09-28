@@ -2,6 +2,37 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:09:28 12:32
+
+**Resumen:** Se implementó `docs/PLAN_ANALYTICS_LOGIN.md`: el login por SMS ahora emite el evento `login` de Firebase Analytics con el método y el **desenlace**, en los seis puntos en que puede terminar. Antes la app no reportaba un solo evento propio y la pregunta de negocio —*de cada 100 custodios que abren la app, ¿cuántos terminan adentro y en qué paso se quedan?*— no tenía respuesta.
+
+**Cambios:**
+- **Contrato `RegistroDeEventos`** en `data/diagnostico/` (el mismo bucket que `RegistroDeFallos`): interfaz de un método `registroLogin(metodo, resultado)`, más los enums `MetodoAuth` (hoy un solo caso, `PHONE`) y `ResultadoLogin` (nueve desenlaces). Son enums y no cadenas libres porque **el valor ES la dimensión por la que se va a filtrar** en la consola: un `String` libre permitiría emitir `login_result="ok"` y `login_result="OK"` como dos dimensiones distintas sin que nada avise.
+- **Implementación `RegistroDeEventosAnalytics`** con el patrón documentado por Firebase (`Bundle` + `FirebaseAnalytics.Param.METHOD` + `FirebaseAnalytics.Event.LOGIN`). El `method` conserva el parámetro reservado que Google le da al método de autenticación y el desenlace va aparte, en `login_result`: cargarle el desenlace al `method` vaciaría su sentido y la consola no podría desglosar la tasa de fallo por paso. `FirebaseAnalytics.Param` no trae constante para el desenlace, así que la cadena vive en un `private companion object`.
+- **Los seis puntos de `LoginViewModel`** quedan instrumentados, cada uno con un comentario que dice cuál es: número inválido, fallo al pedir el SMS (incluido el watchdog de 30 s del broker de GMS), fallo de `verificarCodigo`, **éxito**, teléfono fuera de la allowlist, y fallo de la consulta a la allowlist. Los dos caminos de éxito (OTP tecleado y auto-lectura del SMS) confluyen en `validarAllowlist(...)`, así que el `OK` se instrumenta **una vez, no dos**. El punto de allowlist rechazada se registra **antes** del `cerrarSesion()`: que la allowlist rechazó es el hecho, el cierre es consecuencia interna. Un helper privado de una línea concentra el `method` para que ningún punto de llamada pueda escribirlo con un typo.
+- **Mapeo `DominioError.aResultadoLogin()`**, exhaustivo y sin `else` como el `aRecurso()` que ya existe: el compilador avisa cuando se agrega una variante a `DominioError`. Vive en `data/diagnostico/` y no en `ui/` para que la capa de presentación no conozca el vocabulario de la analítica (la dirección `ui` → `data.diagnostico` ya tiene precedente en `CapturaViewModel`).
+- **Ningún parámetro lleva PII**: ni número, ni `uid`, ni nada del custodio. El método es constante y el desenlace es un valor de un conjunto cerrado — es la política de S13 y es la razón por la que este evento es publicable tal cual. Sigue **fuera de alcance deliberado**: `setUserId` (ataría el evento al custodio y abre una decisión de retención) y el evento `logout`.
+- **10 casos nuevos de prueba:** los seis desenlaces contra el fake en `LoginViewModelTest` (incluido el que afirma que el fallo más caro, teléfono no autorizado, viene acompañado de **cero** eventos `ok`), y la matriz completa `DominioError` → `ResultadoLogin` en `ResultadoLoginTest`, que además cuenta las variantes para que una nueva no se cuelgue en `INESPERADO` y comprueba los límites de GA4 (100 caracteres, ASCII). `FakeRegistroDeEventos` solo acumula, calcado de `FakeRegistroDeFallos`.
+
+**Dos desviaciones del plan, por hechos verificados en el código:**
+- **`@ApplicationContext` sí hacía falta.** El plan decía que no; `FirebaseAnalytics.getInstance()` no tiene sobrecarga sin argumentos y el binding no compilaba. Se resolvió como los demás módulos que hablan con un singleton de Firebase (`AuthModule`, `PipelineModule`): `getInstance(context)` con el `Context` de aplicación.
+- **La tabla del plan decía "los once `DominioError` que el login no puede producir"**; son **diecinueve** (los diecisiete de reporte y medio, más `PermisoDenegado` y `ArchivoLocalAusente`). `PermisoDenegado` no es hipotético: un `PERMISSION_DENIED` de Phone Auth lo produce, y en pantalla sale como "Algo salió mal". El comportamiento que el plan pedía —todo lo que el login no puede medir cae en `INESPERADO`— queda igual. Y `DominioError.TelefonoNoAutorizado`, que la tabla no mencionaba, mapea a `TELEFONO_NO_AUTORIZADO`: hoy nada lo emite (el punto 5 es un `Result.Success(false)`, no un error), pero si algún día lo hiciera, el desenlace exacto es ese y no `INESPERADO`.
+
+**Verificación:** `testDebugUnitTest` **249/249** (239 antes + 6 en `LoginViewModelTest` + 4 en `ResultadoLoginTest`), 0 fallos. Los **10 tests que ya existían de `LoginViewModelTest` siguen verdes sin tocar una sola aserción** — solo se actualizaron `setUp()` y `crearViewModel()` con el tercer argumento: esa es la señal de que la instrumentación no alteró el comportamiento del login. `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. Ninguna tarea tocó `libs.versions.toml` ni los scripts de build, así que no hubo pausa para Sync.
+
+> Lo que estas pruebas **no** cubren, y hay que decirlo: que el evento llegue a la consola. Los tests de JVM afirman que el ViewModel llama al fake con el par correcto; `FirebaseAnalytics` nunca se toca y **Analytics no tiene emulador**. La confirmación de que `login_result` conserva su nombre es de una sola corrida en el **DebugView** de la consola (`custodio-906e7268`), manual. Y sigue vigente la advertencia del plan: la propiedad no separa debug de producción en Analytics, así que **los eventos de un APK debug salen a producción de verdad** (`ModoEmulador` solo desvía Firestore, Storage y Auth).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventosAnalytics.kt` (nuevo)
+- `app/src/main/java/com/ai27/app/custodio/di/DiagnosticoModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginViewModel.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/login/LoginViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/diagnostico/ResultadoLoginTest.kt` (nuevo)
+- `AGENTS.md`
+- `CHANGELOG.md`
+
 ## 2026:09:28 12:02
 
 **Resumen:** Versión nueva del logo maestro (`brand/echo-logo.png`) regenerada en las 20 capas de `res/`. El diseño es otro —fondo plano en vez de degradado, y la marca es un ojo blanco con filete gris más tres ondas azules, **1.26 veces más ancha que alta**— y el generador hubo que cambiar en tres puntos para producirla bien. No se tocó Kotlin.
