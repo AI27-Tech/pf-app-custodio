@@ -2,6 +2,28 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:09:28 13:05
+
+**Resumen:** `MainActivity` ya **no declara `android:screenOrientation`**. El atributo venía en `fullSensor` desde un cambio del autor del proyecto posterior a la auditoría, y eso hace que la app **gire aunque el custodio tenga la rotación automática apagada**: `fullSensor` es el único valor de `screenOrientation` que ignora el ajuste del usuario. Se retira el atributo (no se cambia por `fullUser`) siguiendo la primera de las dos vías que ofrece la guía vigente de Android, y se documenta la decisión en `docs/AUDIT.md` (A9) y `docs/PLAN.md` §17.3.
+
+**Cambios:**
+- **`app/src/main/AndroidManifest.xml`:** se elimina `android:screenOrientation="fullSensor"` de la etiqueta `<activity>` de `MainActivity`. Sin atributo la orientación queda **`unspecified`**, que es lo que dice la guía (*Restrict app orientation on phones*): *"You can either avoid declaring the `screenOrientation` element of the app manifest (in which case orientation defaults to `unspecified`) or set screen orientation to `fullUser`"*. Con la rotación automática apagada la app se queda en vertical, que es lo que se pidió.
+- **Por qué `unspecified` y no `fullUser`:** las dos respetan el ajuste del usuario; la diferencia es que con `unspecified` *"the policy the system uses to define the orientation might differ from device to device"*. Se eligió la vía declarativa (nada) sobre la de fijar un valor, para que el manifest no vuelva a tener una política de orientación que mantener.
+- **Por qué no volver a `portrait`:** con `targetSdk = 37` no arregla nada de lo que motivó el `fullSensor`. Desde Android 17 las restricciones de orientación, redimensionado y aspect ratio **se ignoran siempre** en pantallas con sw ≥ 600 dp y **el opt-out ya no existe**, así que `portrait` no tocaría tablet ni la pantalla interna de un foldable: solo volvería a romper el teléfono.
+- **Corrección a una afirmación de `docs/AUDIT.md`:** A9 atribuía a `fullSensor` la garantía de que las fotos salgan derechas ("es la ganancia del cambio"). Leyendo la fuente de `camera-view` 1.6.2, `CameraController` registra un `RotationProvider` (`OrientationEventListener` sobre el acelerómetro) y en cada cambio llama a `mImageCapture.setTargetRotation(rotation)` con la rotación **física** del equipo (`CameraController.java:396-400`; `.attachPreviewSurface()` → `startListeningToRotationEvents()`). Esa ruta **no pasa por `screenOrientation`**, así que `imageInfo.rotationDegrees` sigue al equipo de todos modos y quitar `fullSensor` **no reintroduce fotos acostadas**. *No se comprobó en dispositivo: es lectura de la fuente de CameraX, no una ejecución.*
+- **A9 se reescribe** con la cronología completa (`portrait` → `fullSensor` → sin atributo), la cita de la guía, y sus consecuencias 1 y 2 (cuatro destinos sin `verticalScroll`, recreación de la Activity al rotar por no declarar `configChanges`) **reencuadradas**: con `fullSensor` se disparaban en los 37 teléfonos; sin el atributo solo aplican a quien tenga la rotación automática activada. Siguen siendo trabajo pendiente, pero de implementación y no de urgencia de campo. También se corrigen las tres referencias de A9 en el resto del documento (delta del manifest, A3.9 punto 9, T13, Grupo 5 y la decisión de producto 4).
+- **`docs/PLAN.md` §17.3:** A3.9 estaba *"ascendido a lo primero del grupo"* por el `fullSensor`; con el atributo fuera esa escalada ya no aplica, así que vuelve a su severidad original (200 % de escala de texto). La parte de U11 (`rememberSaveable`) ya estaba atendida desde el 2026-09-24.
+- **`AGENTS.md`:** nota de config con la cronología del atributo y la razón, para que nadie lo reponga por inercia.
+
+**Verificación:** `assembleDebug` verde y el **manifest fusionado ya no trae `screenOrientation`** (revisado en `app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml`; la fusión de las librerías tampoco lo reintroduce). `testDebugUnitTest` **249/249**, 0 fallos, corrido con `--rerun` para que no fuera un `UP-TO-DATE` heredado. **Lo que ninguna de las dos pruebas puede afirmar:** cómo se comporta la orientación en un equipo real. Queda **pendiente de comprobación manual en el teléfono**: girar con la rotación automática encendida y apagada, en vertical y horizontal, y una foto en horizontal para confirmar que el bitmap sale derecho.
+
+**Archivos modificados:**
+- `app/src/main/AndroidManifest.xml`
+- `docs/AUDIT.md`
+- `docs/PLAN.md`
+- `AGENTS.md`
+- `CHANGELOG.md`
+
 ## 2026:09:28 12:32
 
 **Resumen:** Se implementó `docs/PLAN_ANALYTICS_LOGIN.md`: el login por SMS ahora emite el evento `login` de Firebase Analytics con el método y el **desenlace**, en los seis puntos en que puede terminar. Antes la app no reportaba un solo evento propio y la pregunta de negocio —*de cada 100 custodios que abren la app, ¿cuántos terminan adentro y en qué paso se quedan?*— no tenía respuesta.
