@@ -38,7 +38,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="fullSensor"
             android:theme="@style/Theme.Echo"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

@@ -1247,11 +1247,11 @@ ante una base v1 con índice). Registrado en `AUDIT.md` como C10.
   `putFile` reanudable, SHA en streaming, concurrencia 1), R7 (flash en `graphicsLayer`), R13
   (fix GPS compartido con TTL + `lastLocation`), R14 (constraints de red +
   `NET_CAPABILITY_VALIDATED`), R15/R16, T6 (baseline profile).
-- **Grupo 5 — Accesibilidad:** A3.9+U11 (`verticalScroll` en Login/ReporteAbierto/Audio/Ajustes
-  por `fullSensor`), A2 (dejar de usar `outline` como color de texto; recalcular la receta de
-  chips/`FranjaAviso` para tema claro), A4 (`imePadding`+insets en los 5 destinos), A1 (blancos
-  táctiles ≥48/56dp), A3 resto (`overflow` con `maxLines`), A5 (`contentDescription` +
-  `mergeDescendants`), A6 (`liveRegion`, `Role.Tab`, `toggleable`).
+- **Grupo 5 — Accesibilidad:** A3.9 (`verticalScroll` en Login/ReporteAbierto/Audio/Ajustes; ya
+  solo a 200 % de escala, no al girar — ver §17.3), A2 (dejar de usar `outline` como color de
+  texto; recalcular la receta de chips/`FranjaAviso` para tema claro), A4 (`imePadding`+insets en
+  los 5 destinos), A1 (blancos táctiles ≥48/56dp), A3 resto (`overflow` con `maxLines`), A5
+  (`contentDescription` + `mergeDescendants`), A6 (`liveRegion`, `Role.Tab`, `toggleable`).
 - **Grupo 6 — Proceso y deuda:** T1 (CI), T3/T4 (esquema de Room exportado + migración + índice
   solo en `onCreate`), T2 (versionado derivado), T9 (firma v3), T8 (`applicationIdSuffix`), T7
   (contexto de Crashlytics), T10/T5 (ABIs y R8 midiendo), T11/T12; E8 (rescate de `EN_PROGRESO`),
@@ -1475,11 +1475,15 @@ verde. Varias pausas de Sync (R6, T6) — agrupar.
 ### 17.3 Grupo 5 — Accesibilidad y adaptación
 
 **Meta:** que la app se use a pleno sol, con guantes, con escala de texto grande y con el teléfono
-en cualquier orientación (`fullSensor` ya está activo).
+en cualquier orientación. **Actualizado 2026-09-28:** `MainActivity` ya **no declara
+`screenOrientation`** (orientación `unspecified`, la app respeta el ajuste de rotación del
+usuario), en vez del `fullSensor` que este plan daba por activo.
 
-- **Lo primero, por `fullSensor`:** A3.9 + U11 (`verticalScroll` en Login/ReporteAbierto/Audio/Ajustes
-  y `rememberSaveable` en el formulario de cierre) — ascendido porque hoy se rompe al **girar** el
-  teléfono, no solo al 200 % de escala.
+- **Ya no es lo primero:** A3.9 (`verticalScroll` en Login/ReporteAbierto/Audio/Ajustes) estaba
+  ascendido porque con `fullSensor` se rompía al **girar** el teléfono en cualquier equipo. Sin
+  el atributo, ese caso solo aplica a quien tenga la rotación automática activada, así que A3.9
+  vuelve a su severidad de 200 % de escala. La parte de U11 (`rememberSaveable`) ya se atendió el
+  2026-09-24. Sigue siendo el trabajo que prepara la app para `targetSdk 37` en tablet.
 - **Contraste:** A2 (dejar de usar `colorScheme.outline` como color de texto — un `sed`; luego
   recalcular la receta de chips/`FranjaAviso` **para tema claro**, que es donde falla).
 - **Insets y teclado:** A4 (`imePadding` + `navigationBarsPadding` en los 5 destinos que faltan,

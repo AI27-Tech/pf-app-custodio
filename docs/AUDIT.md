@@ -67,10 +67,9 @@ se conserva a decisión del autor del proyecto. Respecto del commit base:
 
 - **Se declara `ACCESS_COARSE_LOCATION`.** Resuelve la mitad de S8; la otra mitad sigue abierta,
   porque `permisosSolicitados()` aún no lo pide en runtime.
-- **`screenOrientation` pasa de `portrait` a `fullSensor`.** Esto **eleva** A9 de riesgo latente
-  en tablets a comportamiento activo en todos los equipos, y con ello A3.9 (cuatro pantallas sin
-  `verticalScroll`) y la recreación de CameraX/`MediaRecorder` al rotar. Ver la nota en A9.
 - **Se retira el `android:label` redundante** de `MainActivity`, lo que cierra ese punto de T15.
+- **`screenOrientation`: `portrait` → `fullSensor` → sin atributo (2026-09-28).** El atributo se
+  quitó por decisión de producto, no por un hallazgo. Ver A9, que lleva la cronología completa.
 
 Los hallazgos de abajo describen el código de producción tal como está hoy, con estas tres
 diferencias ya incorporadas en S8, A9 y T15.
@@ -1630,8 +1629,8 @@ El problema es el inverso: **contenedores en dp fijos con texto dentro**. En ord
 9. **Cuatro pantallas sin `verticalScroll`**: `LoginScreen.kt:53`, `ReporteScreen.kt:151`
    (`ReporteAbierto`), `AudioScreen.kt:61`, `AjustesScreen.kt:80`. A 200 % el contenido no cabe
    y **no hay forma de alcanzarlo**: en Ajustes es el botón de cerrar sesión. Solo `CierreScreen`
-   y `PendientesScreen` scrollean. **Con `screenOrientation="fullSensor"` esto ya no espera al
-   200 %: se rompe en cuanto el custodio gira el teléfono.** Ver A9.
+   y `PendientesScreen` scrollean. Con la orientación sin declarar (ver A9) esto también se rompe
+   **al girar el teléfono, para quien tenga la rotación automática activada**. Ver A9.
 10. Saltos de línea a mano en `strings.xml:147` y `:203`: a 200 % el `\n` fuerza cortes en el
     lugar equivocado y descuadra el `EstadoVacio` centrado.
 
@@ -1736,40 +1735,63 @@ y "FALLIDA" en la rejilla es texto. Quedan tres fugas:
   `ERROR_TOO_MANY_REQUESTS` se mapea a `Inesperado`, así que el custodio bloqueado ve un error
   genérico y no entiende que debe esperar.
 
-### A9 · Orientación libre (`fullSensor`) con cuatro pantallas que no scrollean — ALTO · VERIFICADO
+### A9 · Orientación sin restringir (hoy `unspecified`) con cuatro pantallas que no scrollean — ALTO · VERIFICADO · ✅ DECIDIDO 2026-09-28 (se retira `screenOrientation`)
 
-`AndroidManifest.xml:44` declara `android:screenOrientation="fullSensor"` (cambiado desde
-`portrait` después del levantamiento; ver el delta del manifest arriba) y `MainActivity` **no
-declara `configChanges`**.
+> **Decidido por producto el 2026-09-28: `MainActivity` ya no declara `android:screenOrientation`.**
+> Se sigue la guía vigente de Android, que ofrece dos vías y la app toma la primera: *"You can
+> either avoid declaring the `screenOrientation` element of the app manifest (in which case
+> orientation defaults to `unspecified`) or set screen orientation to `fullUser`"* (Compose →
+> *Restrict app orientation on phones*). Con el atributo ausente la orientación queda
+> **`unspecified`** —la elige el sistema— y la app **respeta el ajuste de rotación del
+> usuario**: con la rotación automática apagada se queda en vertical, que es lo que el
+> custodio pidió. La diferencia con `fullUser`, según la misma guía, es que con `fullUser` el
+> sistema usa su propia política de forma determinista, mientras que con `unspecified` *"the
+> policy the system uses to define the orientation might differ from device to device"*.
+>
+> **Por qué el atributo no se puede simplemente "volver a poner":** `targetSdk = 37` y desde
+> Android 17 las restricciones de orientación **se ignoran siempre** en pantallas con
+> sw ≥ 600 dp, sin opt-out. Declarar `portrait` para "arreglar" esto no arreglaría nada en
+> tablet o en la pantalla interna de un foldable, solo volvería a romper el teléfono.
+>
+> **Lo que la decisión NO cierra:** los puntos 1 y 2 de abajo siguen siendo ciertos para
+> cualquier custodio que **sí** tenga la rotación automática activada —y en un dispositivo de
+> empresa el usuario puede activarla en cualquier momento. Se baja de *ALTO* a *condicional*,
+> no a resuelto.
 
-Con `portrait` este hallazgo era un riesgo latente, porque desde Android 16 —y confirmado en la
-documentación de Android 17— las restricciones de orientación, redimensionado y aspect ratio
-**se ignoran en pantallas con sw ≥ 600 dp** para apps que apuntan a API 37, y **el opt-out ya no
-está disponible**. Con `fullSensor` el riesgo **ya no es latente: es el comportamiento en todos
-los equipos, incluidos los 37 teléfonos**. Lo que hay que resolver, en consecuencia:
+Cronología: `portrait` en el commit base → `fullSensor` por decisión del autor después del
+levantamiento (ver el delta del manifest arriba) → **sin atributo** el 2026-09-28.
+
+`MainActivity` **no declara `configChanges`**. Lo que queda por resolver:
 
 1. **Las cuatro pantallas sin `verticalScroll`** de A3.9 (`LoginScreen.kt:53`,
    `ReporteScreen.kt:151`, `AudioScreen.kt:61`, `AjustesScreen.kt:80`) quedan con contenido
    **inalcanzable** en horizontal, no solo a 200 % de escala de texto. En Ajustes eso es el botón
-   de cerrar sesión; en Login, el botón "Entrar". Esto pasa de "se rompe a 200 %" a "se rompe al
-   girar el teléfono", y es la consecuencia más inmediata del cambio.
+   de cerrar sesión; en Login, el botón "Entrar". Con `fullSensor` esto se disparaba en los 37
+   teléfonos; hoy depende de que el usuario tenga la rotación automática encendida, lo que sigue
+   siendo un caso real. (U11 ya está cerrado por `rememberSaveable`, 2026-09-24.)
 2. **Sin `configChanges`, cada rotación recrea la Activity.** El `CapturaViewModel` sobrevive
    (cuelga de la entrada del grafo `viaje`) y el cronómetro de audio también (se calcula con
    `elapsedRealtime`), pero **la sesión de CameraX se re-vincula** —visible como un
-   parpadeo del visor, justo en la pantalla del estándar de 5 s— y se pierde todo el estado
-   `remember` de U11 (comentario de cierre, motivo de descarte, chip seleccionado, hoja de placa
-   abierta). Girar el teléfono con el formulario de cierre a medias lo borra sin confirmación.
+   parpadeo del visor, justo en la pantalla del estándar de 5 s—. U11 ya se atendió con
+   `rememberSaveable`, pero quedan los destinos sin scroll del punto 1.
 3. La rejilla sí sobrevive (`GridCells.Fixed(3)` queda con celdas anchísimas y desaprovechadas;
    no se rompe). No hay `res/layout-land/`, ni variantes por `sw`, ni `WindowSizeClass`.
-4. La cámara está a salvo en cuanto a la evidencia: `VistaCamara.kt` no fija `targetRotation`,
-   pero `tomarFoto` rota el bitmap según `imageInfo.rotationDegrees`, así que la foto queda
-   derecha aunque el teléfono no lo esté. Nota: con `portrait` fijo ese cálculo producía fotos
-   acostadas al fotografiar en horizontal; **con `fullSensor` ese defecto desaparece**, porque la
-   rotación de destino sigue al dispositivo. Es la ganancia del cambio.
+4. **Corrección a la lectura de este hallazgo:** el texto original atribtaba a `fullSensor` la
+   garantía de que las fotos salgan derechas. No es así. Leyendo la fuente de
+   `camera-view` 1.6.2, `CameraController` registra un `RotationProvider`
+   (`OrientationEventListener` sobre el acelerómetro) y en cada cambio llama a
+   `mImageCapture.setTargetRotation(rotation)` con la rotación **física** del equipo
+   (`CameraController.java:396-400`, `.attachPreviewSurface()` → `startListeningToRotationEvents()`).
+   Esa ruta **no depende de `screenOrientation`**: `imageInfo.rotationDegrees` sigue al
+   dispositivo estén o no bloqueadas las restricciones de orientación. Por lo tanto quitar
+   `fullSensor` **no reintroduce fotos acostadas**, y el `Matrix.postRotate` de
+   `VistaCamara.kt:106-112` sigue siendo lo que endereza el bitmap. Lo que sí cambia con la
+   orientación bloqueada es lo que el custodio **ve en el visor** frente a lo que se guarda.
+   *No se comprobó en dispositivo: es lectura de la fuente de CameraX, no una ejecución.*
 
-**Dirección:** añadir `verticalScroll` a las cuatro pantallas es ahora obligatorio, no opcional,
-y conviene pasar el estado de U11 a `rememberSaveable` en la misma tanda, porque ambos defectos
-se disparan con el mismo gesto.
+**Dirección:** `verticalScroll` en las cuatro pantallas de A3.9 sigue pendiente y ya no es
+urgencia de campo (depende del ajuste del usuario), pero es lo que hace que la app sobreviva a
+`targetSdk 37` en tablet sin trabajo futuro.
 
 ### A10 · Strings: `values-es-rMX/` desincronizado — ALTO · VERIFICADO
 
@@ -1995,7 +2017,8 @@ licencias.
   `enableEdgeToEdge()` y el `Scaffold` único vive en `AppNavHost`. Vale una pasada visual en la
   pantalla de cámara a pantalla completa, donde el HUD puede quedar bajo la barra de gestos. Ver
   A4 para lo que no está resuelto.
-- **Orientación ignorada en sw ≥ 600 dp: no manejado.** Ver A9.
+- **Orientación ignorada en sw ≥ 600 dp: sin acción posible.** Ver A9 — desde el 2026-09-28 la app
+  no declara `screenOrientation`, que es justo lo que esta restricción de plataforma pide.
 - **Límites de memoria por app según RAM, aplicables a TODAS las apps sin importar targetSdk.**
   Ver R5.
 - **Endurecimiento de audio en segundo plano, más estricto en targetSdk 37.** Refuerza E5: sin
@@ -2322,9 +2345,13 @@ T6 (baseline profile propio).
 
 ### Grupo 5 — Accesibilidad
 
-A3.9 + U11 (`verticalScroll` en Login, ReporteAbierto, Audio y Ajustes, y `rememberSaveable` en
-el formulario de cierre): **ascendido a lo primero del grupo** por el cambio a `fullSensor`, que
-convierte ambos en fallos al girar el teléfono en cualquier equipo, no solo a 200 % de escala.
+A3.9 (`verticalScroll` en Login, ReporteAbierto, Audio y Ajustes; la parte de U11 ya se atendió
+el 2026-09-24 con `rememberSaveable`): se ascendió a lo primero del grupo cuando el manifest pasó
+a `fullSensor`, que lo convertía en fallo al girar el teléfono en cualquier equipo. **Desde el
+2026-09-28 esa escalada ya no aplica** —sin `screenOrientation` el defecto solo aparece si el
+usuario tiene la rotación automática activada—, así que A3.9 vuelve a su severidad original
+(200 % de escala) y baja de prioridad, aunque sigue siendo lo que prepara la app para
+`targetSdk 37` en tablet sin trabajo futuro.
 Después: A2 (dejar de usar `colorScheme.outline` como color de texto: es un `sed` y arregla el
 peor contraste de la app; luego recalcular la receta de chips y `FranjaAviso` **para tema
 claro**), A4 (`imePadding` + `navigationBarsPadding` en los cinco destinos que faltan, empezando
@@ -2353,10 +2380,11 @@ midiendo).
 3. **Copia a la galería pública (S1)** — hay que decidir si es un requisito de operación o un
    resto de desarrollo. Si es requisito, necesita un directorio propio y una política de borrado;
    si no, se elimina junto con `WRITE_EXTERNAL_STORAGE`.
-4. **Parque de dispositivos (A9)** — resuelta por el delta del manifest: con
-   `screenOrientation="fullSensor"` se **acepta** la orientación libre en todos los equipos. La
-   consecuencia que deja abierta es de implementación, no de producto: `verticalScroll` en las
-   cuatro pantallas de A3.9 y `rememberSaveable` en el estado de U11 pasan a ser obligatorios.
+4. **Parque de dispositivos (A9)** — resuelta por decisión de producto el 2026-09-28:
+   `MainActivity` **no declara `screenOrientation`**, así que la orientación queda `unspecified`
+   y la app respeta el ajuste de rotación del usuario. La consecuencia que queda abierta es de
+   implementación, no de producto: `verticalScroll` en las cuatro pantallas de A3.9 (U11 ya se
+   atendió con `rememberSaveable`).
 5. **Solo Wi-Fi para subir (R14)** — con ~1-2 GB/día de plan celular, decidir si el ajuste existe.
 
 ---

@@ -2,39 +2,27 @@
 <!--
   Fondo del icono adaptativo de Echo.
 
-  Es el degradado diagonal del badge original (brand/echo-logo.png), medido sobre el
-  logo maestro: #171F2E en la esquina superior izquierda bajando a #0C1321 en la
-  inferior derecha. Se declara como vector con `aapt:attr`/`<gradient>` en vez de como
-  PNG para que sea nitido en cualquier densidad y pese cuatro lineas.
+  Es el fondo del badge maestro (brand/echo-logo.png), medido sobre el logo: plano,
+  #112439 en todo el lienzo (la variacion del anillo exterior es de cero por canal).
+  Se declara como vector con un relleno liso en vez de como PNG para que pese cuatro
+  lineas y no pierda un solo bit al reescalar.
 
   Va en la capa de FONDO a proposito: el logo maestro viene "compuesto" (fondo y marca
-  pegados, a sangre hasta el 98% del lienzo), y una capa de fondo es lo que el lanzador
+  pegados, a sangre hasta el borde del lienzo), y una capa de fondo es lo que el lanzador
   recorta con su mascara. La marca va aparte en `ic_launcher_foreground.png`, escalada
-  al 66% del lienzo para caber en la zona segura de 72/108dp: si se usara el badge
-  entero como foreground, las ondas azules que llegan al 91% del ancho serian cortadas
-  por cualquier mascara circular.
+  para que toda su tinta quepa en la zona segura de 72/108dp: si se usara el badge entero
+  como foreground, las ondas azules que llegan al 93% del ancho serian cortadas por
+  cualquier mascara circular.
+
+  `brand/generar_icono.py` imprime el color medido en cada corrida; si cambia el fondo
+  del maestro, este valor se actualiza a mano con esa linea.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="108"
-                android:endY="108"
-                android:startX="0"
-                android:startY="0"
-                android:type="linear">
-                <item
-                    android:color="#FF171F2E"
-                    android:offset="0" />
-                <item
-                    android:color="#FF0C1321"
-                    android:offset="1" />
-            </gradient>
-        </aapt:attr>
-    </path>
+    <path
+        android:fillColor="#FF112439"
+        android:pathData="M0,0h108v108h-108z" />
 </vector>

@@ -4,6 +4,10 @@ import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.data.diagnostico.MetodoAuth
+import com.ai27.app.custodio.data.diagnostico.RegistroDeEventos
+import com.ai27.app.custodio.data.diagnostico.ResultadoLogin
+import com.ai27.app.custodio.data.diagnostico.aResultadoLogin
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.EventoVerificacion
@@ -35,6 +39,7 @@ internal fun componerTelefonoE164(digitos: String): String? =
 class LoginViewModel @Inject constructor(
     private val sesionRepositorio: SesionRepositorio,
     private val allowlistRepositorio: AllowlistRepositorio,
+    private val registroDeEventos: RegistroDeEventos,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -82,6 +87,7 @@ class LoginViewModel @Inject constructor(
         if (_uiState.value.enviandoSms) return
         val telefono = componerTelefonoE164(_uiState.value.telefonoEscrito)
         if (telefono == null) {
+            registrarLogin(ResultadoLogin.NUMERO_INVALIDO)
             _uiState.update { it.copy(error = R.string.error_numero_invalido) }
             return
         }
@@ -137,6 +143,14 @@ class LoginViewModel @Inject constructor(
         telefonoPendiente = ""
     }
 
+    /**
+     * Único lugar donde se escribe el `method` del evento: los seis puntos de desenlace
+     * pasan solo el resultado, para que un typo al registrar no parta la dimensión de la
+     * consola en dos (p. ej. `PHONE` contra `Phone`).
+     */
+    private fun registrarLogin(resultado: ResultadoLogin) =
+        registroDeEventos.registroLogin(MetodoAuth.PHONE, resultado)
+
     private fun manejarEventoVerificacion(evento: EventoVerificacion) {
         when (evento) {
             is EventoVerificacion.CodigoEnviado -> {
@@ -154,8 +168,11 @@ class LoginViewModel @Inject constructor(
 
             is EventoVerificacion.VerificacionAutomatica -> validarAllowlist(evento.custodio)
 
-            is EventoVerificacion.Fallo -> _uiState.update {
-                it.copy(enviandoSms = false, error = evento.error.aRecurso())
+            is EventoVerificacion.Fallo -> {
+                registrarLogin(evento.error.aResultadoLogin())
+                _uiState.update {
+                    it.copy(enviandoSms = false, error = evento.error.aRecurso())
+                }
             }
         }
     }
@@ -166,8 +183,11 @@ class LoginViewModel @Inject constructor(
             _uiState.update { it.copy(verificando = true, error = null) }
             when (val resultado = sesionRepositorio.verificarCodigo(verificationIdPendiente, codigo)) {
                 is Result.Success -> validarAllowlist(resultado.value)
-                is Result.Failure -> _uiState.update {
-                    it.copy(verificando = false, error = resultado.error.aRecurso())
+                is Result.Failure -> {
+                    registrarLogin(resultado.error.aResultadoLogin())
+                    _uiState.update {
+                        it.copy(verificando = false, error = resultado.error.aRecurso())
+                    }
                 }
             }
         }
@@ -183,9 +203,13 @@ class LoginViewModel @Inject constructor(
             when (val resultado = allowlistRepositorio.contiene(custodio.telefono)) {
                 is Result.Success -> {
                     if (resultado.value) {
+                        registrarLogin(ResultadoLogin.OK)
                         limpiarSesionPendiente()
                         return@launch
                     }
+                    // Antes del cierre: que la allowlist rechazó es el hecho; que además
+                    // se cierre la sesión es consecuencia interna.
+                    registrarLogin(ResultadoLogin.TELEFONO_NO_AUTORIZADO)
                     sesionRepositorio.cerrarSesion()
                     _uiState.update {
                         it.copy(
@@ -196,8 +220,11 @@ class LoginViewModel @Inject constructor(
                     }
                 }
 
-                is Result.Failure -> _uiState.update {
-                    it.copy(verificando = false, error = resultado.error.aRecurso())
+                is Result.Failure -> {
+                    registrarLogin(resultado.error.aResultadoLogin())
+                    _uiState.update {
+                        it.copy(verificando = false, error = resultado.error.aRecurso())
+                    }
                 }
             }
         }

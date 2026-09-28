@@ -1,9 +1,12 @@
 package com.ai27.app.custodio.ui.login
 
 import com.ai27.app.custodio.FakeAllowlistRepositorio
+import com.ai27.app.custodio.FakeRegistroDeEventos
 import com.ai27.app.custodio.FakeSesionRepositorio
 import com.ai27.app.custodio.MainDispatcherRule
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.data.diagnostico.MetodoAuth
+import com.ai27.app.custodio.data.diagnostico.ResultadoLogin
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.Custodio
@@ -33,16 +36,19 @@ class LoginViewModelTest {
 
     private lateinit var sesion: FakeSesionRepositorio
     private lateinit var allowlist: FakeAllowlistRepositorio
+    private lateinit var eventos: FakeRegistroDeEventos
 
     @Before
     fun setUp() {
         sesion = FakeSesionRepositorio(custodio = null)
         allowlist = FakeAllowlistRepositorio()
+        eventos = FakeRegistroDeEventos()
     }
 
     private fun crearViewModel() = LoginViewModel(
         sesionRepositorio = sesion,
         allowlistRepositorio = allowlist,
+        registroDeEventos = eventos,
     )
 
     @Test
@@ -237,5 +243,127 @@ class LoginViewModelTest {
             assertEquals("el custodio autenticado coincide", "+525544880512", sesion.custodioAlVerificar.telefono)
             assertNull(vm.uiState.value.error)
             assertEquals(FaseLogin.ESPERANDO_CODIGO, vm.uiState.value.fase)
+        }
+
+    // --- Analítica del login (docs/PLAN_ANALYTICS_LOGIN.md, Tarea 5) ---
+    // Lo que se afirma aquí es que el ViewModel llama al registro con el par correcto.
+    // Que el evento llegue a la consola NO lo cubre ninguna prueba: Analytics no tiene
+    // emulador.
+
+    @Test
+    fun `el login exitoso registra un unico login con method PHONE`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            sesion.alEnviarSms = {
+                EventoVerificacion.VerificacionAutomatica(Custodio("u-1", "+525544880512"))
+            }
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+
+            vm.onTelefonoCambio("5540338899")
+            vm.enviarCodigo(null)
+            runCurrent()
+
+            assertEquals(
+                listOf(MetodoAuth.PHONE to ResultadoLogin.OK),
+                eventos.registrados,
+            )
+        }
+
+    @Test
+    fun `la allowlist rechazada registra telefono_no_autorizado y ningun ok`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            sesion.alEnviarSms = {
+                EventoVerificacion.VerificacionAutomatica(Custodio("u-1", "+525544880512"))
+            }
+            allowlist.respuesta = Result.Success(false)
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+
+            vm.onTelefonoCambio("5540338899")
+            vm.enviarCodigo(null)
+            runCurrent()
+
+            assertEquals(
+                listOf(MetodoAuth.PHONE to ResultadoLogin.TELEFONO_NO_AUTORIZADO),
+                eventos.registrados,
+            )
+            assertEquals(
+                "el fallo más caro no puede venir acompañado de un ok",
+                0,
+                eventos.registrados.count { it.second == ResultadoLogin.OK },
+            )
+        }
+
+    @Test
+    fun `el numero invalido se registra y no se pide el SMS`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+
+            vm.onTelefonoCambio("123")
+            vm.enviarCodigo(null)
+
+            assertEquals(
+                listOf(MetodoAuth.PHONE to ResultadoLogin.NUMERO_INVALIDO),
+                eventos.registrados,
+            )
+            assertTrue("no se pide SMS", sesion.telefonosSolicitados.isEmpty())
+        }
+
+    @Test
+    fun `el broker de GMS mudo se registra como sin_respuesta_sms`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            sesion.alEnviarSms = { EventoVerificacion.Fallo(DominioError.SinRespuestaSms) }
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+
+            vm.onTelefonoCambio("5540338899")
+            vm.enviarCodigo(null)
+            runCurrent()
+
+            assertEquals(
+                listOf(MetodoAuth.PHONE to ResultadoLogin.SIN_RESPUESTA_SMS),
+                eventos.registrados,
+            )
+        }
+
+    @Test
+    fun `el codigo incorrecto se registra como codigo_invalido`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            sesion.errorAlVerificar = DominioError.CodigoInvalido
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+
+            vm.onTelefonoCambio("5540338899")
+            vm.enviarCodigo(null)
+            runCurrent()
+
+            vm.onCodigoCambio("123456")
+            runCurrent()
+
+            assertEquals(
+                listOf(MetodoAuth.PHONE to ResultadoLogin.CODIGO_INVALIDO),
+                eventos.registrados,
+            )
+        }
+
+    @Test
+    fun `la consulta a la allowlist sin red se registra como sin_conexion`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            sesion.alEnviarSms = {
+                EventoVerificacion.VerificacionAutomatica(Custodio("u-1", "+525544880512"))
+            }
+            allowlist.respuesta = Result.Failure(DominioError.SinConexion)
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+
+            vm.onTelefonoCambio("5540338899")
+            vm.enviarCodigo(null)
+            runCurrent()
+
+            assertEquals(
+                listOf(MetodoAuth.PHONE to ResultadoLogin.SIN_CONEXION),
+                eventos.registrados,
+            )
         }
 }
