@@ -2,6 +2,38 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:09:28 10:15
+
+**Resumen:** Incidente de login en campo, cerrado. Tras el fin de semana los custodios no podían entrar (la app mostraba "Algo salió mal. Intenta de nuevo."). El diagnóstico halló **dos causas independientes**; ambas quedaron corregidas del lado de infra/consola, sin tocar código de la app. Se actualizó `AGENTS.md` de este repo y de `pf-infra-firebase`, y el `DESPLIEGUE-PROD-CHECKLIST.md`.
+
+**Causas y correcciones:**
+- **Certificado de firma rotado sin registrar (impacto: todos los usuarios distribuidos).** El keystore de release se regeneró con `CN=Echo` el 2026-09-25; su SHA-256 no estaba registrado en la app Android de Firebase, así que Phone Auth fallaba la verificación de app antes de enviar el SMS. Se registraron el SHA-1 `FA:D9:FE:76:1E:A5:17:DA:76:F6:07:E5:EF:17:62:89:C2:1F:1C:43` y el SHA-256 `61:D3:1A:98:BF:62:F6:7F:EF:33:EA:B4:71:2B:73:CC:AC:79:33:DF:A6:D5:56:7E:30:90:E8:0D:DE:A0:04:72` (los del `app/keystore/release.jks` vigente) y se rebajó `app/google-services.json`. Verificado contra la Firebase Management API: los dos SHA registrados coinciden con el keystore.
+- **`beforeCreate` pasó de INERTE a VIVO (impacto: custodios sin cuenta previa).** GCIP se activó el fin de semana y la función `bloquearTelefonoNoAutorizado` quedó registrada con trigger `user.beforeCreate`. Ahora autoriza por existencia del documento `telefonos_autorizados/{e164}` (id == número) al crear la cuenta.
+- **Documento de allowlist con id malformado (impacto: un custodio).** El documento de Maximiliano Ruíz vivía bajo `+5255222679536` (14 dígitos) con el campo `telefono` correcto `+525522679536`. La regla y `beforeCreate` autorizan por id del documento, no por el campo. Se creó su cuenta de Auth, se escribió `telefonos_autorizados/+525522679536` (id correcto) y `usuarios/{uid}`, se borró el documento de 14 dígitos y se agregó su número a `pf-infra-firebase/provision/telefonos.csv`. Barrido completo: 37 documentos, 0 malformados.
+
+**Regla que sale del incidente:** rotar el keystore de release obliga a registrar el SHA nuevo en la consola de Firebase en la misma maniobra; si no, todo login por SMS de la build nueva se cae en la verificación de app, antes del OTP.
+
+**Verificación:** solo lectura contra `custodio-906e7268` para el diagnóstico; las correcciones se hicieron con el Admin SDK (allowlist/usuarios/Auth) y en la consola (SHA). No se tocó código ni se corrió build de la app.
+
+## 2026:09:25 19:05
+
+**Resumen:** Plan para instrumentar el login con Firebase Analytics. **No se implementó: el cambio es solo de documentación.** Se traduce en `docs/PLAN_ANALYTICS_LOGIN.md`. La app hoy no reporta un solo evento propio: la dependencia `firebase-analytics` está declarada y sus componentes entran al manifiesto, pero en todo `app/src/` hay cero llamadas a `logEvent`. El plan registra el evento `login` con `method` fijo y un parámetro de desenlace, en los seis puntos en que el login por SMS puede terminar.
+
+**Cambios:**
+- Se documentó que el login tiene seis desenlaces distinguibles y que los dos caminos de éxito (OTP tecleado y auto-lectura del SMS) confluyen en un solo punto, `validarAllowlist(...)`, así que el evento de éxito se instrumenta una vez y no dos.
+- Se verificó que no hay bloqueo de arranque: `app/google-services.json` no trae `google_app_id`, pero el plugin de `google-services` lo sintetiza desde `mobilesdk_app_id` (confirmado en el recurso empaquetado de release). Analytics inicializa sin tocar la consola.
+- Se verificó que no hay doble conteo: `AuthDataSource.flujoVerificacion` emite un único evento terminal y cierra el flujo, de modo que una llamada a `enviarCodigo` produce a lo sumo un evento.
+- Decisiones del humano, ya resueltas en el plan: `method` = `"PHONE"` fijo con el desenlace en un parámetro aparte (para no vaciar de sentido el parámetro reservado que Google le da al método de autenticación); cobertura de éxito **y** todos los fallos; y arquitectura de interfaz + Hilt, igual que `RegistroDeFallos`, para que `FirebaseAnalytics.getInstance()` no aparezca en un ViewModel y el evento se pueda falsear en pruebas de JVM.
+- La dimensionalidad se cerrará con enums (`MetodoAuth`, `ResultadoLogin`) y no con cadenas libres: el valor **es** la dimensión por la que se va a filtrar, y un `String` libre permitiría partirla en dos sin que nada avise. Ningún parámetro llevará PII — ni número ni `uid` —, lo que además de la política S13 es lo que hace el evento publicable.
+- Se dejó registrado como **fuera de alcance deliberado**: `setUserId` (ataría el evento al custodio y abre una decisión de retención que este plan no puede resolver solo), el evento de `logout`, y el arreglo de las banderas `verificando`/`enviandoSms` que quedan en `true` tras el éxito y hoy son inocuas solo porque `AppNavHost` saca `Rutas.LOGIN` de la pila de inmediato.
+- Advertencia operativa: la propiedad no tiene separación entre debug y producción en Analytics, y `ModoEmulador` solo desvía Firestore, Storage y Auth, así que **los eventos de un APK debug salen a producción de verdad**.
+
+**Verificación:** no aplica — el cambio es documental y no toca código. El plan deja escrito qué línea de límite no puede cubrir ninguna prueba automática: **Analytics no tiene emulador**, así que los tests de JVM solo pueden afirmar que el ViewModel llama al fake con el par correcto, nunca que el evento llegue a la consola. La confirmación del nombre del parámetro en el backend queda como paso manual en el DebugView.
+
+**Archivos modificados:**
+- `docs/PLAN_ANALYTICS_LOGIN.md` (nuevo)
+- `CHANGELOG.md`
+
 ## 2026:09:25 16:20
 
 **Resumen:** Se actualizó el README para reflejar que el carril A (consola de Firebase) quedó cerrado el 2026-09-25. El README decía que el carril A "sigue abierto" y que sin él no se podía repartir la app, lo cual ya no era cierto (el propio `docs/PLAN.md` §9 tenía A1–A4 hechas, y en esta fecha se activó el candado `beforeCreate` tras el upgrade a GCIP).
