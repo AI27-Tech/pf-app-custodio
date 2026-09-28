@@ -2,6 +2,18 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:09:28 12:02
+
+**Resumen:** Versión nueva del logo maestro (`brand/echo-logo.png`) regenerada en las 20 capas de `res/`. El diseño es otro —fondo plano en vez de degradado, y la marca es un ojo blanco con filete gris más tres ondas azules, **1.26 veces más ancha que alta**— y el generador hubo que cambiar en tres puntos para producirla bien. No se tocó Kotlin.
+
+- **`load()` normaliza a RGBA.** El maestro nuevo viene como RGB de 3 canales y `extrae_marca` leía cuatro por píxel: el resultado era una imagen corrida (la fila desalineada un canal) en vez de un error obvio. Ahora `load()` devuelve siempre RGBA y soporta 0/2/3/4/6.
+- **El fondo se mide en vez de Rampas de brillo/saturación.** El fondo nuevo es `#112439`, saturación 40: la rampa de saturación del script (`> 30`) lo declaraba tinta y la marca extraída salía quadrada. Ahora el script toma el color del anillo exterior (que es fondo puro) y usa su **variación por canal como zona muerta**, de modo que el mismo código sirve para un fondo plano y para uno con degradado sin comerse el borde de la marca. Con el maestro actual la variación es de cero y la tinta sale con el antialiasing del maestro intacto.
+- **La escala sale de la zona segura y no de un porcentaje del lado.** `LADO_MARCA = 0.66` se suponía válido porque la marca anterior era casi cuadrada (0.33 del lado son 35.6dp de semiancho contra 36dp de radio). La nueva es ancha: 0.66 del lado dejaba las puntas de las ondas pegadas al recorte del lanzador. La perilla ahora es `RADIO_SEGURO_DP = 36` —el radio que debe caber la tinta más lejana desde el centro— y da 70.5×55.75dp de marca: **0.01% fuera del círculo de 72dp, 0.00% fuera del squircle de 72dp**, contra 41% del badge entero. El radio se mide sobre la tinta real y no sobre la diagonal del bbox, cuyas esquinas están vacías en una marca ancha y encogerían el icono sin necesidad. `RADIO_SEGURO_DP = 33` es la zona segura estricta de Google (66dp), documentada como la alternativa más conservadora.
+- **`ic_launcher_background.xml` pasó de degradado a relleno liso `#FF112439`**, el color medido sobre el maestro. El script lo imprime en cada corrida para que el vector no se quede viejo.
+- **La variante clara de la marca repinta dos condiciones, no una.** El maestro nuevo mete un filete gris (`#808080`) alrededor del glifo blanco, también de saturación 0: la regla anterior (poco saturado → tinta `#1A2130`) se lo comía y engordaba la silueta. Ahora se repinta lo que es poco saturado **y** claro (`SAT_GLIFO = 60`, `BRILLO_TINTA = 190`), así el glifo pasa a tinta y el filete conserva su tono. Las ondas (`#3A70C8`, sat 142) y el marino de sus sombras (`#183463`, sat 75) se quedan igual.
+
+**Verificación:** la corrida imprime las medidas del maestro y la simulación de recorte; composición verificada por histograma (la marca sale 8.11% azul `#3A70C8` + 3.70% blanco en el foreground, como en el maestro) y el centro de la marca en el lienzo queda en 215.5/215.0 de 432. La variante clara **no deja ni un píxel casi blanco** (0 verificados), que es lo que evita un halo invisible sobre el lienzo claro. `assembleDebug` verde; no se corrieron tests de unidad porque no cambió código Kotlin. `AGENTS.md` actualizado con las mediciones del maestro nuevo.
+
 ## 2026:09:28 10:15
 
 **Resumen:** Incidente de login en campo, cerrado. Tras el fin de semana los custodios no podían entrar (la app mostraba "Algo salió mal. Intenta de nuevo."). El diagnóstico halló **dos causas independientes**; ambas quedaron corregidas del lado de infra/consola, sin tocar código de la app. Se actualizó `AGENTS.md` de este repo y de `pf-infra-firebase`, y el `DESPLIEGUE-PROD-CHECKLIST.md`.
