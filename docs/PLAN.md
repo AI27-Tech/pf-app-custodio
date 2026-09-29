@@ -307,6 +307,8 @@ Estado al 2026-09-23: **A1 hecha, A2 hecha (provisión) + beforeCreate inerte, A
 
 [^1] Nota A2: registrable cuando exista GCIP vía `PATCH .../admin/v2/projects/{project}/config?updateMask=blockingFunctions.triggers.beforeCreate` con el `functionUri` de la función ya desplegada (`https://us-central1-custodio-906e7268.cloudfunctions.net/bloquearTelefonoNoAutorizado`).
 
+> **Nota EMAIL_AUTH (2026-09-28):** A2/A3 registran el aprovisionamiento y despliegue del modelo por **teléfono** (histórico, `telefonos_autorizados/{e164}`, cuentas por teléfono, `bloquearTelefonoNoAutorizado`). Con el cutover a correo + contraseña esos pasos cambian: el aprovisionamiento crea cuentas **correo + contraseña** desde `custodios.csv` y puebla `correos_autorizados/{email}` (el teléfono queda como dato en `usuarios/{uid}`); las reglas y el `beforeCreate` (ahora `bloquearCorreoNoAutorizado`) se re-keyean a correo. La ejecución en producción de esos despliegues es la **Task 9** del plan raíz (`~/Documents/ai-27/PLAN-AUTH-CUSTODIO-CORREO.md`), de blast radius alto y pendiente de confirmación del humano; se re-registrará aquí cuando se ejecute. Detalle del modelo nuevo en §5.1/§5.4.
+
 ### Carril B — app
 
 | # | Fase | Termina cuando |
