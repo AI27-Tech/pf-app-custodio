@@ -68,16 +68,17 @@ fun HojaEtiqueta(
     onCerrar: () -> Unit,
 ) {
     val medio = estado.medioPendienteDeEtiquetar ?: return
-    // D-B1 (U2): arranca con la última Situación confirmada del viaje en vez de vacía; al
-    // custodio suele bastarle confirmar de un toque. Al capturar el siguiente medio la hoja
-    // la vuelve a preseleccionar (remember por medio.id).
+    // La hoja arranca SIEMPRE vacía: cada medio se clasifica desde cero. La herencia de la
+    // última Situación (D-B1/U2) se quitó porque confirmar de un toque arrastraba al custodio
+    // la etiqueta del medio anterior —guardar sin mirar—soba la foto con la situación
+    // anterior, que es justo lo que el analista no puede filtrar.
     //
     // U11: un `Set<String>` crudo no es Bundle-saveable, así que la persistencia vive en una
     // Lista dentro de rememberSaveable (por medio.id, que reinicia la selección al cambiar
     // de medio) y `seleccionadas` se deriva como Set para que las operaciones abajo
     // (diferencia/unión/contiene) mantengan semántica de conjunto idéntica (AUDIT.md U11).
     var seleccionadasLista by rememberSaveable(medio.id) {
-        mutableStateOf(estado.ultimaSituacion.toList())
+        mutableStateOf(emptyList<String>())
     }
     val seleccionadas = seleccionadasLista.toSet()
     // La hoja se abre siempre totalmente expandida: con el aviso, las etiquetas y el

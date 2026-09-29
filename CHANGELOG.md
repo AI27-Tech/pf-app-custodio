@@ -2,6 +2,55 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:09:28 19:06
+
+**Resumen:** la hoja de clasificación de cada medio **abre vacía**. Se revierte la herencia de la última Situación confirmada (D-B1/U2, de la tanda G3-B del 2026-09-24): la preselección venía de que al custodio le bastaba un toque, pero en campo se convertía en guardar sin mirar —la foto siguiente quedaba clasificada con la situación de la anterior—, que es justo el dato que el analista no puede filtrar.
+
+**Cambios:**
+- **`CapturaUiState`:** se elimina el campo `ultimaSituacion: List<String>`; no queda ningún rastro de la selección anterior en el estado.
+- **`CapturaViewModel.guardarEtiqueta`:** deja de escribir `ultimaSituacion` al confirmar. `idsSituacion()` se conserva porque `retomarEtiquetado` sigue usándola para reabrir solo los medios sin Situación.
+- **`HojaEtiqueta`:** la selección nace de `mutableStateOf(emptyList<String>())` en vez de `estado.ultimaSituacion.toList()`. El `rememberSaveable(medio.id)` no cambia: sigue reiniciando por medio y preservando la elección del custodio ante recomposiciones y rotación.
+- **Pruebas:** se borran los tres tests de JVM de `CapturaViewModelTest` que medían la herencia (region "herencia de Situación") y se agregan dos tests de Compose en `HojaEtiquetaTest` (androidTest): la hoja abre con cero chips seleccionados y "Guardar" sigue bloqueado hasta que el custodio elige Situación, mandando exactamente las que tocó.
+
+**Verificación:** `testDebugUnitTest` 243/243, `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. Los dos tests nuevos son instrumentados y **no se pudieron ejecutar**: no hay dispositivo ni emulador conectado en esta sesión.
+
+**Nota:** `docs/AUDIT.md` U2 y `docs/PLAN_GRUPO_3.md` D-B1 quedan como registro histórico fechado del 2026-09-24; no se reescriben. La decisión vigente es la de esta entrada.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaUiState.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt`
+- `CHANGELOG.md`
+
+## 2026:09:28 19:05
+
+**Resumen:** se ejecutó y verificó el **despliegue a producción de EMAIL_AUTH** (Task 9 del plan raíz) en `custodio-906e7268`. La migración de teléfono (SMS OTP) a correo + contraseña quedó viva de punta a punta: reglas, función de bloqueo, aprovisionamiento y APK release, con login por correo confirmado en el dispositivo CPH2769.
+
+**Cambios (producción y docs):**
+- Reglas Firestore/Storage desplegadas (regla `correos_autorizados/{email}` + contrato `custodioCorreo`; `telefonos_autorizados` retirado).
+- Función `bloquearTelefonoNoAutorizado` (us-central1) borrada; `bloquearCorreoNoAutorizado` (us-east1) desplegada con trigger `user.beforeCreate` registrado.
+- `provisionar.js custodios.csv`: 38 cuentas correo+contraseña creadas (33 B + 5 nombradas de prueba con correo `FirstName@ai27.com`), `correos_autorizados` y `usuarios/{uid}` escritos, 38 documentos `telefonos_autorizados` borrados.
+- APK release firmado, instalado en CPH2769; login por correo verificado en dispositivo (y sign-in REST contra prod con `idToken` válido).
+
+**Verificación:** sign-in `signInWithPassword` contra producción devolvió `idToken` válido para `fabricio@ai27.com`; login por correo confirmado en el dispositivo CPH2769.
+
+**Archivos modificados:**
+- `AGENTS.md` (nota de despliegue ejecutado)
+- `CHANGELOG.md`
+
+## 2026:09:28 18:44
+
+**Resumen:** nota de reconciliación EMAIL_AUTH en `docs/PLAN.md` §9. Los pasos de aprovisionamiento y despliegue A2/A3 registran el modelo por teléfono (histórico); se agrega una nota que apunta al modelo por correo (`correos_autorizados/{email}`, cuentas correo+contraseña, `bloquearCorreoNoAutorizado`) y aclara que su ejecución en producción es la Task 9 del plan raíz, pendiente de confirmación. No se reescriben los registros históricos fechados.
+
+**Cambios:**
+- `docs/PLAN.md`: nota EMAIL_AUTH tras la nota al pie A2, aclarando el cambio de modelo de aprovisionamiento/despliegue y remitiendo a §5.1/§5.4 y a la Task 9 del plan raíz.
+
+**Archivos modificados:**
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
 ## 2026:09:28 18:28
 
 **Resumen:** se implementaron las **tareas 5 a 8 de `docs/PLAN_EMAIL_AUTH.md`**: el login del custodio pasa de OTP por SMS a **correo + contraseña** (`signInWithEmailAndPassword`). Es un **cutover completo, sin retrocompatibilidad** — la identidad del custodio vuelve a ser el correo en todo el repo (dominio, Room, contrato Firestore, UI y analítica) — porque el SMS no se entrega de forma confiable en campo y dejaba al custodio fuera de la app. Lo que se desarma es todo el andamiaje de Phone Auth: `PhoneAuthProvider`, `PhoneAuthOptions`, los callbacks, el watchdog de 30 s contra el broker de GMS mudo, el `ForceResendingToken` de reenvío, la cuenta regresiva y el `EventoVerificacion`.

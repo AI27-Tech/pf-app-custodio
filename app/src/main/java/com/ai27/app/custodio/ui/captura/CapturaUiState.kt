@@ -27,11 +27,6 @@ data class CapturaUiState(
     val medioPendienteDeEtiquetar: Medio? = null,
     val ubicacionTextoEscrita: String = "",
     val avisoEncolado: Int = 0,
-    /**
-     * Última Situación confirmada del viaje (D-B1/U2): la hoja la hereda de arranque para
-     * que con suerte baste un toque. Solo Situación —la Evidencia es opcional y no se presuma.
-     */
-    val ultimaSituacion: List<String> = emptyList(),
     /** Se encontró una nota a medias de un proceso que murió: hay que decirlo (R3 de §13). */
     val avisoNotaPerdida: Boolean = false,
     @StringRes val error: Int? = null,

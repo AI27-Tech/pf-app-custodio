@@ -383,14 +383,11 @@ class CapturaViewModel @Inject constructor(
             )
             interno.update {
                 when (resultado) {
-                    is Result.Success -> {
-                        it.copy(
-                            medioPendienteDeEtiquetar = null,
-                            ubicacionTextoEscrita = "",
-                            avisoEncolado = it.avisoEncolado + 1,
-                            ultimaSituacion = etiquetas.filter { it in idsSituacion() },
-                        )
-                    }
+                    is Result.Success -> it.copy(
+                        medioPendienteDeEtiquetar = null,
+                        ubicacionTextoEscrita = "",
+                        avisoEncolado = it.avisoEncolado + 1,
+                    )
                     is Result.Failure -> it.copy(error = resultado.error.aRecurso())
                 }
             }
