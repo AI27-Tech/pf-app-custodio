@@ -340,7 +340,7 @@ class RemotoEmuladorTest {
         placas = "ABC123",
         placasCapturadas = "abc-123",
         custodioUid = custodioUid,
-        custodioTelefono = "custodio@ai27.test",
+        custodioCorreo = "custodio@ai27.test",
         clienteId = "cliente-provisional",
         deviceId = "dispositivo-de-prueba",
         fechaLocal = "2026-09-21",

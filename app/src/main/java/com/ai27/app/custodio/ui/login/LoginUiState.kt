@@ -2,15 +2,15 @@ package com.ai27.app.custodio.ui.login
 
 import androidx.annotation.StringRes
 
-/** Fases del login por SMS (PHONE_AUTH_PLAN Task 5): primero el número, luego el OTP. */
-enum class FaseLogin { INGRESANDO_NUMERO, ESPERANDO_CODIGO }
-
+/**
+ * Login de una sola fase (plan de correo, Task 7): correo + contraseña, sin OTP.
+ *
+ * Ya no hay `FaseLogin` porque no hay dos pasos que recordar ni `segundosParaReenviar`
+ * porque no hay SMS que reenviar.
+ */
 data class LoginUiState(
-    val fase: FaseLogin = FaseLogin.INGRESANDO_NUMERO,
-    val telefonoEscrito: String = "",
-    val codigoEscrito: String = "",
-    val enviandoSms: Boolean = false,
-    val verificando: Boolean = false,
-    val segundosParaReenviar: Int = 0,
+    val correoEscrito: String = "",
+    val contrasenaEscrita: String = "",
+    val autenticando: Boolean = false,
     @StringRes val error: Int? = null,
 )

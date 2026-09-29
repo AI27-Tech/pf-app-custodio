@@ -42,11 +42,10 @@ class RootViewModel @Inject constructor(
     val estado: StateFlow<EstadoRaiz> = sesionRepositorio.observarCustodio()
         .map { custodio ->
             when {
-                // PHONE_AUTH: la identidad ES el teléfono. Un custodio sin `telefono`
-                // (sesión de correo+contraseña heredada que Firebase restaura en el
-                // arranque) no es una sesión válida: se abre el login, y el OTP por
-                // teléfono reemplaza esa cuenta al autenticar.
-                custodio == null || custodio.telefono.isBlank() ->
+                // La identidad ES el correo. Un custodio sin `correo` (sesión de teléfono
+                // heredada que Firebase restaura en el arranque) no es una sesión válida:
+                // se abre el login, y el correo+contraseña reemplaza esa cuenta al autenticar.
+                custodio == null || custodio.correo.isBlank() ->
                     EstadoRaiz(EstadoSesion.NO_SESION)
 
                 else -> EstadoRaiz(EstadoSesion.CON_SESION, custodio)

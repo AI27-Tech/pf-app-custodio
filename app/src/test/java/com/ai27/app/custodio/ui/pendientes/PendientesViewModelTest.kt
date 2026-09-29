@@ -29,7 +29,7 @@ class PendientesViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val custodio = Custodio(uid = "c-1", telefono = "+525544880512")
+    private val custodio = Custodio(uid = "c-1", correo = "custodio@ai27.com")
 
     private fun medio(id: String, estado: EstadoSubida): Medio = Medio(
         id = id,

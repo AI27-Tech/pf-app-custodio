@@ -17,7 +17,7 @@ data class Reporte(
     val placas: String,
     val placasCapturadas: String,
     val custodioUid: String,
-    val custodioTelefono: String,
+    val custodioCorreo: String,
     val clienteId: String,
     val deviceId: String,
     val fechaLocal: String,

@@ -7,7 +7,7 @@ import org.junit.Test
 
 /**
  * Matriz completa de `DominioError` → `ResultadoLogin` (docs/PLAN_ANALYTICS_LOGIN.md,
- * Tarea 5).
+ * Tarea 5; recortada al login por correo en el plan de correo, Task 8).
  *
  * Es una función PURA sobre tipos del dominio: ni Firebase ni `android.jar` se tocan, así
  * que se puede probar entera en JVM de host — el mismo criterio que
@@ -16,14 +16,11 @@ import org.junit.Test
  */
 class ResultadoLoginTest {
 
-    /** Los nueve errores que el login sí puede producir, con su desenlace. */
+    /** Los seis errores que el login sí puede producir, con su desenlace. */
     private val erroresDelLogin = listOf(
-        DominioError.NumeroInvalido to ResultadoLogin.NUMERO_INVALIDO,
-        DominioError.SinRespuestaSms to ResultadoLogin.SIN_RESPUESTA_SMS,
-        DominioError.CodigoInvalido to ResultadoLogin.CODIGO_INVALIDO,
-        DominioError.CodigoExpirado to ResultadoLogin.CODIGO_EXPIRADO,
+        DominioError.CredencialesInvalidas to ResultadoLogin.CREDENCIALES_INVALIDAS,
         DominioError.DemasiadosIntentos to ResultadoLogin.DEMASIADOS_INTENTOS,
-        DominioError.TelefonoNoAutorizado to ResultadoLogin.TELEFONO_NO_AUTORIZADO,
+        DominioError.CorreoNoAutorizado to ResultadoLogin.CORREO_NO_AUTORIZADO,
         DominioError.SinConexion to ResultadoLogin.SIN_CONEXION,
         // El servidor "caído" es el mismo paso medible que "sin red": el custodio ve igual.
         DominioError.ServidorIndisponible to ResultadoLogin.SIN_CONEXION,
@@ -31,10 +28,11 @@ class ResultadoLoginTest {
     )
 
     /**
-     * Las diecinueve variantes restantes. Casi todas son de reporte y de medio y el login
-     * no puede producirlas; las dos últimas sí podrían tocarlo (`PermisoDenegado` sale de
-     * un PERMISSION_DENIED de Phone Auth, que en pantalla es "Algo salió mal") pero no son
-     * un paso medible del embudo.
+     * Las veinte variantes restantes. Casi todas son de reporte y de medio y el login no
+     * puede producirlas; las tres siguientes sí podrían tocarlo, pero ninguna es un paso
+     * medible del embudo —`CuentaDeshabilitada` es un dato de provisioning, y las otras
+     * dos salen de reglas denegadas o de archivos que ya no existen (en pantalla, "Algo
+     * salió mal").
      */
     private val erroresFueraDelLogin = listOf(
         DominioError.PlacaVacia(null),
@@ -54,6 +52,7 @@ class ResultadoLoginTest {
         DominioError.MedioNoEncontrado,
         DominioError.MedioEnSubida,
         DominioError.MedioYaSubido,
+        DominioError.CuentaDeshabilitada,
         DominioError.PermisoDenegado,
         DominioError.ArchivoLocalAusente,
     )
@@ -94,8 +93,25 @@ class ResultadoLoginTest {
         }
     }
 
-    /** Variantes declaradas en `domain/error/DominioError.kt` a la fecha de este test. */
+    @Test
+    fun `los valores del nuevo login no colisionan con los del login por SMS`() {
+        // Los desenlaces del OTP se cerraron, pero sus valores siguen siendo dimensiones
+        // legítimas en la consola. Reusarlos mezclaría embudos distintos en el mismo
+        // reporte: `correo_invalido` no es `numero_invalido` aunque se llamen igual.
+        val valores = ResultadoLogin.entries.map { it.valor }
+        assertEquals("los valores del login por SMS no deben reaparecer", 0, valores.count { it in VALORES_DE_SMS })
+        assertEquals("y ningun valor puede repetirse dentro del enum", valores.size, valores.toSet().size)
+    }
+
+    /** Dimensiones que emitió el login por SMS (`docs/PLAN_ANALYTICS_LOGIN.md`). */
     private companion object {
-        const val TOTAL_VARIANTES_DOMINIO_ERROR = 28
+        const val TOTAL_VARIANTES_DOMINIO_ERROR = 26
+        val VALORES_DE_SMS = setOf(
+            "numero_invalido",
+            "sin_respuesta_sms",
+            "codigo_invalido",
+            "codigo_expirado",
+            "telefono_no_autorizado",
+        )
     }
 }

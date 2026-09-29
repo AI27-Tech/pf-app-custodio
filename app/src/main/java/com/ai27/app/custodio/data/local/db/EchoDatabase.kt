@@ -13,7 +13,7 @@ import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 
 @Database(
     entities = [ReporteEntity::class, MedioEntity::class],
-    version = 4,
+    version = 5,
 )
 @ColumnTypeConverters(EtiquetasConverter::class)
 abstract class EchoDatabase : RoomDatabase() {
@@ -128,6 +128,22 @@ abstract class EchoDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Quinta migración (plan de correo, Task 8): el corte a correo + contraseña devuelve
+         * la identidad al correo. Es el **espejo exacto** de la [MIGRACION_3_4] — mismas
+         * palabras, columnas invertidas — y por la misma razón: los reportes ya en cola
+         * local guardan quién es el custodio y ese dato no se puede perder. `RENAME COLUMN`
+         * conserva el valor, así que no hace falta tocar ni una fila.
+         */
+        val MIGRACION_4_5 = object : Migration(4, 5) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(DROP_INDICE_UNICO_ACTIVO)
+                connection.execSQL(
+                    "ALTER TABLE reportes RENAME COLUMN custodioTelefono TO custodioCorreo",
+                )
+            }
+        }
+
         fun crearBaseDatos(context: Context): EchoDatabase =
             crearBaseDatos(ruta = context.getDatabasePath(NOMBRE).absolutePath)
 
@@ -136,7 +152,7 @@ abstract class EchoDatabase : RoomDatabase() {
             Room.databaseBuilder(name = ruta) { EchoDatabase_Impl() }
                 .setDriver(BundledSQLiteDriver())
                 .addCallback(callback)
-                .addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4)
+                .addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5)
                 .build()
     }
 }

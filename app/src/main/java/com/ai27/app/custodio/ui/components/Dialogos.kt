@@ -177,7 +177,7 @@ internal fun descarteConfirmable(motivo: String): Boolean = motivo.isNotBlank()
 @Composable
 fun DialogoCerrarSesion(
     visible: Boolean,
-    telefono: String,
+    correo: String,
     pendientesSinSubir: Int,
     onConfirmar: () -> Unit,
     onCancelar: () -> Unit,
@@ -194,7 +194,7 @@ fun DialogoCerrarSesion(
         title = { Text(stringResource(R.string.cierre_sesion_titulo)) },
         text = {
             Column {
-                Text(stringResource(R.string.cierre_sesion_telefono, telefono))
+                Text(stringResource(R.string.cierre_sesion_correo, correo))
                 if (pendientesSinSubir > 0) {
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -341,7 +341,7 @@ private fun DialogoCerrarSesionVistaClaro() {
     Vitrina(oscuro = false) {
         DialogoCerrarSesion(
             visible = true,
-            telefono = DatosDemo.custodio.telefono,
+            correo = DatosDemo.custodio.correo,
             pendientesSinSubir = 2,
             onConfirmar = {},
             onCancelar = {},
@@ -355,7 +355,7 @@ private fun DialogoCerrarSesionVistaOscuro() {
     Vitrina(oscuro = true) {
         DialogoCerrarSesion(
             visible = true,
-            telefono = DatosDemo.custodio.telefono,
+            correo = DatosDemo.custodio.correo,
             pendientesSinSubir = 2,
             onConfirmar = {},
             onCancelar = {},

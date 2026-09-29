@@ -5,11 +5,10 @@ import com.ai27.app.custodio.domain.error.DominioError
 /**
  * Registra eventos de producto para poder medir el embudo del login.
  *
- * El login por SMS tiene al menos seis desenlaces distinguibles (OTP válido, teléfono
- * fuera de la allowlist, código inválido, código expirado, demasiados intentos, sin
- * conexión, el broker de GMS mudo) y cada uno es una fuga distinta que se arregla
- * distinto. Sin eventos, el paso en el que se pierde el custodio es invisible
- * (`docs/PLAN_ANALYTICS_LOGIN.md`).
+ * El login por correo + contraseña tiene desenlaces distinguibles (credenciales
+ * rechazadas, correo fuera de la allowlist, demasiados intentos, sin conexión) y cada uno
+ * es una fuga distinta que se arregla distinto. Sin eventos, el paso en el que se pierde el
+ * custodio es invisible (`docs/PLAN_ANALYTICS_LOGIN.md`).
  *
  * Es una interfaz y no una llamada directa a Analytics por las dos mismas razones que
  * en [RegistroDeFallos]: para que `FirebaseAnalytics.getInstance()` no aparezca dentro
@@ -19,12 +18,12 @@ import com.ai27.app.custodio.domain.error.DominioError
  * libre permitiría emitir `login_result="ok"` y `login_result="OK"` como dos dimensiones
  * distintas sin que nada avise.
  *
- * **Sin datos del custodio.** Ningún parámetro lleva el número, el `uid` ni nada
+ * **Sin datos del custodio.** Ningún parámetro lleva el correo, el `uid` ni nada
  * identificable: el método es una constante y el desenlace es un valor de un conjunto
  * cerrado. Es la política de PII de S13 (la misma que gobierna [RegistroDeFallos]) y es
  * la razón por la que este evento es publicable tal cual — un método o un desenlace que
- * llevaran el número lo arruinaría. La allowlist vive en `telefonos_autorizados/{e164}`
- * y el teléfono es PII por definición.
+ * llevaran el correo lo arruinaría. La allowlist vive en `correos_autorizados/{email}`
+ * y el correo es PII por definición.
  *
  * Todos los valores son ASCII y de menos de 100 caracteres, respetando el límite de
  * longitud de valor de parámetro de evento de GA4 (100 para el valor, 40 para el nombre
@@ -34,44 +33,45 @@ interface RegistroDeEventos {
     /**
      * Registra el desenlace de un intento de autenticación.
      *
-     * @param metodo método de autenticación usado; hoy solo existe [MetodoAuth.PHONE]
-     *   porque el único método vigente es SMS, pero el enum existe para que agregar otro
-     *   sea cambiar un `when` y no una firma de interfaz más cada punto de llamada.
+     * @param metodo método de autenticación usado; hoy solo existe [MetodoAuth.EMAIL]
+     *   porque el único método vigente es correo + contraseña, pero el enum existe para que
+     *   agregar otro sea cambiar un `when` y no una firma de interfaz más cada punto de
+     *   llamada.
      * @param resultado cómo terminó el intento; nunca nulo ni un valor desconocido.
      */
     fun registroLogin(metodo: MetodoAuth, resultado: ResultadoLogin)
 }
 
-/** Método de autenticación. Nace con un solo caso: hoy el login es solo por SMS. */
+/** Método de autenticación. Nace con un solo caso: hoy el login es solo por correo. */
 enum class MetodoAuth(val valor: String) {
-    PHONE("PHONE"),
+    EMAIL("EMAIL"),
 }
 
 /**
  * Cómo termina un intento de autenticación. Los [valor] son los que viajan al `Bundle`
  * y son exactamente los que se van a ver como dimensión en la consola.
+ *
+ * Son siete, no nueve: al retirar el OTP desaparecieron sus desenlaces (código inválido,
+ * código expirado, número mal compuesto) y el broker de GMS mudo dejó de existir, porque
+ * `signInWithEmailAndPassword` no pasa por el broker de SMS. **El conjunto se recorta, no
+ * se renombra**: los valores viejos siguen vivos como dimensiones en la consola y volver a
+ * emitirlos metería ruido en reportes que ya se vienen leyendo.
  */
 enum class ResultadoLogin(val valor: String) {
-    /** El OTP verificó y la allowlist autorizó al custodio. */
+    /** El correo autenticó y la allowlist autorizó al custodio. */
     OK("ok"),
 
-    /** El número no compone un E.164 (no son 10 dígitos). */
-    NUMERO_INVALIDO("numero_invalido"),
+    /** El correo no compone una dirección válida (falló la validación local de la pantalla). */
+    CORREO_INVALIDO("correo_invalido"),
 
-    /** No hubo respuesta del broker de Phone Auth (watchdog de 30 s). */
-    SIN_RESPUESTA_SMS("sin_respuesta_sms"),
+    /** Firebase Auth rechazó el par correo/contraseña. */
+    CREDENCIALES_INVALIDAS("credenciales_invalidas"),
 
-    /** El backend rechazó el código tecleado. */
-    CODIGO_INVALIDO("codigo_invalido"),
-
-    /** La sesión de verificación ya no sirve. */
-    CODIGO_EXPIRADO("codigo_expirado"),
-
-    /** El backend bloqueó el número por reintentos. */
+    /** El backend bloqueó el intento por reintentos. */
     DEMASIADOS_INTENTOS("demasiados_intentos"),
 
-    /** El teléfono verificó el OTP pero no tiene documento en `telefonos_autorizados`. */
-    TELEFONO_NO_AUTORIZADO("telefono_no_autorizado"),
+    /** El correo autenticó pero no tiene documento en `correos_autorizados`. */
+    CORREO_NO_AUTORIZADO("correo_no_autorizado"),
 
     /** Sin red, o el servidor respondió temporalmente indisponible. */
     SIN_CONEXION("sin_conexion"),
@@ -92,21 +92,22 @@ enum class ResultadoLogin(val valor: String) {
  *
  * Se escribe **exhaustivo y sin `else`**, igual que `aRecurso()`: el compilador avisa
  * cuando se agrega una variante nueva a [DominioError], mientras que con `else` el error
- * se descubriría en silencio. Las diecinueve variantes que el login no puede producir (los
- * errores de reporte y de medio, más `PermisoDenegado` y `ArchivoLocalAusente`) caen todas
- * en [ResultadoLogin.INESPERADO], que es exactamente lo que significan en contexto: si
- * alguna llegara, sería una fuga de capas. `PermisoDenegado` es el caso real y frecuente —
- * un `PERMISSION_DENIED` de Phone Auth produce [DominioError.PermisoDenegado], y en la
- * pantalla se ve como "Algo salió mal"; aquí se ve como `inesperado`.
+ * se descubriría en silencio. Las variantes que el login no puede producir (los errores de
+ * reporte y de medio, más `PermisoDenegado` y `ArchivoLocalAusente`) caen todas en
+ * [ResultadoLogin.INESPERADO], que es exactamente lo que significan en contexto: si alguna
+ * llegara, sería una fuga de capas. `PermisoDenegado` es el caso real y frecuente — un
+ * `PERMISSION_DENIED` produce [DominioError.PermisoDenegado], y en la pantalla se ve como
+ * "Algo salió mal"; aquí se ve como `inesperado`.
+ *
+ * `CuentaDeshabilitada` cae igual en `INESPERADO` a propósito: no es un paso del embudo
+ * que el custodio pueda corregir, y la cuenta deshabilitada es un dato de provisioning que
+ * la analítica de producto no debe medir.
  */
 fun DominioError.aResultadoLogin(): ResultadoLogin = when (this) {
     // Los del login, uno a uno.
-    DominioError.NumeroInvalido -> ResultadoLogin.NUMERO_INVALIDO
-    DominioError.SinRespuestaSms -> ResultadoLogin.SIN_RESPUESTA_SMS
-    DominioError.CodigoInvalido -> ResultadoLogin.CODIGO_INVALIDO
-    DominioError.CodigoExpirado -> ResultadoLogin.CODIGO_EXPIRADO
+    DominioError.CredencialesInvalidas -> ResultadoLogin.CREDENCIALES_INVALIDAS
     DominioError.DemasiadosIntentos -> ResultadoLogin.DEMASIADOS_INTENTOS
-    DominioError.TelefonoNoAutorizado -> ResultadoLogin.TELEFONO_NO_AUTORIZADO
+    DominioError.CorreoNoAutorizado -> ResultadoLogin.CORREO_NO_AUTORIZADO
     DominioError.SinConexion -> ResultadoLogin.SIN_CONEXION
     // El servidor "caído" es el mismo paso medible que "sin red": el custodio ve lo mismo.
     DominioError.ServidorIndisponible -> ResultadoLogin.SIN_CONEXION
@@ -129,6 +130,7 @@ fun DominioError.aResultadoLogin(): ResultadoLogin = when (this) {
     DominioError.MedioNoEncontrado -> ResultadoLogin.INESPERADO
     DominioError.MedioEnSubida -> ResultadoLogin.INESPERADO
     DominioError.MedioYaSubido -> ResultadoLogin.INESPERADO
+    DominioError.CuentaDeshabilitada -> ResultadoLogin.INESPERADO
     DominioError.PermisoDenegado -> ResultadoLogin.INESPERADO
     DominioError.ArchivoLocalAusente -> ResultadoLogin.INESPERADO
 }

@@ -19,16 +19,21 @@ sealed interface DominioError {
     data object MedioEnSubida : DominioError
     data object MedioYaSubido : DominioError
 
-    /** Error de sesión por SMS (PHONE_AUTH_PLAN Task 3). */
-    data object NumeroInvalido : DominioError
-    data object CodigoInvalido : DominioError
-    data object CodigoExpirado : DominioError
-    data object DemasiadosIntentos : DominioError
-    /** El envío del SMS no obtuvo respuesta a tiempo (p. ej. el broker de Phone Auth no responde). */
-    data object SinRespuestaSms : DominioError
+    /** Errores de sesión por correo + contraseña (plan de correo, Task 5). */
 
-    /** El número verificó el OTP pero no tiene documento en `telefonos_autorizados` (Task 4). */
-    data object TelefonoNoAutorizado : DominioError
+    /**
+     * Firebase Auth rechazó el intento. Se **fusiona** a propósito: el backend no distingue
+     * entre correo inexistente y contraseña equivocada (y `ERROR_INVALID_EMAIL` cae aquí
+     * también), así que el custodio no puede deducir qué parte falló ni el atacante puede
+     * enumerar cuentas. El formato de correo se valida antes, en la pantalla.
+     */
+    data object CredencialesInvalidas : DominioError
+    /** La cuenta existe pero está deshabilitada por el administrador. */
+    data object CuentaDeshabilitada : DominioError
+    data object DemasiadosIntentos : DominioError
+
+    /** El correo autenticó pero no tiene documento en `correos_autorizados` (Task 4). */
+    data object CorreoNoAutorizado : DominioError
 
     data object SinConexion : DominioError
     /** El servidor respondió pero estuvo temporalmente indisponible (UNAVAILABLE/DEADLINE_EXCEEDED). */

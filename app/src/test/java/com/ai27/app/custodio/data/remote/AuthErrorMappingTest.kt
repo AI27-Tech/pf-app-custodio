@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * PHONE_AUTH_PLAN Task 3: el mapeo de errores de Phone Auth es una función PURA
+ * Plan de correo, Task 6: el mapeo de errores de Firebase Auth es una función PURA
  * ([mapearErrorAutenticacion]) sobre tipo de excepción + código del backend. Los tipos
  * concretos de Firebase no se instancian en JVM de host (el android.jar de pruebas lanza
  * "not mocked" en sus constructores), así que la traducción se prueba por su matriz
@@ -17,26 +17,40 @@ class AuthErrorMappingTest {
     private fun mapear(tipo: TipoErrorAuth, codigo: String?) = mapearErrorAutenticacion(tipo, codigo)
 
     @Test
-    fun `numero invalido mapea a NumeroInvalido`() {
+    fun `correo mal formado mapea a CredencialesInvalidas`() {
         assertEquals(
-            DominioError.NumeroInvalido,
-            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_INVALID_PHONE_NUMBER"),
+            DominioError.CredencialesInvalidas,
+            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_INVALID_EMAIL"),
         )
     }
 
     @Test
-    fun `codigo invalido mapea a CodigoInvalido`() {
+    fun `contrasena incorrecta mapea a CredencialesInvalidas`() {
         assertEquals(
-            DominioError.CodigoInvalido,
-            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_INVALID_VERIFICATION_CODE"),
+            DominioError.CredencialesInvalidas,
+            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_WRONG_PASSWORD"),
         )
     }
 
     @Test
-    fun `codigo expirado mapea a CodigoExpirado`() {
+    fun `credenciales invalidas y usuario inexistente mapean a lo mismo`() {
+        // El par del login se fusiona a propósito: distinguir "no existe" de "contraseña
+        // incorrecta" permitiría enumerar las cuentas registradas.
         assertEquals(
-            DominioError.CodigoExpirado,
-            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_SESSION_EXPIRED"),
+            DominioError.CredencialesInvalidas,
+            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_INVALID_LOGIN_CREDENTIALS"),
+        )
+        assertEquals(
+            DominioError.CredencialesInvalidas,
+            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_USER_NOT_FOUND"),
+        )
+    }
+
+    @Test
+    fun `cuenta deshabilitada mapea a CuentaDeshabilitada`() {
+        assertEquals(
+            DominioError.CuentaDeshabilitada,
+            mapear(TipoErrorAuth.AUTENTICACION, "ERROR_USER_DISABLED"),
         )
     }
 

@@ -92,7 +92,7 @@ fun AjustesScreen(
             TituloSeccion(stringResource(R.string.ajustes_cuenta))
             RenglonResumen(
                 etiqueta = stringResource(R.string.ajustes_sesion_activa),
-                valor = estado.custodio?.telefono.orEmpty(),
+                valor = estado.custodio?.correo.orEmpty(),
             )
             RenglonResumen(
                 etiqueta = stringResource(R.string.ajustes_pendientes_subida),
@@ -123,7 +123,7 @@ fun AjustesScreen(
 
     DialogoCerrarSesion(
         visible = estado.confirmacionCerrarSesion,
-        telefono = estado.custodio?.telefono.orEmpty(),
+        correo = estado.custodio?.correo.orEmpty(),
         pendientesSinSubir = estado.pendientesSinSubir,
         onConfirmar = onConfirmarCerrarSesion,
         onCancelar = onCancelarCerrarSesion,

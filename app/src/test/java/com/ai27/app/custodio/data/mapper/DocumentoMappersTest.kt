@@ -67,7 +67,7 @@ class DocumentoMappersTest {
         placas = "ABC-123",
         placasCapturadas = "ABC-123",
         custodioUid = "c-1",
-        custodioTelefono = "a@b.cl",
+        custodioCorreo = "a@b.cl",
         clienteId = "cli-tmp",
         deviceId = "dev-1",
         fechaLocal = "2026-09-18",

@@ -2,6 +2,63 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:09:28 18:28
+
+**Resumen:** se implementaron las **tareas 5 a 8 de `docs/PLAN_EMAIL_AUTH.md`**: el login del custodio pasa de OTP por SMS a **correo + contraseña** (`signInWithEmailAndPassword`). Es un **cutover completo, sin retrocompatibilidad** — la identidad del custodio vuelve a ser el correo en todo el repo (dominio, Room, contrato Firestore, UI y analítica) — porque el SMS no se entrega de forma confiable en campo y dejaba al custodio fuera de la app. Lo que se desarma es todo el andamiaje de Phone Auth: `PhoneAuthProvider`, `PhoneAuthOptions`, los callbacks, el watchdog de 30 s contra el broker de GMS mudo, el `ForceResendingToken` de reenvío, la cuenta regresiva y el `EventoVerificacion`.
+
+**Cambios:**
+- **Dominio (Task 5).** `Custodio(uid, telefono)` → `Custodio(uid, correo)`, igual que `Reporte.custodioTelefono` → `custodioCorreo`. `SesionRepositorio` se reduce a tres funciones —`observarCustodio()`, `iniciarSesion(correo, contrasena)`, `cerrarSesion()`— y se elimina `domain/model/EventoVerificacion.kt`. El `Activity` desapareció de la frontera de auth: `signInWithEmailAndPassword` no lo necesita (ni reCAPTCHA ni el SMS Retriever), así que el dominio ya no importa `android.app.Activity`. En `DominioError` se retiran los cuatro casos exclusivos de SMS (`NumeroInvalido`, `CodigoInvalido`, `CodigoExpirado`, `SinRespuestaSms`), `TelefonoNoAutorizado` se renombra a `CorreoNoAutorizado` y se agregan `CredencialesInvalidas` y `CuentaDeshabilitada`. 28 → 26 variantes.
+- **`FirebaseAuthSesionRepositorio` (Task 6).** `AuthDataSource.kt` pasa de 254 a 118 líneas: queda `signInWithEmailAndPassword(correo, contrasena).await()` mapeado a `Custodio(uid, email)`, y se van el `ConcurrentHashMap` de tokens de reenvío, el `AtomicLong`, el watchdog del broker, los `PhoneAuthOptions` y los `callbackFlow` de verificación. El mapeo de errores se conserva **puro y probable en JVM** (`mapearErrorAutenticacion(tipo, codigo)`), con códigos de correo: `ERROR_INVALID_EMAIL`, `ERROR_WRONG_PASSWORD`, `ERROR_INVALID_LOGIN_CREDENTIALS`, `ERROR_USER_NOT_FOUND`, `ERROR_USER_DISABLED`, `ERROR_TOO_MANY_REQUESTS`, `ERROR_NETWORK_REQUEST_FAILED`.
+- **Allowlist re-keada a correo.** `FirestoreAllowlistRepositorio.contiene(correo)` hace `get()` a `correos_autorizados/{correo.lowercase()}`. El `.lowercase()` **no es cosmético**: el id del documento es el correo en minúsculas (así lo siembra el aprovisionamiento), y sin esa normalización el `get()` no encontraría nada y **cerraría la sesión del propio custodio**. Se conserva el patrón "autenticar → consultar allowlist → cerrar sesión si no autorizado" y el cierre seguro por omisión. `telefonos_autorizados/{e164}` queda de baja.
+- **Login de una sola fase (Task 7).** `LoginUiState` es `{correoEscrito, contrasenaEscrita, autenticando, error}`: sin `FaseLogin`, sin `codigoEscrito`, sin `enviandoSms`/`verificando`, sin `segundosParaReenviar`. `LoginViewModel` tiene un método `iniciarSesion()` en vez de cinco, y valida el formato con el predicado puro `esCorreoValido` **antes** de gastar la llamada al backend. `LoginScreen` es una columna con correo, contraseña (`PasswordVisualTransformation`) y "Iniciar sesión", y se le quitan el `LocalContext.current as? Activity` y el `BackHandler` de la fase OTP.
+- **Room 4→5 (Task 8).** `schemaVersion = 5` y `MIGRACION_4_5` (`ALTER TABLE reportes RENAME COLUMN custodioTelefono TO custodioCorreo`, con `DROP_INDICE_UNICO_ACTIVO` como las previas), **espejo exacto** de la `MIGRACION_3_4`. `RENAME COLUMN` conserva el valor, así que la migración no toca ni una fila de los reportes que ya están en cola local. Entidad, `ReporteMappers` y `DocumentoMappers` siguen el renombrado; el contrato Firestore vuelve a `custodioCorreo`.
+- **Analítica.** `MetodoAuth.PHONE` → `EMAIL` y `ResultadoLogin` se recorta de nueve a siete: `OK`, `CORREO_INVALIDO`, `CREDENCIALES_INVALIDAS`, `CORREO_NO_AUTORIZADO`, `DEMASIADOS_INTENTOS`, `SIN_CONEXION`, `INESPERADO`. **Los valores del OTP no se reutilizan** (nada de `numero_invalido` renombrado a `correo_invalido`): las dimensiones viejas siguen siendo legítimas en la consola y reusarlas mezclaría dos embudos en el mismo reporte. Sigue sin PII — el método es constante y el desenlace un valor de un conjunto cerrado. `CuentaDeshabilitada` cae en `INESPERADO` a propósito: no es un paso del embudo que el custodio pueda corregir.
+- **UI y textos.** Ajustes y el diálogo de cierre de sesión muestran el **correo** (`cierre_sesion_correo`); `strings.xml` pierde los diez textos de SMS/OTP y gana los de correo (`error_credenciales_invalidas`, `error_cuenta_deshabilitada`, `error_correo_invalido`, `error_correo_no_autorizado`).
+- **Pruebas.** `MigracionCorreoATelefonoTest` → `MigracionTelefonoACorreoTest` (siembra una base v4 con la columna `custodioTelefono` y afirma que migra a `custodioCorreo` conservando el valor). `AuthErrorMappingTest` pasa de 6 a 7 casos con los códigos de correo. `ResultadoLoginTest` cuenta 26 variantes y **gana un caso nuevo** que afirma que ningún valor del enum de correo colisiona con los cinco del login por SMS. `LoginViewModelTest` se reescribe para el flujo de una fase: 17 → 12 casos (los seis que se van son los del OTP —composición del E.164, reenvío, `regresarANumero`, regresiva, broker de GMS mudo— y no tienen a qué trasladarse; entran tres nuevos: el par se manda tal cual, el error de credenciales en pantalla, y el predicado `esCorreoValido`).
+- **Documentos.** `docs/PLAN.md` §2 (fila de Auth y "Lo que cambió"), §5.1 (el contrato `usuarios/`, `correos_autorizados/{email}` y `custodioCorreo`), §5.3 (la regla de lectura de la allowlist), §5.4 (la sección de autenticación, que ahora describe correo) y la tabla de decisiones de §10. `AGENTS.md` gana el bloque EMAIL_AUTH.
+
+**Dos decisiones que el plan no tomaba y conviene dejar escritas:**
+- **`ERROR_INVALID_EMAIL` se fusiona en `CredencialesInvalidas` y no tiene `DominioError` propio.** El plan pedía agregar solo `CredencialesInvalidas` y `CuentaDeshabilitada`, y `ResultadoLogin` sí tiene `CORREO_INVALIDO`: ese valor lo produce la **validación local de la pantalla** (`esCorreoValido`), igual que antes `NUMERO_INVALIDO` lo producía la validación local del teléfono y no un `DominioError`. Lo que llega del backend con el formato mal se junta con "correo o contraseña incorrectos", porque el custodio no puede arreglar eso en el campo y el mensaje es honesto.
+- **El "Done" del teclado de la contraseña consulta la misma condición `listoParaEntrar` que el botón.** Sin eso, una contraseña vacía llegaba a Firebase, que la rechaza en local con `ERROR_MISSING_PASSWORD` — un código que no está en el mapeo, así que habría salido como "Algo salió mal" por no haber tecleado nada. Cierra una esquina real de UX sin agregar superficie al dominio.
+
+**Verificación:** `testDebugUnitTest` **246/246**, 0 fallos, corrido con `--rerun-tasks`. `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. El conteo baja de 249 a 246 **por los seis casos de OTP que se fueron**, no por cobertura perdida: lo que se midía era el flujo que dejó de existir. Cero referencias vivas a `PhoneAuthProvider`, `PhoneAuthOptions`, `ForceResendingToken`, `EventoVerificacion`, `MetodoAuth.PHONE`, los valores `NUMERO_INVALIDO`/`CODIGO_INVALIDO`/`CODIGO_EXPIRADO`/`SIN_RESPUESTA_SMS`/`TELEFONO_NO_AUTORIZADO` y los strings de SMS; las únicas que quedan a `custodioTelefono` y `telefonos_autorizados` están en el `MIGRACION_3_4`/`MIGRACION_4_5` (que tienen que nombrarlas), en el DDL de la base v4 que siembra la prueba de migración y en KDoc histórico.
+
+> **Lo que ninguna prueba de este cambio cubre:** que un custodio real pueda entrar. El seed del emulador (`../pf-infra-firebase/seed`) es una exportación del modelo viejo, y las reglas, el `beforeCreate` y el aprovisionamiento de `pf-infra-firebase` **siguen keados a teléfono**. Mientras no se redeployen **junto con** el APK nuevo, publicar uno sin el otro deja custodios sin acceso. Todo eso vive en Tasks 1-4 y 9 del plan raíz y **requiere confirmación del humano antes de tocar producción**.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/domain/model/Custodio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/model/Reporte.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/model/EventoVerificacion.kt` (eliminado)
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/SesionRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/AllowlistRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioError.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/CrearReporte.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/AuthDataSource.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirestoreAllowlistRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/EchoDatabase.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/ReporteEntity.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapper/DocumentoMappers.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapper/ReporteMappers.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginUiState.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/error/DominioErrorRecurso.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/RootViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/ajustes/AjustesScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Dialogos.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/previews/DatosDemo.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/login/LoginViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/remote/AuthErrorMappingTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/diagnostico/ResultadoLoginTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/local/db/MigracionCorreoATelefonoTest.kt` → `MigracionTelefonoACorreoTest.kt`
+- 13 pruebas y `androidTest` que usaban `telefono =` / `custodioTelefono =` en sus datos de ejemplo
+- `docs/PLAN.md`
+- `AGENTS.md`
+- `CHANGELOG.md`
+
 ## 2026:09:28 13:05
 
 **Resumen:** `MainActivity` ya **no declara `android:screenOrientation`**. El atributo venía en `fullSensor` desde un cambio del autor del proyecto posterior a la auditoría, y eso hace que la app **gire aunque el custodio tenga la rotación automática apagada**: `fullSensor` es el único valor de `screenOrientation` que ignora el ajuste del usuario. Se retira el atributo (no se cambia por `fullUser`) siguiendo la primera de las dos vías que ofrece la guía vigente de Android, y se documenta la decisión en `docs/AUDIT.md` (A9) y `docs/PLAN.md` §17.3.
