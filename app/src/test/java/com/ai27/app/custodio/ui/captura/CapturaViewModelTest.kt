@@ -539,12 +539,13 @@ class CapturaViewModelTest {
     // region confirmación no visual (G3-C / U3)
 
     @Test
-    fun `capturar incrementa el contador que dispara el tic de encolado`() =
+    fun `capturar dispara el tic de aviso al persistir, sin esperar el GPS`() =
         runTest(mainDispatcherRule.dispatcher) {
             // U3 depende de plataforma (háptica + sonido) y no se asevera en JVM; el único
-            // punto testeable es que `avisoEncolado` crece cuando la subida se encola, que es
-            // justo lo que la UI observa para tocar el canal no visual. RETIRO_ETIQUETADO: el
-            // tic ahora lo dispara encolarCuandoListo al capturar, no guardarEtiqueta.
+            // punto testeable es que `avisoEncolado` crece, que es justo lo que la UI observa
+            // para tocar el canal no visual ("se enviará en breve"). UX de captura: el tic se
+            // dispara al PERSISTIR la foto, ANTES de que el GPS resuelva (hasta 8 s) — no al
+            // encolar. Esperar al GPS para avisar hacía sentir la captura lenta.
             seedReporteActivo()
             val vm = crearViewModel()
             backgroundScope.launch { vm.uiState.collect {} }
@@ -552,9 +553,17 @@ class CapturaViewModelTest {
 
             vm.capturarFoto(ByteArray(32), ByteArray(8))
             runCurrent()
+
+            // Aún SIN completar el GPS, el aviso ya se disparó: ese es el arreglo de UX.
+            assertEquals(
+                "el aviso debe dispararse al persistir la foto, sin esperar el GPS",
+                1,
+                vm.uiState.value.avisoEncolado,
+            )
+
+            // Completar el GPS después no vuelve a tocar el aviso (un tic por captura).
             ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
             runCurrent()
-
             assertEquals(1, vm.uiState.value.avisoEncolado)
         }
 
