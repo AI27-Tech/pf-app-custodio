@@ -7,10 +7,12 @@ import com.ai27.app.custodio.data.remote.MedioRemoto
 import com.ai27.app.custodio.data.remote.ReporteRemoto
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
-import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
+// RETIRO_ETIQUETADO (Task 2): CategoriaEtiqueta y Etiqueta solo los usaba el test del
+// candado por catálogo (A4), hoy retirado. Comentados —no borrados—.
+// import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
-import com.ai27.app.custodio.domain.model.Etiqueta
+// import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
 import com.ai27.app.custodio.domain.model.Reporte
@@ -128,10 +130,9 @@ class SubidaMedioProcesoTest {
     }
 
     @Test
-    fun `no sube un medio sin situacion`() = runBlocking {
-        // Hallazgo E3 + decisión A del PLAN §14: se exige al menos una etiqueta de
-        // Situación, así que un medio sin clasificar (o solo con Evidencia) no puede salir.
-        // El proceso lo deja quieto en lugar de fallar en bucle.
+    fun `sube un medio sin etiquetas (candado retirado)`() = runBlocking {
+        // RETIRO_ETIQUETADO (Task 2): el candado de Situación se retiró. Un medio con
+        // `etiquetas` vacío ahora sube hasta COMPLETA en lugar de quedarse PENDIENTE.
         val sinSituacion = (repoMedios.guardar(
             Medio(
                 id = "m-2",
@@ -149,78 +150,16 @@ class SubidaMedioProcesoTest {
 
         val resultado = proceso.ejecutar("r-1", sinSituacion.id)
 
-        assertTrue("No es un fallo: no hay nada que reintentar", resultado is Result.Success)
-        assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(sinSituacion.id)!!.estadoSubida)
-        assertEquals(0, medioRemoto.subidos.size)
-        assertEquals(0, medioRemoto.docsCreados.size)
-        assertTrue("El archivo local no se toca", archivos.archivos.containsKey("fisico/m-2"))
-    }
-
-    @Test
-    fun `no sube un medio que solo lleva evidencia`() = runBlocking {
-        val soloEvidencia = (repoMedios.guardar(
-            Medio(
-                id = "m-3",
-                reporteId = "r-1",
-                tipo = TipoMedio.FOTO,
-                origen = OrigenMedio.CAMARA,
-                createdAtDevice = fijo,
-                contentType = "image/jpeg",
-                estadoSubida = EstadoSubida.PENDIENTE,
-                etiquetas = listOf("estado-transporte", "accidente"),
-            ),
-            contenido = ByteArray(10),
-            miniatura = ByteArray(4),
-        ) as Result.Success).value
-
-        val resultado = proceso.ejecutar("r-1", soloEvidencia.id)
-
         assertTrue(resultado is Result.Success)
-        assertEquals(EstadoSubida.PENDIENTE, repoMedios.obtenerPorId(soloEvidencia.id)!!.estadoSubida)
-        assertEquals(0, medioRemoto.subidos.size)
-        assertEquals(0, medioRemoto.docsCreados.size)
-    }
-
-    @Test
-    fun `sube un medio cuya situacion existe solo en el catalogo remoto (A4)`() = runBlocking {
-        // A4: la Situación la define el catálogo activo (remoto con fallback), no un set
-        // fijo en código. Un id de Situación agregado en Firestore debe habilitar la
-        // subida sin recompilar: el guard del proceso no lo descarta.
-        val catalogoNuevo = FakeEtiquetaRepository(
-            catalogo = listOf(
-                Etiqueta("apagon", "Apagón", CategoriaEtiqueta.SITUACION, 0, activo = true),
-                Etiqueta("llanta", "Llanta", CategoriaEtiqueta.EVIDENCIA, 0, activo = true),
-            ),
-        )
-        proceso = SubidaMedioProceso(
-            reporteRepository = repoReportes,
-            medioRepository = repoMedios,
-            etiquetaRepository = catalogoNuevo,
-            reporteRemoto = reporteRemoto,
-            medioRemoto = medioRemoto,
-            almacenArchivos = archivos,
-        )
-        val conSituacionNueva = (repoMedios.guardar(
-            Medio(
-                id = "m-4",
-                reporteId = "r-1",
-                tipo = TipoMedio.FOTO,
-                origen = OrigenMedio.CAMARA,
-                createdAtDevice = fijo,
-                contentType = "image/jpeg",
-                estadoSubida = EstadoSubida.PENDIENTE,
-                etiquetas = listOf("apagon"),
-            ),
-            contenido = ByteArray(10),
-            miniatura = ByteArray(4),
-        ) as Result.Success).value
-
-        val resultado = proceso.ejecutar("r-1", conSituacionNueva.id)
-
-        assertTrue(resultado is Result.Success)
-        assertEquals(EstadoSubida.COMPLETA, repoMedios.obtenerPorId(conSituacionNueva.id)!!.estadoSubida)
+        assertEquals(EstadoSubida.COMPLETA, repoMedios.obtenerPorId(sinSituacion.id)!!.estadoSubida)
         assertEquals(1, medioRemoto.subidos.size)
+        assertEquals(1, medioRemoto.docsCreados.size)
     }
+
+    // RETIRO_ETIQUETADO (Task 2): se retiran los tests del candado (`no sube un medio sin
+    // situacion`, `no sube un medio que solo lleva evidencia`, `sube un medio cuya situacion
+    // existe solo en el catalogo remoto (A4)`). Hoy la subida no consulta el catálogo ni
+    // exige Situación; se reactivan al descomentar el candado en SubidaMedioProceso.
 
     @Test
     fun `no recrea el reporte si ya esta activo en el servidor`() = runBlocking {

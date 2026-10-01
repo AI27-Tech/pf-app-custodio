@@ -101,7 +101,11 @@ interface MedioDao {
         INNER JOIN reportes r ON m.reporteId = r.id
         WHERE r.custodioUid = :custodioUid
           AND m.estadoSubida != 'COMPLETA'
-          AND m.tieneSituacion = 1
+          -- RETIRO_ETIQUETADO (Task 3): se retira el filtro de Situación. La reposición de
+          -- la cola vuelve a encolar cualquier medio no COMPLETA, porque la subida ya no
+          -- exige etiqueta. Se deja comentado —no borrado— para reactivarlo con el
+          -- etiquetado; la columna tieneSituacion se conserva en el esquema.
+          -- AND m.tieneSituacion = 1
         ORDER BY m.createdAtDevice ASC
         """,
     )

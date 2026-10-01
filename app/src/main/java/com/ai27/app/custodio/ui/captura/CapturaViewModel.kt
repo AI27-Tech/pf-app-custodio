@@ -9,10 +9,12 @@ import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
-import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
+// RETIRO_ETIQUETADO (Task 1): CategoriaEtiqueta y Etiqueta solo los usaba el etiquetado,
+// hoy inerte. Se dejan comentados —no borrados— para reactivarlos con el resto.
+// import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.EstadoSubida
-import com.ai27.app.custodio.domain.model.Etiqueta
+// import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
@@ -57,10 +59,13 @@ class CapturaViewModel @Inject constructor(
     private val sesionRepositorio: SesionRepositorio,
     private val crearReporte: CrearReporte,
     private val capturarMedio: CapturarMedio,
-    private val etiquetarMedio: EtiquetarMedio,
+    // RETIRO_ETIQUETADO (Task 1): etiquetarMedio y obtenerEtiquetas quedan inyectados pero
+    // SIN uso mientras el etiquetado está retirado. Se conservan en el constructor (y en el
+    // módulo de DI) para reactivar el flujo descomentando, sin rearmar la gráfica de Hilt.
+    @Suppress("unused") private val etiquetarMedio: EtiquetarMedio,
     private val cerrarReporte: CerrarReporte,
     private val descartarReporte: DescartarReporte,
-    private val obtenerEtiquetas: ObtenerEtiquetas,
+    @Suppress("unused") private val obtenerEtiquetas: ObtenerEtiquetas,
     private val reintentarSubida: ReintentarSubida,
     private val proveedorUbicacion: ProveedorUbicacion,
     private val grabadora: Grabadora,
@@ -117,14 +122,15 @@ class CapturaViewModel @Inject constructor(
     private var jobTimerAudio: Job? = null
 
     // Trabajos en vuelo que resuelven el GPS de un medio recién capturado, por medioId.
-    // guardarEtiqueta los espera antes de encolar la subida; se limpian al etiquetar o
-    // descartar el etiquetado.
+    // encolarCuandoListo los espera antes de encolar la subida; se limpian al encolar.
     private val trabajosGps = mutableMapOf<String, Job>()
 
     init {
-        viewModelScope.launch {
-            interno.update { it.copy(etiquetas = obtenerEtiquetas()) }
-        }
+        // RETIRO_ETIQUETADO (Task 1): ya no se precarga el catálogo de etiquetas porque la
+        // hoja de etiquetado está retirada. Se deja comentado para reactivarlo con el flujo.
+        // viewModelScope.launch {
+        //     interno.update { it.copy(etiquetas = obtenerEtiquetas()) }
+        // }
         viewModelScope.launch {
             // La reconciliación es por custodio (E6), así que espera a que la sesión
             // resuelva antes de reponer la cola. Si no hay sesión no hay nada que reponer.
@@ -189,9 +195,9 @@ class CapturaViewModel @Inject constructor(
         if (jpeg.isEmpty()) return
         viewModelScope.launch {
             interno.update { it.copy(capturando = true) }
-            // La foto se persiste de inmediato SIN esperar el arreglo de GPS: así la hoja
-            // de etiquetado aparece al instante. La ubicación se adjunta en segundo plano
-            // (ver adjuntarGpsEnSegundoPlano) y guardarEtiqueta la espera antes de encolar.
+            // La foto se persiste de inmediato SIN esperar el arreglo de GPS. La ubicación
+            // se adjunta en segundo plano (ver adjuntarGpsEnSegundoPlano) y encolarCuandoListo
+            // la espera antes de encolar la subida.
             val resultado = capturarMedio(
                 custodioUid = custodio.uid,
                 reporteId = reporte.id,
@@ -203,16 +209,18 @@ class CapturaViewModel @Inject constructor(
             )
             interno.update {
                 when (resultado) {
+                    // RETIRO_ETIQUETADO (Task 1): ya no se abre la hoja de etiquetado; el
+                    // medio pasa directo a la cola de subida (ver encolarCuandoListo).
                     is Result.Success -> it.copy(
                         capturando = false,
                         ubicacionTextoEscrita = "",
-                        medioPendienteDeEtiquetar = resultado.value,
                     )
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
             }
             if (resultado is Result.Success) {
                 adjuntarGpsEnSegundoPlano(resultado.value.id)
+                encolarCuandoListo(reporte.id, resultado.value.id)
             }
         }
     }
@@ -292,7 +300,7 @@ class CapturaViewModel @Inject constructor(
             }
             interno.update { it.copy(capturando = true) }
             // Igual que la foto: se persiste sin esperar el GPS y la ubicación se adjunta
-            // en segundo plano; guardarEtiqueta la espera antes de encolar la subida.
+            // en segundo plano; encolarCuandoListo la espera antes de encolar la subida.
             val resultado = capturarMedio(
                 custodioUid = custodio.uid,
                 reporteId = reporte.id,
@@ -304,16 +312,18 @@ class CapturaViewModel @Inject constructor(
             )
             interno.update {
                 when (resultado) {
+                    // RETIRO_ETIQUETADO (Task 1): sin hoja de etiquetado; la nota pasa
+                    // directo a la cola de subida.
                     is Result.Success -> it.copy(
                         capturando = false,
                         ubicacionTextoEscrita = "",
-                        medioPendienteDeEtiquetar = resultado.value,
                     )
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
             }
             if (resultado is Result.Success) {
                 adjuntarGpsEnSegundoPlano(resultado.value.id)
+                encolarCuandoListo(reporte.id, resultado.value.id)
             }
         }
     }
@@ -364,67 +374,67 @@ class CapturaViewModel @Inject constructor(
         CoroutineScope(Dispatchers.IO).launch { grabadora.descartar() }
     }
 
-    private fun idsSituacion(): Set<String> =
-        interno.value.etiquetas
-            .filter { it.activo && it.categoria == CategoriaEtiqueta.SITUACION }
-            .map { it.id }
-            .toSet()
-
-    fun guardarEtiqueta(medioId: String, etiquetas: List<String>) {
-        if (etiquetas.isEmpty()) {
-            interno.update { it.copy(error = R.string.error_etiqueta_obligatoria) }
-            return
-        }
+    // RETIRO_ETIQUETADO (Task 1): nuevo camino de encolado. Antes la subida se encolaba
+    // dentro de guardarEtiqueta; ahora, retirado el etiquetado, se encola apenas termina
+    // de adjuntarse el GPS en segundo plano. Se conserva el join() del trabajo de GPS para
+    // que el documento remoto lleve la ubicación igual que antes, y se bumpea avisoEncolado
+    // para que la UI dispare su tic de "se enviará en breve".
+    private fun encolarCuandoListo(reporteId: String, medioId: String) {
         viewModelScope.launch {
-            val resultado = etiquetarMedio(
-                medioId = medioId,
-                etiquetas = etiquetas,
-                ubicacionTexto = interno.value.ubicacionTextoEscrita.trim().ifBlank { null },
-            )
-            interno.update {
-                when (resultado) {
-                    is Result.Success -> it.copy(
-                        medioPendienteDeEtiquetar = null,
-                        ubicacionTextoEscrita = "",
-                        avisoEncolado = it.avisoEncolado + 1,
-                    )
-                    is Result.Failure -> it.copy(error = resultado.error.aRecurso())
-                }
-            }
-            if (resultado is Result.Success) {
-                // La UI ya se actualizó (hoja cerrada + aviso). Antes de encolar la subida
-                // se espera a que termine de adjuntarse el GPS en segundo plano (tiene su
-                // propio timeout, así que no cuelga) para que el documento remoto conserve
-                // la ubicación, como cuando la captura la esperaba en línea.
-                trabajosGps.remove(medioId)?.join()
-                programadorSubidas.encolarSubidaMedio(resultado.value.reporteId, medioId)
-            }
+            trabajosGps.remove(medioId)?.join()
+            programadorSubidas.encolarSubidaMedio(reporteId, medioId)
+            interno.update { it.copy(avisoEncolado = it.avisoEncolado + 1) }
         }
     }
 
-    fun descartarEtiquetado() {
-        // El medio queda persistido y pendiente aunque se descarte el etiquetado; el
-        // trabajo de GPS puede seguir y adjuntar la ubicación. Solo se suelta la referencia
-        // del mapa para que no crezca sin límite. Desde §13 ese medio NO se sube hasta que
-        // tenga una Situación, y la rejilla de Archivos lo señala para poder resolverlo
-        // (ver retomarEtiquetado).
-        interno.value.medioPendienteDeEtiquetar?.let { trabajosGps.remove(it.id) }
-        interno.update { it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "") }
-    }
-
-    /**
-     * Reabre la hoja de clasificación de un medio que ya está guardado sin situación
-     * (hallazgo E3). Es la única salida para la evidencia que quedó sin clasificar, porque
-     * `medioPendienteDeEtiquetar` vive en memoria y no sobrevive a la muerte del proceso.
-     *
-     * Se invoca desde la rejilla de Archivos. Un medio con Situación se ignora:
-     * reetiquetar no está en el alcance y la subida pudo haber salido ya.
-     */
-    fun retomarEtiquetado(medioId: String) {
-        val medio = uiState.value.medios.firstOrNull { it.id == medioId } ?: return
-        if (medio.etiquetas.any { it in idsSituacion() }) return
-        interno.update { it.copy(medioPendienteDeEtiquetar = medio, ubicacionTextoEscrita = "") }
-    }
+    // RETIRO_ETIQUETADO (Task 1): el etiquetado queda inerte (comentado, no borrado) para
+    // poder reactivarlo sin reconstruirlo. El contrato de datos (etiquetas, tieneSituacion,
+    // catalogos/etiquetas) no cambia.
+    //
+    // private fun idsSituacion(): Set<String> =
+    //     interno.value.etiquetas
+    //         .filter { it.activo && it.categoria == CategoriaEtiqueta.SITUACION }
+    //         .map { it.id }
+    //         .toSet()
+    //
+    // fun guardarEtiqueta(medioId: String, etiquetas: List<String>) {
+    //     if (etiquetas.isEmpty()) {
+    //         interno.update { it.copy(error = R.string.error_etiqueta_obligatoria) }
+    //         return
+    //     }
+    //     viewModelScope.launch {
+    //         val resultado = etiquetarMedio(
+    //             medioId = medioId,
+    //             etiquetas = etiquetas,
+    //             ubicacionTexto = interno.value.ubicacionTextoEscrita.trim().ifBlank { null },
+    //         )
+    //         interno.update {
+    //             when (resultado) {
+    //                 is Result.Success -> it.copy(
+    //                     medioPendienteDeEtiquetar = null,
+    //                     ubicacionTextoEscrita = "",
+    //                     avisoEncolado = it.avisoEncolado + 1,
+    //                 )
+    //                 is Result.Failure -> it.copy(error = resultado.error.aRecurso())
+    //             }
+    //         }
+    //         if (resultado is Result.Success) {
+    //             trabajosGps.remove(medioId)?.join()
+    //             programadorSubidas.encolarSubidaMedio(resultado.value.reporteId, medioId)
+    //         }
+    //     }
+    // }
+    //
+    // fun descartarEtiquetado() {
+    //     interno.value.medioPendienteDeEtiquetar?.let { trabajosGps.remove(it.id) }
+    //     interno.update { it.copy(medioPendienteDeEtiquetar = null, ubicacionTextoEscrita = "") }
+    // }
+    //
+    // fun retomarEtiquetado(medioId: String) {
+    //     val medio = uiState.value.medios.firstOrNull { it.id == medioId } ?: return
+    //     if (medio.etiquetas.any { it in idsSituacion() }) return
+    //     interno.update { it.copy(medioPendienteDeEtiquetar = medio, ubicacionTextoEscrita = "") }
+    // }
 
     fun onUbicacionTextoCambio(texto: String) {
         interno.update { it.copy(ubicacionTextoEscrita = texto) }

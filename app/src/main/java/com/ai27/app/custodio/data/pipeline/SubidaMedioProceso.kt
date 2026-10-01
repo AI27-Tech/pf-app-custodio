@@ -6,7 +6,9 @@ import com.ai27.app.custodio.data.remote.ReporteRemoto
 import com.ai27.app.custodio.data.util.Sha256
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
-import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
+// RETIRO_ETIQUETADO (Task 2): CategoriaEtiqueta solo lo usaba el candado de subida, hoy
+// comentado. Se deja comentado —no borrado— para reactivarlo con el etiquetado.
+// import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
 import com.ai27.app.custodio.domain.model.Reporte
@@ -21,7 +23,10 @@ import com.ai27.app.custodio.domain.repository.ReporteRepository
 class SubidaMedioProceso(
     private val reporteRepository: ReporteRepository,
     private val medioRepository: MedioRepository,
-    private val etiquetaRepository: EtiquetaRepository,
+    // RETIRO_ETIQUETADO (Task 2): etiquetaRepository queda inyectado pero SIN uso mientras
+    // el candado de subida está retirado. Se conserva en el constructor para reactivar el
+    // candado descomentando, sin tocar la composición ni los call sites.
+    @Suppress("unused") private val etiquetaRepository: EtiquetaRepository,
     private val reporteRemoto: ReporteRemoto,
     private val medioRemoto: MedioRemoto,
     private val almacenArchivos: AlmacenArchivos,
@@ -29,16 +34,16 @@ class SubidaMedioProceso(
     suspend fun ejecutar(reporteId: String, medioId: String): Result<Unit> {
         val medio = medioRepository.obtenerPorId(medioId)
             ?: return Result.Success(Unit) // se borró antes de subir
-        // Sin etiqueta de Situación no sale: el criterio de subida es "tiene al menos una
-        // Situación" (PLAN §14, decisión A) y el analista no puede filtrar evidencia sin
-        // clasificar. Es defensa en profundidad — la cola ya filtra por tieneSituacion—
-        // para que ningún camino futuro se la salte (hallazgo E3). A4: qué cuenta como
-        // Situación lo define el catálogo activo (remoto con fallback), no un set fijo.
-        val catalogo = etiquetaRepository.obtener()
-        val esSituacion = medio.etiquetas.any { id ->
-            catalogo.any { it.id == id && it.categoria == CategoriaEtiqueta.SITUACION }
-        }
-        if (!esSituacion) return Result.Success(Unit)
+        // RETIRO_ETIQUETADO (Task 2): se retira el candado de subida. Antes un medio sin
+        // etiqueta de Situación no salía nunca del dispositivo. Hoy la captura sube de
+        // inmediato sin clasificar. El bloque queda comentado (no borrado) para reactivarlo
+        // junto con el etiquetado; el contrato de datos (etiquetas, catalogos/etiquetas) no
+        // cambia, así que no hay nada que rehacer al descomentar.
+        // val catalogo = etiquetaRepository.obtener()
+        // val esSituacion = medio.etiquetas.any { id ->
+        //     catalogo.any { it.id == id && it.categoria == CategoriaEtiqueta.SITUACION }
+        // }
+        // if (!esSituacion) return Result.Success(Unit)
         val reporte = reporteRepository.obtenerPorId(reporteId)
             ?: return Result.Success(Unit)
         if (reporte.ciclo == Ciclo.DESCARTADO) return Result.Success(Unit) // sin evidencia futura a un viaje descartado

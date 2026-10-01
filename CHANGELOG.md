@@ -2,6 +2,65 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:10:01 12:17
+
+**Resumen:** se agregó un **toggle de ver/ocultar contraseña** (ícono de ojo) en el campo de contraseña del login, para que el custodio pueda verificar lo que teclea y evitar errores. Es un control de UI puramente local: nunca sale al `LoginViewModel` ni al estado persistido, solo revela en pantalla lo que el usuario ya escribió en su propio dispositivo. Arranca oculto. Para el ícono se agregó la dependencia `material-icons-extended` (el set `core` no trae `Visibility`/`VisibilityOff`); la versión la fija el Compose BOM.
+
+**Cambios:**
+- **`LoginScreen`:** el campo de contraseña gana un `trailingIcon` con `IconButton` + `Icons.Filled.Visibility`/`VisibilityOff`; estado local `contrasenaVisible` (`rememberSaveable`, inicia en false, sobrevive rotación) que alterna `visualTransformation` entre `PasswordVisualTransformation()` y `VisualTransformation.None`. El `contentDescription` del ícono usa las cadenas "Mostrar"/"Ocultar" para accesibilidad.
+- **Strings:** `login_mostrar_contrasena` ("Mostrar") y `login_ocultar_contrasena` ("Ocultar").
+- **Dependencias:** `androidx-compose-material-icons-extended` agregada al catálogo (`gradle/libs.versions.toml`) y a `app/build.gradle.kts` (requiere **Gradle Sync**).
+
+**Verificación:** `assembleDebug` + `testDebugUnitTest` verdes (rebuild completo tras el Sync); APK debug reinstalado en CPH2769 y toggle probado manualmente en el dispositivo. (El toggle no lleva prueba automática aún; se puede cubrir con un test de Compose en androidTest que verifique el cambio de `visualTransformation`.)
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginScreen.kt`
+- `app/src/main/res/values/strings.xml`
+- `gradle/libs.versions.toml`
+- `app/build.gradle.kts`
+- `CHANGELOG.md`
+
+## 2026:10:01 11:27
+
+**Resumen:** se retiró el **etiquetado de medios** y el **candado de subida por Situación** del flujo de captura (plan `docs/PLAN_RETIRO_ETIQUETADO.md`). La captura pasa a ser lo más simple posible: tomar foto o grabar nota de voz y que **suba de inmediato** apenas lo permita la conexión, sin clasificar. También se retiró el interruptor de "novedad" del cierre (se conserva el comentario opcional). Es un **retiro por comentado, no por borrado**: nada del código de etiquetado se elimina, queda inerte y comentado para reactivarlo sin reconstruirlo. **El contrato de datos no cambia** (`etiquetas`, `tieneSituacion`, `catalogos/etiquetas`, `hayNovedad` se conservan; sin migración de Room).
+
+**Cambios:**
+- **`CapturaViewModel`:** nuevo helper `encolarCuandoListo(reporteId, medioId)` que espera el GPS en segundo plano (`trabajosGps.remove(medioId)?.join()`), encola la subida y bumpea `avisoEncolado`. Se invoca tras `adjuntarGpsEnSegundoPlano` en `capturarFoto` y `detenerGrabacionDeAudio`. Comentados (inertes): carga de etiquetas en `init`, `idsSituacion`, `guardarEtiqueta`, `descartarEtiquetado`, `retomarEtiquetado`. `etiquetarMedio`/`obtenerEtiquetas` quedan inyectados (`@Suppress("unused")`). Ya no se escribe `medioPendienteDeEtiquetar`.
+- **`SubidaMedioProceso.ejecutar`:** comentado el candado `esSituacion` (`etiquetaRepository.obtener()` + `if (!esSituacion) return`). `etiquetaRepository` queda inyectado inerte. Un medio sin etiqueta sube hasta `COMPLETA`.
+- **`MedioDao.obtenerPendientes`:** comentado el filtro `AND m.tieneSituacion = 1`. La reconciliación repone cualquier medio no `COMPLETA`. `FakeMedioRepository.obtenerPendientes` alineado.
+- **`CapturaEvidenciaScreen` / `AudioScreen`:** retirada la `HojaEtiqueta` y sus callbacks (`onGuardarEtiqueta`/`onUbicacionTextoCambio`/`onCerrarHoja`); se conservan obturador, captura y grabación.
+- **`ArchivosScreen`:** retirada toda la señal de etiquetado (franja "sin clasificar", borde/clic de "etiquetar ahora", sobre de nombres de etiqueta, hoja). Se conservan miniaturas, borrado pre-subida, reintento y el chip de estado de subida. Eliminadas las dos previews "Sin etiquetar".
+- **`ReporteScreen`:** comentado el aviso de "sin clasificar" del hub (`estado.mediosSinEtiquetar`), que de otro modo quedaría permanentemente encendido al no clasificarse ningún medio. No estaba en la lista original del plan; se incluyó por coherencia funcional.
+- **`CierreScreen`:** comentado el `RenglonSwitch` de novedad y su estado; se conserva el comentario. `onCerrarViaje` pasa `hayNovedad = false`; la firma `cerrarViaje(comentario, hayNovedad)` y el contrato `hayNovedad` no cambian.
+- **`AppNavHost`:** ajustados los call sites del grafo `viaje` (CAPTURA/AUDIO/ARCHIVOS) a las firmas sin callbacks de etiquetado.
+- **Archivos inertes:** `ui/captura/HojaEtiqueta.kt` queda comentado por completo (incluye `hojaPuedeCerrarse`); `domain/usecase/EtiquetarMedio.kt` se conserva como clase viva con nota de inerte (sigue inyectado en Hilt).
+- **Pruebas:** `CapturaViewModelTest` reescrito (captura persiste y encola sin etiquetar; el tic de encolado lo dispara la captura; eliminados los tests de descartar/retomar); `SubidaMedioProcesoTest` reemplaza los tres tests del candado por uno de "sube sin etiquetas"; `ContratoRepositoriosTest` invierte el test de `obtenerPendientes` (ahora incluye medios sin Situación); `RoomMedioRepositoryTest` A4 verifica `tieneSituacion` sobre la fila de Room en vez de vía la cola; `FakeMedioRepository` alineado. En androidTest: `ReconciliacionColaTest` invierte el test SIN_situación y `ui/captura/HojaEtiquetaTest` queda comentado (inerte). El unit `HojaEtiquetaTest` también.
+
+**Verificación:** `testDebugUnitTest` 235/235, `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. Los tests instrumentados tocados (`ReconciliacionColaTest`) **no se ejecutaron**: no hay dispositivo ni emulador conectado en esta sesión; queda pendiente la prueba manual en dispositivo (tomar foto/audio y ver la subida inmediata con red y el encolado sin red; cerrar viaje con comentario).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProceso.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/AudioScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/ArchivosScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/ReporteScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CierreScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/EtiquetarMedio.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProcesoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRepositoriosTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/RoomMedioRepositoryTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/worker/ReconciliacionColaTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt`
+- `AGENTS.md`
+- `CHANGELOG.md`
+
 ## 2026:09:28 19:06
 
 **Resumen:** la hoja de clasificación de cada medio **abre vacía**. Se revierte la herencia de la última Situación confirmada (D-B1/U2, de la tanda G3-B del 2026-09-24): la preselección venía de que al custodio le bastaba un toque, pero en campo se convertía en guardar sin mirar —la foto siguiente quedaba clasificada con la situación de la anterior—, que es justo el dato que el analista no puede filtrar.

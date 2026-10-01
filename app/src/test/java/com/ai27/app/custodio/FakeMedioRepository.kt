@@ -181,11 +181,13 @@ class FakeMedioRepository(
     }
 
     override suspend fun obtenerPendientes(custodioUid: String): List<Medio> =
-        // Mismo filtro que MedioDao.obtenerPendientes: del custodio, no COMPLETA (FALLIDA
-        // incluida, para que la reconciliación los reintente) y con Situación marcada.
+        // RETIRO_ETIQUETADO (Task 3): mismo filtro que MedioDao.obtenerPendientes tras
+        // retirar el candado: del custodio y no COMPLETA (FALLIDA incluida, para que la
+        // reconciliación los reintente). Ya NO se exige Situación. El filtro conSituacion
+        // queda comentado para reactivarlo con el etiquetado.
         medios.filter {
             it.estadoSubida != EstadoSubida.COMPLETA &&
-                conSituacion(it) &&
+                // conSituacion(it) &&
                 esDelCustodio(it.reporteId, custodioUid)
         }
 

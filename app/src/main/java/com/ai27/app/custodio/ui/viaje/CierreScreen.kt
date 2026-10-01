@@ -36,7 +36,9 @@ import com.ai27.app.custodio.ui.components.DialogoDescarte
 import com.ai27.app.custodio.ui.components.DialogoError
 import com.ai27.app.custodio.ui.components.FranjaAviso
 import com.ai27.app.custodio.ui.components.RenglonResumen
-import com.ai27.app.custodio.ui.components.RenglonSwitch
+// RETIRO_ETIQUETADO (Task 6): RenglonSwitch solo lo usaba el interruptor de novedad.
+// Comentado —no borrado— para reactivarlo.
+// import com.ai27.app.custodio.ui.components.RenglonSwitch
 import com.ai27.app.custodio.ui.components.Vitrina
 import com.ai27.app.custodio.ui.previews.DatosDemo
 
@@ -58,7 +60,11 @@ fun CierreScreen(
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var novedad by rememberSaveable { mutableStateOf(false) }
+    // RETIRO_ETIQUETADO (Task 6): se retira el interruptor de novedad. El estado `novedad`
+    // queda comentado —no borrado—; el campo de comentario se conserva. La firma
+    // onCerrarViaje(comentario, hayNovedad) y el contrato `hayNovedad` no cambian: se pasa
+    // hayNovedad = false.
+    // var novedad by rememberSaveable { mutableStateOf(false) }
     var comentario by rememberSaveable { mutableStateOf("") }
     var mostrarConfirmacionCierre by rememberSaveable { mutableStateOf(false) }
     var mostrarDescarte by rememberSaveable { mutableStateOf(false) }
@@ -66,7 +72,9 @@ fun CierreScreen(
     // U11: si el custodio escribe/activa algo y pulsa atrás, se le pregunta si de verdad quiere
     // salir: el texto del cierre a medias se pierde silenciosamente hoy (AUDIT.md U11).
     var mostrarConfirmacionDescarteSalida by rememberSaveable { mutableStateOf(false) }
-    val hayCambiosEnCierre = novedad || comentario.isNotBlank()
+    // RETIRO_ETIQUETADO (Task 6): sin interruptor de novedad, "hay cambios" depende solo
+    // del comentario.
+    val hayCambiosEnCierre = comentario.isNotBlank()
 
     LaunchedEffect(estado.reporte) {
         if (estado.reporte == null) onAtras()
@@ -131,12 +139,14 @@ fun CierreScreen(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            RenglonSwitch(
-                titulo = stringResource(R.string.cierre_novedad),
-                descripcion = stringResource(R.string.cierre_novedad_descripcion),
-                marcado = novedad,
-                onCambiar = { novedad = it },
-            )
+            // RETIRO_ETIQUETADO (Task 6): se retira el interruptor de novedad; se conserva
+            // el campo de comentario. Comentado, no borrado.
+            // RenglonSwitch(
+            //     titulo = stringResource(R.string.cierre_novedad),
+            //     descripcion = stringResource(R.string.cierre_novedad_descripcion),
+            //     marcado = novedad,
+            //     onCambiar = { novedad = it },
+            // )
 
             OutlinedTextField(
                 value = comentario,
@@ -196,7 +206,9 @@ fun CierreScreen(
         },
         confirmarHabilitado = !estado.cerrandoViaje,
         onConfirmar = {
-            onCerrarViaje(comentario.trim().ifEmpty { null }, novedad)
+            // RETIRO_ETIQUETADO (Task 6): sin interruptor de novedad, siempre se pasa
+            // hayNovedad = false; el contrato de cerrarViaje(comentario, hayNovedad) no cambia.
+            onCerrarViaje(comentario.trim().ifEmpty { null }, false)
             mostrarConfirmacionCierre = false
         },
         onCancelar = { mostrarConfirmacionCierre = false },

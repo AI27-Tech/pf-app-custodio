@@ -194,20 +194,12 @@ class ReconciliacionColaTest {
     }
 
     @Test
-    fun reconciliar_no_encola_los_medios_SIN_situacion() = runBlocking {
-        // Hallazgo E3, cerrado en §13 y endurecido en §14 (decisión A: al menos una
-        // etiqueta de Situación).
-        //
-        // La hoja de clasificación es una trampa deliberada en la UI: no se puede cerrar
-        // sin elegir una Situación. Pero si el custodio la descarta con la X, o si el
-        // proceso muere con la hoja abierta, el medio queda persistido sin situación.
-        // Antes, reconciliar() encolaba TODO lo que no estuviera COMPLETA, así que al
-        // siguiente arranque ese medio subía sin clasificar y el analista recibía evidencia
-        // que no podía filtrar.
-        //
-        // Ahora la cola filtra por Situación. El medio NO se pierde: sigue en Room, cuenta
-        // en el badge de pendientes y la rejilla de Archivos lo marca como pendiente de
-        // clasificar para que el custodio lo resuelva con un toque.
+    fun reconciliar_encola_todos_los_pendientes_SIN_exigir_situacion() = runBlocking {
+        // RETIRO_ETIQUETADO (Task 3): se retiró el candado de Situación. La reconciliación
+        // vuelve a encolar CUALQUIER medio no COMPLETA, con o sin etiqueta, porque la subida
+        // ya no exige clasificar. Antes este test (hallazgo E3) afirmaba lo contrario: que
+        // un medio sin Situación no se encolaba. La columna tieneSituacion se conserva en el
+        // esquema; solo se dejó de usar como filtro.
         val reporte = crearReporte()
         val sinSituacion = crearMedio(reporte.id, etiquetas = emptyList())
         val soloEvidencia = crearMedio(reporte.id, etiquetas = listOf("estado-transporte"))
@@ -215,16 +207,18 @@ class ReconciliacionColaTest {
 
         scheduler.reconciliar(reporte.custodioUid)
 
-        assertTrue(
-            "Un medio sin Situación no debe encolarse: subiría evidencia sin clasificar",
-            trabajosDeMedio(sinSituacion.id).isEmpty(),
-        )
-        assertTrue(
-            "Un medio solo con Evidencia tampoco: la Situación es obligatoria",
-            trabajosDeMedio(soloEvidencia.id).isEmpty(),
+        assertEquals(
+            "Un medio sin etiqueta ahora sí se encola: la subida ya no exige Situación",
+            1,
+            trabajosDeMedio(sinSituacion.id).size,
         )
         assertEquals(
-            "El resto del reporte sí se encola: un medio sin clasificar no bloquea a los demás",
+            "Un medio solo con Evidencia también se encola",
+            1,
+            trabajosDeMedio(soloEvidencia.id).size,
+        )
+        assertEquals(
+            "Y el medio ya clasificado igual",
             1,
             trabajosDeMedio(conSituacion.id).size,
         )

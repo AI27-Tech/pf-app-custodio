@@ -48,6 +48,9 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-compose-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
+# Login: ícono de ojo (Visibility/VisibilityOff) para el toggle de ver contraseña. El set
+# core no lo trae; la versión la fija el Compose BOM.
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 
 # B1: DI (Hilt), navegación, persistencia, workers, cámara, imágenes, Firebase
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }

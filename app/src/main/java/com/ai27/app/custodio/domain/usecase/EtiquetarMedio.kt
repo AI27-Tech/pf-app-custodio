@@ -7,6 +7,15 @@ import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.repository.EtiquetaRepository
 import com.ai27.app.custodio.domain.repository.MedioRepository
 
+/**
+ * RETIRO_ETIQUETADO: CASO DE USO INERTE (no borrado).
+ *
+ * El etiquetado se retiró del flujo (ver `docs/PLAN_RETIRO_ETIQUETADO.md`): hoy nadie
+ * invoca este caso de uso en runtime. Se conserva como clase viva —compila y queda
+ * probado— porque sigue inyectado (inerte) en `CapturaViewModel` y en la gráfica de Hilt,
+ * de modo que reactivar el etiquetado es descomentar sus llamadas, sin reconstruir este
+ * código. El contrato de datos (`etiquetas`, `catalogos/etiquetas`) no cambió.
+ */
 class EtiquetarMedio(
     private val medioRepository: MedioRepository,
     private val etiquetaRepository: EtiquetaRepository,

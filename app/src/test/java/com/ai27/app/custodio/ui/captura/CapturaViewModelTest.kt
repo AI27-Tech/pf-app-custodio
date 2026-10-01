@@ -85,8 +85,10 @@ class CapturaViewModelTest {
         (CrearReporte(repoReportes).invoke(custodio, "dev-test", "cli", "ABC-1234") as Result.Success).value
 
     @Test
-    fun `la captura de foto no espera el GPS para abrir la hoja de etiquetado`() =
+    fun `la captura de foto no espera el GPS para persistir y encolar`() =
         runTest(mainDispatcherRule.dispatcher) {
+            // RETIRO_ETIQUETADO: ya no hay hoja de etiquetado. La foto se persiste de
+            // inmediato (sin esperar el GPS) y queda lista para encolarse.
             val reporte = seedReporteActivo()
             val vm = crearViewModel()
             backgroundScope.launch { vm.uiState.collect {} }
@@ -97,31 +99,29 @@ class CapturaViewModelTest {
 
             val estado = vm.uiState.value
             assertEquals(reporte.id, estado.reporte?.id)
-            // La foto ya se persistió y la hoja está lista, sin esperar la ubicación.
+            // La foto ya se persistió, sin esperar la ubicación.
             assertEquals(1, repoMedios.medios.size)
             assertFalse(estado.capturando)
-            assertEquals(estado.medioPendienteDeEtiquetar?.id, repoMedios.medios.single().id)
             assertNull(repoMedios.medios.single().gps)
-            // Nada se encola todavía porque aún no se etiqueta.
+            // Nada se encola todavía porque el encolado espera al GPS en segundo plano.
             assertTrue(scheduler.encolados.isEmpty())
         }
 
     @Test
-    fun `la subida se encola solo despues de adjuntar el GPS`() =
+    fun `capturar encola la subida sin etiquetar, solo despues de adjuntar el GPS`() =
         runTest(mainDispatcherRule.dispatcher) {
+            // RETIRO_ETIQUETADO: el encolado ya no pasa por guardarEtiqueta. Apenas la foto
+            // se persiste, encolarCuandoListo espera a que el GPS se adjunte y encola. El
+            // medio sube SIN clasificar.
             val reporte = seedReporteActivo()
             val vm = crearViewModel()
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
             vm.capturarFoto(ByteArray(32), ByteArray(8))
-            runCurrent()
+            runCurrent() // persistido; el encolado espera al GPS
             val medioId = repoMedios.medios.single().id
 
-            vm.guardarEtiqueta(medioId, listOf("sin-novedad"))
-            runCurrent() // etiqueta aplicada y hoja cerrada, pero el encolado espera al GPS
-
-            assertNull(vm.uiState.value.medioPendienteDeEtiquetar)
             assertTrue(
                 "no debe encolar la subida antes de que el GPS se adjunte",
                 scheduler.encolados.isEmpty(),
@@ -134,6 +134,8 @@ class CapturaViewModelTest {
             // Ahora el GPS está en la fila y, solo entonces, se encoló la subida.
             assertEquals(10.0, repoMedios.medios.single().gps!!.lat, 0.0001)
             assertEquals(listOf(reporte.id to medioId), scheduler.encolados)
+            // Y se subió sin ninguna etiqueta.
+            assertTrue(repoMedios.medios.single().etiquetas.isEmpty())
         }
 
     @Test
@@ -151,8 +153,8 @@ class CapturaViewModelTest {
 
             val estado = vm.uiState.value
             assertFalse(estado.capturando)
-            assertEquals(TipoMedio.AUDIO, estado.medioPendienteDeEtiquetar?.tipo)
             assertEquals(1, repoMedios.medios.size)
+            assertEquals(TipoMedio.AUDIO, repoMedios.medios.single().tipo)
             assertNull(repoMedios.medios.single().gps)
         }
 
@@ -181,98 +183,10 @@ class CapturaViewModelTest {
             assertEquals(causa, registroDeFallos.registrados.single().second)
         }
 
-    @Test
-    fun `descartar el etiquetado deja el medio visible como sin etiquetar`() =
-        runTest(mainDispatcherRule.dispatcher) {
-            // Hallazgo E3: cerrar la hoja con la X dejaba el medio sin situación y
-            // sin ninguna forma de llegar a él. Ahora la rejilla lo puede señalar porque
-            // el estado lo expone, y la cola no lo sube hasta que se clasifique.
-            seedReporteActivo()
-            val vm = crearViewModel()
-            backgroundScope.launch { vm.uiState.collect {} }
-            runCurrent()
-
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
-            runCurrent()
-            vm.descartarEtiquetado()
-            runCurrent()
-
-            val estado = vm.uiState.value
-            assertNull("la hoja se cerró", estado.medioPendienteDeEtiquetar)
-            assertEquals(
-                "el medio sigue ahí y la UI lo puede señalar",
-                1,
-                estado.mediosSinEtiquetar.size,
-            )
-            assertTrue(
-                "no se encola nada: sin etiqueta no se sube",
-                scheduler.encolados.isEmpty(),
-            )
-        }
-
-    @Test
-    fun `retomar el etiquetado reabre la hoja de un medio ya guardado`() =
-        runTest(mainDispatcherRule.dispatcher) {
-            // Es la salida de E3 que no existía: `medioPendienteDeEtiquetar` vive en
-            // memoria, así que tras muerte de proceso la hoja no reabría nunca y la
-            // evidencia quedaba atrapada.
-            val reporte = seedReporteActivo()
-            val vm = crearViewModel()
-            backgroundScope.launch { vm.uiState.collect {} }
-            runCurrent()
-
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
-            runCurrent()
-            val medioId = repoMedios.medios.single().id
-            vm.descartarEtiquetado()
-            runCurrent()
-
-            vm.retomarEtiquetado(medioId)
-            runCurrent()
-
-            assertEquals(medioId, vm.uiState.value.medioPendienteDeEtiquetar?.id)
-
-            vm.guardarEtiqueta(medioId, listOf("sin-novedad"))
-            runCurrent()
-            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
-            runCurrent()
-
-            val estado = vm.uiState.value
-            assertNull(estado.medioPendienteDeEtiquetar)
-            assertTrue("ya no hay nada sin etiquetar", estado.mediosSinEtiquetar.isEmpty())
-            assertEquals(
-                "etiquetado al fin, la subida se encola",
-                listOf(reporte.id to medioId),
-                scheduler.encolados,
-            )
-        }
-
-    @Test
-    fun `retomar el etiquetado ignora un medio que ya tiene etiqueta`() =
-        runTest(mainDispatcherRule.dispatcher) {
-            // Reetiquetar no está en el alcance y la subida pudo haber salido ya: reabrir
-            // la hoja sobre un medio etiquetado solo produciría una escritura ambigua.
-            seedReporteActivo()
-            val vm = crearViewModel()
-            backgroundScope.launch { vm.uiState.collect {} }
-            runCurrent()
-
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
-            runCurrent()
-            val medioId = repoMedios.medios.single().id
-            vm.guardarEtiqueta(medioId, listOf("sin-novedad"))
-            runCurrent()
-            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
-            runCurrent()
-
-            vm.retomarEtiquetado(medioId)
-            runCurrent()
-
-            assertNull(
-                "un medio ya etiquetado no vuelve a la hoja",
-                vm.uiState.value.medioPendienteDeEtiquetar,
-            )
-        }
+    // RETIRO_ETIQUETADO: se eliminan los tests de descartarEtiquetado/retomarEtiquetado.
+    // Esas funciones del ViewModel quedaron comentadas (hoy no hay hoja de etiquetado ni
+    // evidencia "sin clasificar" que rescatar). El flujo de reactivación vive en el plan y
+    // en los bloques comentados de CapturaViewModel.
 
     // region arranque y estado de carga (R2 / G3-A)
 
@@ -407,7 +321,8 @@ class CapturaViewModelTest {
             assertFalse(estado.grabandoAudio)
             assertFalse(estado.audioPausado)
             assertEquals("la nota se persistió", 1, repoMedios.medios.size)
-            assertEquals(TipoMedio.AUDIO, estado.medioPendienteDeEtiquetar?.tipo)
+            // RETIRO_ETIQUETADO: ya no hay hoja; la nota persistida es un AUDIO que se encola.
+            assertEquals(TipoMedio.AUDIO, repoMedios.medios.single().tipo)
         }
 
     @Test
@@ -455,7 +370,8 @@ class CapturaViewModelTest {
 
             assertFalse(vm.uiState.value.grabandoAudio)
             assertEquals("la nota del tope sí se guarda", 1, repoMedios.medios.size)
-            assertEquals(TipoMedio.AUDIO, vm.uiState.value.medioPendienteDeEtiquetar?.tipo)
+            // RETIRO_ETIQUETADO: sin hoja; se verifica el medio persistido, no el estado.
+            assertEquals(TipoMedio.AUDIO, repoMedios.medios.single().tipo)
         }
 
     @Test
@@ -538,19 +454,18 @@ class CapturaViewModelTest {
     // region confirmación no visual (G3-C / U3)
 
     @Test
-    fun `guardar etiqueta incrementa el contador que dispara el tic de encolado`() =
+    fun `capturar incrementa el contador que dispara el tic de encolado`() =
         runTest(mainDispatcherRule.dispatcher) {
             // U3 depende de plataforma (háptica + sonido) y no se asevera en JVM; el único
             // punto testeable es que `avisoEncolado` crece cuando la subida se encola, que es
-            // justo lo que la UI observa para tocar el canal no visual.
+            // justo lo que la UI observa para tocar el canal no visual. RETIRO_ETIQUETADO: el
+            // tic ahora lo dispara encolarCuandoListo al capturar, no guardarEtiqueta.
             seedReporteActivo()
             val vm = crearViewModel()
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
             vm.capturarFoto(ByteArray(32), ByteArray(8))
-            runCurrent()
-            vm.guardarEtiqueta(repoMedios.medios.single().id, listOf("sin-novedad"))
             runCurrent()
             ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
             runCurrent()

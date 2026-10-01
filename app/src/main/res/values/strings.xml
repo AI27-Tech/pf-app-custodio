@@ -66,6 +66,8 @@
     <string name="login_correo_hint">nombre@ai27.com</string>
     <string name="login_contrasena">Contraseña</string>
     <string name="login_iniciar_sesion">Iniciar sesión</string>
+    <string name="login_mostrar_contrasena">Mostrar</string>
+    <string name="login_ocultar_contrasena">Ocultar</string>
 
     <!-- Mensajes de error del dominio -->
     <string name="error_placa_vacia_sin_valor">La placa no es válida: escribe un número de placa.</string>
