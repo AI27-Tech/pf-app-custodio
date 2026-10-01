@@ -2,6 +2,28 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:10:01 — Renombrar "placa" a "número económico" en el texto visible
+
+**Resumen:** se corrige el **vocabulario visible** de la app: el identificador de la unidad que el custodio captura es su **número económico interno** (no una matrícula), y la app lo rotulaba como "placa". Se actualizan solo los **valores de los strings que ve el usuario** de "placa" a "número económico", sincronizando el vocabulario con el panel del analista (que ya muestra "Número económico" sobre el mismo dato). Cambio de solo texto (Nivel 1): **no se tocan** los nombres de recurso (`campo_placa_*`, `error_*_placa`, `historial_buscar_placa`), ni los identificadores Kotlin (`CampoPlaca`, `normalizarPlaca`, `placaEscrita`), ni el campo de datos `placas` ni las columnas Room — todo eso es el contrato con `pf-infra-firebase` y `pf-web-frontend-analist-panel`, y renombrarlo sería una migración de tres repos.
+
+**Cambios (`app/src/main/res/values/strings.xml`, solo valores):**
+- `campo_placa_rotulo`: "Placa de la unidad" → "Número económico".
+- `campo_placa_placeholder`: "INGRESE PLACA" → "INGRESE NÚMERO ECONÓMICO".
+- `campo_placa_limpiar`: "Limpiar placa" → "Limpiar número económico".
+- `campo_placa_titulo`: "PLACAS RECIENTES EN RUTA" → "NÚMEROS ECONÓMICOS RECIENTES EN RUTA".
+- `error_placa_vacia_sin_valor`: → "El número económico no es válido: escribe un número económico.".
+- `error_escribe_placa`: → "Escribe el número económico para iniciar el reporte.".
+- `descarte_motivo_placa_equivocada`: "Placa equivocada" → "Número económico equivocado".
+- `historial_buscar_placa`: "Buscar por placa" → "Buscar por número económico".
+
+**Fuera de alcance (deliberado):** las strings de etiqueta/Situación (p. ej. `archivos_sin_etiqueta`, la "Hoja de etiquetado") son del RETIRO_ETIQUETADO ya completado y no se tocan. Dos fixtures de preview/demo (`Dialogos.kt`, `DatosDemo.kt`) conservan "Placa registrada equivocada." por no ser texto de producción.
+
+**Verificación:** `strings.xml` bien formado; `./gradlew assembleDebug --offline` verde. Al ser cambio de solo valores de string (ningún `R.string.*` renombrado), no afecta compilación ni pruebas.
+
+**Archivos modificados:**
+- `app/src/main/res/values/strings.xml`
+- `CHANGELOG.md`
+
 ## 2026:10:01 14:29
 
 **Resumen:** se **verificó la marca de agua en dispositivo contra producción** (CPH2769, Android 16, APK release sobre `custodio-906e7268`): la foto estampada sube a Storage (`medios/{reporteId}/{medioId}.jpg`) y a Firestore con las rutas correctas, y la marca se ve grabada (fecha arriba-izquierda, coordenadas abajo-derecha, tile de mapa abajo-izquierda; miniatura limpia). Se documentó además un **quirk del Emulator Suite de Storage** descubierto durante la prueba, ajeno a esta feature: contra el emulador, `FirebaseMedioRemoto.objetoExiste()` no recibe `ERROR_OBJECT_NOT_FOUND` para un objeto inexistente, así que `subirSiNoExiste` se salta el `putBytes` y el blob no aparece en el emulador aunque el documento sí; en producción sube bien. No hay cambios de código en esta entrada: solo documentación de la verificación.

@@ -23,11 +23,11 @@
     <!-- Biblioteca de componentes: barra superior -->
     <string name="barra_superior_volver">Volver</string>
 
-    <!-- Biblioteca de componentes: campo de placa -->
-    <string name="campo_placa_rotulo">Placa de la unidad</string>
-    <string name="campo_placa_placeholder">INGRESE PLACA</string>
-    <string name="campo_placa_limpiar">Limpiar placa</string>
-    <string name="campo_placa_titulo">PLACAS RECIENTES EN RUTA</string>
+    <!-- Biblioteca de componentes: campo de número económico -->
+    <string name="campo_placa_rotulo">Número económico</string>
+    <string name="campo_placa_placeholder">INGRESE NÚMERO ECONÓMICO</string>
+    <string name="campo_placa_limpiar">Limpiar número económico</string>
+    <string name="campo_placa_titulo">NÚMEROS ECONÓMICOS RECIENTES EN RUTA</string>
 
     <!-- Texto común entre pantallas -->
     <string name="comun_cancelar">Cancelar</string>
@@ -70,7 +70,7 @@
     <string name="login_ocultar_contrasena">Ocultar</string>
 
     <!-- Mensajes de error del dominio -->
-    <string name="error_placa_vacia_sin_valor">La placa no es válida: escribe un número de placa.</string>
+    <string name="error_placa_vacia_sin_valor">El número económico no es válido: escribe un número económico.</string>
     <string name="error_ya_existe_activo">Ya hay un reporte en curso en este teléfono.</string>
     <string name="error_no_hay_activo">No hay un reporte en curso.</string>
     <string name="error_no_encontrado">No se encontró el reporte.</string>
@@ -95,7 +95,7 @@
     <string name="error_inesperado">Algo salió mal. Intenta de nuevo.</string>
 
     <!-- Errores de validación de las pantallas -->
-    <string name="error_escribe_placa">Escribe la placa para iniciar el reporte.</string>
+    <string name="error_escribe_placa">Escribe el número económico para iniciar el reporte.</string>
     <string name="error_grabacion_no_inicio">No se pudo iniciar la grabación.</string>
     <string name="error_grabacion_no_reanudo">No se pudo reanudar la nota. Detenla para guardar lo grabado.</string>
     <string name="error_grabacion_fallo">La grabación falló y la nota se descartó. Vuelve a intentarlo.</string>
@@ -109,7 +109,7 @@
     <string name="descarte_texto">Esto marca el reporte como descartado. Lo que ya se envió no se borra; se excluye de los reportes del analista.</string>
     <string name="descarte_motivo_rotulo">Motivo del descarte</string>
     <string name="descarte_motivo_placeholder">Escribe el motivo</string>
-    <string name="descarte_motivo_placa_equivocada">Placa equivocada</string>
+    <string name="descarte_motivo_placa_equivocada">Número económico equivocado</string>
     <string name="descarte_motivo_cancelado_cliente">Reporte cancelado por el cliente</string>
     <string name="descarte_motivo_duplicado">Duplicado</string>
     <string name="descarte_motivo_prueba_error">Prueba / error</string>
@@ -217,7 +217,7 @@
     <string name="hoja_guardar">Guardar</string>
 
     <!-- Historial -->
-    <string name="historial_buscar_placa">Buscar por placa</string>
+    <string name="historial_buscar_placa">Buscar por número económico</string>
     <string name="historial_vacio">Sin reportes en los últimos 30 días.</string>
     <string name="historial_sin_coincidencias">Ningún reporte coincide con «%1$s».</string>
     <string name="historial_detalle_viaje">Reporte del %1$s · %2$d de %3$d enviados</string>
