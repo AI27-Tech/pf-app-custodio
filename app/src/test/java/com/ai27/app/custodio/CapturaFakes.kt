@@ -195,3 +195,32 @@ class FakeRegistroDeEventos : RegistroDeEventos {
         registrados.add(metodo to resultado)
     }
 }
+
+/**
+ * Estampador falso: no decodifica bitmaps (imposible en JVM). Registra qué marca y qué mapa
+ * recibió y devuelve bytes marcadores, para afirmar en JVM que la composición de la marca de
+ * agua se invocó con los datos esperados.
+ */
+class FakeEstampadorFoto : com.ai27.app.custodio.data.marcaDeAgua.EstampadorFoto {
+    val llamadas = mutableListOf<Pair<com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua, com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa?>>()
+    override fun estampar(
+        jpegLimpio: ByteArray,
+        marca: com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua,
+        mapa: com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa?,
+    ): ByteArray {
+        llamadas.add(marca to mapa)
+        return byteArrayOf(0x4D, 0x41, 0x52, 0x43, 0x41) // "MARCA"
+    }
+    override fun ladoMapaPx(jpegLimpio: ByteArray): Int = 240
+}
+
+/** Proveedor de snapshot falso: devuelve [resultado] (por defecto null, como sin red). */
+class FakeProveedorSnapshotMapa(
+    private val resultado: com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa? = null,
+) : com.ai27.app.custodio.data.mapa.ProveedorSnapshotMapa {
+    var veces = 0
+    override suspend fun snapshot(gps: Gps, ladoPx: Int): com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa? {
+        veces++
+        return resultado
+    }
+}

@@ -2,6 +2,63 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:10:01 14:29
+
+**Resumen:** se **verificó la marca de agua en dispositivo contra producción** (CPH2769, Android 16, APK release sobre `custodio-906e7268`): la foto estampada sube a Storage (`medios/{reporteId}/{medioId}.jpg`) y a Firestore con las rutas correctas, y la marca se ve grabada (fecha arriba-izquierda, coordenadas abajo-derecha, tile de mapa abajo-izquierda; miniatura limpia). Se documentó además un **quirk del Emulator Suite de Storage** descubierto durante la prueba, ajeno a esta feature: contra el emulador, `FirebaseMedioRemoto.objetoExiste()` no recibe `ERROR_OBJECT_NOT_FOUND` para un objeto inexistente, así que `subirSiNoExiste` se salta el `putBytes` y el blob no aparece en el emulador aunque el documento sí; en producción sube bien. No hay cambios de código en esta entrada: solo documentación de la verificación.
+
+**Cambios:**
+- `docs/PLAN_MARCA_DE_AGUA.md`: nueva sección "Verificación en dispositivo (2026-10-01)" con el resultado en producción, el quirk del emulador de Storage y el recordatorio operativo de `adb reverse` + reinicio de la app para pruebas en debug.
+
+**Archivos modificados:**
+- `docs/PLAN_MARCA_DE_AGUA.md`
+
+## 2026:10:01 13:31
+
+**Resumen:** se agregó la **marca de agua irreversible en las fotos de evidencia**: cada JPEG se graba con la fecha/hora de captura (arriba-izquierda, `YYYY/MM/DD HH:MM:SS` en **hora local del dispositivo**), las coordenadas GPS en grados decimales (abajo-derecha) y un snapshot del mapa del punto (abajo-izquierda). Solo las fotos; el audio no se toca. La composición es **diferida**: el obturador sigue inmediato, se guarda un original limpio y, una vez que el GPS resuelve en segundo plano, se compone la marca y se **reescribe solo el archivo original** antes de encolar la subida. Sin fix de GPS la foto se graba igual con solo la fecha; si el snapshot del mapa falla o no hay red, se omite solo el tile y se conservan fecha+coords. La miniatura de 320 px queda limpia. El mapa usa el **Maps SDK for Android** (modo lite, snapshot fuera de pantalla), con la API key leída de `local.properties` (gitignored) — alta documentada en el README. Diseño completo en `docs/PLAN_MARCA_DE_AGUA.md`.
+
+**Cambios:**
+- **Dominio puro (`domain/marcaDeAgua/`):** `MarcaDeAgua` (modelo), `FormatoMarcaDeAgua` (fecha `uuuu/MM/dd HH:mm:ss` en hora local; coords `%.6f` con signo; `null` sin GPS) y `DisposicionMarcaDeAgua` (geometría del texto y del tile, proporcional al lado menor del bitmap).
+- **Dibujo Android (`data/local/media/DibujanteMarcaDeAgua`):** estampa sobre una copia mutable del bitmap (fecha, coords, tile de mapa con borde; fondo semitransparente) y recomprime a JPEG con `CALIDAD_ORIGINAL`; no muta el original ni toca la miniatura.
+- **Snapshot de mapa (`data/mapa/`):** `ProveedorSnapshotMapa` (interface, devuelve `ImagenMapa?`) y `MapsSnapshotMapa` (`MapView` lite-mode fuera de pantalla en el hilo principal, espera `onMapLoaded`, `snapshot {}`, detecta blanco, degrada a `null` ante cualquier fallo y lo registra como no fatal).
+- **Orquestación (`data/marcaDeAgua/`):** `ComponerMarcaDeAgua` (sin GPS no pide snapshot; con GPS sí), `EstampadorFoto`/`BitmapEstampadorFoto` y el envoltorio opaco `ImagenMapa`/`BitmapImagenMapa` (ocultan `Bitmap` para que la orquestación sea probable en JVM), y `GrabarMarcaDeAguaEnFoto` (lee el original limpio, compone y reescribe; solo FOTO; nunca lanza).
+- **Persistencia:** `MedioRepository.leerOriginal` y `MedioRepository.reescribirOriginal` (reescritura solo mientras `PENDIENTE`, refresca `sizeBytes`) con `MedioDao.actualizarTamano`; implementados en `RoomMedioRepository` y en el fake de pruebas. **Sin migración de Room** (no cambia el esquema).
+- **Flujo de captura:** `CapturaViewModel.adjuntarGpsEnSegundoPlano` graba la marca tras resolver el GPS; `encolarCuandoListo` ya hace `join()` del trabajo de GPS, así que la subida espera a la foto estampada.
+- **Build/manifest:** `play-services-maps` en el catálogo y en `app/build.gradle.kts`; `MAPS_API_KEY` leída de `local.properties` → `manifestPlaceholders`; `meta-data com.google.android.geo.API_KEY` en el manifest (requiere **Gradle Sync**).
+- **DI:** `di/MapaModule` provee el proveedor de snapshot, el estampador, el orquestador y el caso de uso.
+- **Docs:** nuevo `docs/PLAN_MARCA_DE_AGUA.md`; README con la sección "Marca de agua en fotos" (alta de la API key) y tres escenarios de verificación manual.
+
+**Verificación:** `testDebugUnitTest` **253/253** y `assembleDebug` verdes; `compileDebugAndroidTestKotlin` verde. Tests nuevos: `FormatoMarcaDeAguaTest`, `DisposicionMarcaDeAguaTest`, `ComponerMarcaDeAguaTest` y tres casos en `CapturaViewModelTest` (con GPS estampa fecha+coords y reescribe el original; sin fix solo fecha y no pide mapa; el audio no se estampa). **Pendiente de dispositivo** (no verificado en esta sesión, sin equipo): el test instrumentado `DibujanteMarcaDeAguaTest` (dibujo real sobre `Bitmap`/`Canvas`), el snapshot real de Maps, y los tres escenarios de campo del README. También **pendiente humano**: dar de alta la `MAPS_API_KEY` en Google Cloud y ponerla en `local.properties` (sin ella, las fotos salen con fecha+coords sin mapa).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/domain/marcaDeAgua/MarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/marcaDeAgua/FormatoMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/marcaDeAgua/DisposicionMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapa/ProveedorSnapshotMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapa/MapsSnapshotMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/EstampadorFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapImagenMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapEstampadorFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/GrabarMarcaDeAguaEnFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/MapaModule.kt`
+- `app/src/main/AndroidManifest.xml`
+- `app/build.gradle.kts`
+- `gradle/libs.versions.toml`
+- `app/src/test/java/com/ai27/app/custodio/domain/marcaDeAgua/FormatoMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/domain/marcaDeAgua/DisposicionMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAguaTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `docs/PLAN_MARCA_DE_AGUA.md`
+- `README.md`
+
 ## 2026:10:01 12:17
 
 **Resumen:** se agregó un **toggle de ver/ocultar contraseña** (ícono de ojo) en el campo de contraseña del login, para que el custodio pueda verificar lo que teclea y evitar errores. Es un control de UI puramente local: nunca sale al `LoginViewModel` ni al estado persistido, solo revela en pantalla lo que el usuario ya escribió en su propio dispositivo. Arranca oculto. Para el ícono se agregó la dependencia `material-icons-extended` (el set `core` no trae `Visibility`/`VisibilityOff`); la versión la fija el Compose BOM.

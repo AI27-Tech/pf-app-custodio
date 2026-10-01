@@ -6,6 +6,7 @@ import com.ai27.app.custodio.R
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.local.media.EventoGrabacion
 import com.ai27.app.custodio.data.local.media.Grabadora
+import com.ai27.app.custodio.data.marcaDeAgua.GrabarMarcaDeAguaEnFoto
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
@@ -68,6 +69,7 @@ class CapturaViewModel @Inject constructor(
     @Suppress("unused") private val obtenerEtiquetas: ObtenerEtiquetas,
     private val reintentarSubida: ReintentarSubida,
     private val proveedorUbicacion: ProveedorUbicacion,
+    private val grabarMarcaDeAguaEnFoto: GrabarMarcaDeAguaEnFoto,
     private val grabadora: Grabadora,
     private val programadorSubidas: SubidaScheduler,
     private val registroDeFallos: RegistroDeFallos,
@@ -531,10 +533,18 @@ class CapturaViewModel @Inject constructor(
     // Resuelve el GPS del medio en segundo plano y lo adjunta a la fila de Room. No
     // bloquea la captura: la hoja de etiquetado ya se mostró. actualizarGps solo pega la
     // ubicación mientras el medio sigue PENDIENTE, así que llegar tarde es inofensivo.
+    //
+    // Marca de agua: una vez resuelto el GPS (haya fix o no), se graba la marca en el JPEG
+    // original. Se hace aquí —y no en la captura— porque la marca necesita el GPS, que llega
+    // tarde; encolarCuandoListo hace join() de este trabajo, así que la subida espera a que
+    // la foto quede estampada. grabarMarcaDeAguaEnFoto es no-op para audio y nunca lanza.
     private fun adjuntarGpsEnSegundoPlano(medioId: String) {
         trabajosGps[medioId] = viewModelScope.launch {
-            val gps = obtenerGpsLinear() ?: return@launch
-            medioRepository.actualizarGps(medioId, gps)
+            val gps = obtenerGpsLinear()
+            if (gps != null) {
+                medioRepository.actualizarGps(medioId, gps)
+            }
+            grabarMarcaDeAguaEnFoto(medioId)
         }
     }
 

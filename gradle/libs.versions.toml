@@ -26,6 +26,8 @@ googleServices = "4.5.0"
 crashlyticsPlugin = "3.0.8"
 # B3: ubicación por archivo
 playServicesLocation = "21.4.0"
+# Marca de agua: snapshot de mapa en el dispositivo (GoogleMap.snapshot)
+playServicesMaps = "19.0.0"
 # Pruebas de coroutines (JVM): alineado con el coroutines-core resuelto (1.10.2)
 coroutinesTest = "1.10.2"
 # T6/§12: await() para Task de Play Services. Misma versión que el coroutines-core
@@ -75,6 +77,9 @@ firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics
 
 # B3: ubicación por archivo
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+
+# Marca de agua: Maps SDK para el snapshot de mapa fuera de pantalla
+play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
 
 # Pruebas de coroutines (JVM)
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }

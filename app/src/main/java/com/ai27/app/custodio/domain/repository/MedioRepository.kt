@@ -11,6 +11,9 @@ interface MedioRepository {
     suspend fun guardar(medio: Medio, contenido: ByteArray, miniatura: ByteArray? = null): Result<Medio>
     suspend fun obtenerPorId(medioId: String): Medio?
     suspend fun obtenerDelReporte(reporteId: String): List<Medio>
+
+    /** Marca de agua: bytes del archivo original del medio en disco, o `null` si no existe. */
+    suspend fun leerOriginal(medioId: String): ByteArray?
     fun observarDelReporte(reporteId: String): Flow<List<Medio>>
     fun observarPendientes(custodioUid: String): Flow<Int>
     fun observarPendientesMedios(custodioUid: String): Flow<List<Medio>>
@@ -26,6 +29,15 @@ interface MedioRepository {
     fun observarFallidos(custodioUid: String): Flow<Int>
     suspend fun etiquetar(medioId: String, etiquetas: List<String>, ubicacionTexto: String? = null): Result<Medio>
     suspend fun actualizarGps(medioId: String, gps: Gps): Result<Medio>
+
+    /**
+     * Marca de agua: sobrescribe el archivo original del medio con [bytes] (el JPEG ya
+     * estampado) y refresca `sizeBytes`. Solo surte efecto mientras el medio sigue
+     * `PENDIENTE` —igual que [actualizarGps]—: una vez en subida, el documento remoto ya se
+     * creó y no debe mutar. Devuelve `MedioNoEncontrado` si el medio se borró, ya salió, o
+     * no tiene ruta local.
+     */
+    suspend fun reescribirOriginal(medioId: String, bytes: ByteArray): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
     suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>
 

@@ -1,8 +1,10 @@
 package com.ai27.app.custodio.ui.captura
 
+import com.ai27.app.custodio.FakeEstampadorFoto
 import com.ai27.app.custodio.FakeEtiquetaRepository
 import com.ai27.app.custodio.FakeGrabadora
 import com.ai27.app.custodio.FakeMedioRepository
+import com.ai27.app.custodio.FakeProveedorSnapshotMapa
 import com.ai27.app.custodio.FakeProveedorUbicacion
 import com.ai27.app.custodio.FakeRegistroDeFallos
 import com.ai27.app.custodio.FakeReporteRepository
@@ -10,6 +12,8 @@ import com.ai27.app.custodio.FakeSesionRepositorio
 import com.ai27.app.custodio.FakeSubidaScheduler
 import com.ai27.app.custodio.MainDispatcherRule
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.data.marcaDeAgua.ComponerMarcaDeAgua
+import com.ai27.app.custodio.data.marcaDeAgua.GrabarMarcaDeAguaEnFoto
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.Gps
@@ -48,6 +52,8 @@ class CapturaViewModelTest {
     private lateinit var grabadora: FakeGrabadora
     private lateinit var scheduler: FakeSubidaScheduler
     private lateinit var registroDeFallos: FakeRegistroDeFallos
+    private lateinit var estampador: FakeEstampadorFoto
+    private lateinit var proveedorMapa: FakeProveedorSnapshotMapa
 
     @Before
     fun setUp() {
@@ -58,10 +64,14 @@ class CapturaViewModelTest {
         grabadora = FakeGrabadora()
         scheduler = FakeSubidaScheduler()
         registroDeFallos = FakeRegistroDeFallos()
+        estampador = FakeEstampadorFoto()
+        proveedorMapa = FakeProveedorSnapshotMapa()
     }
 
     private fun crearViewModel(): CapturaViewModel {
         val etiquetas = FakeEtiquetaRepository()
+        val componer = ComponerMarcaDeAgua(estampador, proveedorMapa, java.time.ZoneOffset.UTC)
+        val grabarMarca = GrabarMarcaDeAguaEnFoto(repoMedios, componer, registroDeFallos)
         return CapturaViewModel(
             reporteRepository = repoReportes,
             medioRepository = repoMedios,
@@ -74,6 +84,7 @@ class CapturaViewModelTest {
             obtenerEtiquetas = ObtenerEtiquetas(etiquetas),
             reintentarSubida = ReintentarSubida(repoMedios),
             proveedorUbicacion = ubicacion,
+            grabarMarcaDeAguaEnFoto = grabarMarca,
             grabadora = grabadora,
             programadorSubidas = scheduler,
             registroDeFallos = registroDeFallos,
@@ -136,6 +147,80 @@ class CapturaViewModelTest {
             assertEquals(listOf(reporte.id to medioId), scheduler.encolados)
             // Y se subió sin ninguna etiqueta.
             assertTrue(repoMedios.medios.single().etiquetas.isEmpty())
+        }
+
+    @Test
+    fun `con GPS la foto se estampa con fecha y coords y se reescribe el original`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Marca de agua: tras resolver el GPS, la foto se compone y el original se
+            // reescribe (bytes "MARCA" del estampador falso) ANTES de encolar la subida.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+            ubicacion.completar(Gps(lat = 19.432608, lng = -99.133209, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            // Se estampó exactamente una vez, con fecha y coordenadas.
+            assertEquals(1, estampador.llamadas.size)
+            val marca = estampador.llamadas.single().first
+            assertEquals("19.432608, -99.133209", marca.coordenadas)
+            assertTrue("la fecha nunca falta", marca.fechaHora.isNotBlank())
+            // Snapshot null (fake sin red) => sin mapa al dibujante (requisito 3).
+            assertNull(estampador.llamadas.single().second)
+            assertEquals("se pidió el snapshot al haber GPS", 1, proveedorMapa.veces)
+            // El original se reescribió con los bytes estampados.
+            val medio = repoMedios.medios.single()
+            assertTrue(
+                "el archivo original debe quedar reescrito con la marca",
+                repoMedios.archivosGuardados[medio.localPath]!!.contentEquals(byteArrayOf(0x4D, 0x41, 0x52, 0x43, 0x41)),
+            )
+        }
+
+    @Test
+    fun `sin fix de GPS la foto se estampa solo con fecha y sin pedir mapa`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Requisito 1: sin GPS la foto se graba igual, con el timestamp; sin coords ni mapa.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            runCurrent()
+            ubicacion.completarSinFix()
+            runCurrent()
+
+            assertEquals(1, estampador.llamadas.size)
+            val marca = estampador.llamadas.single().first
+            assertTrue("la fecha va aunque no haya GPS", marca.fechaHora.isNotBlank())
+            assertNull("sin GPS no hay coords", marca.coordenadas)
+            assertNull("sin GPS no se pasa mapa", estampador.llamadas.single().second)
+            assertEquals("sin GPS no se pide snapshot", 0, proveedorMapa.veces)
+        }
+
+    @Test
+    fun `la nota de voz no se estampa con marca de agua`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Alcance: solo fotos. El audio no pasa por el estampado.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.iniciarGrabacionDeAudio()
+            runCurrent()
+            vm.detenerGrabacionDeAudio()
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            assertEquals(TipoMedio.AUDIO, repoMedios.medios.single().tipo)
+            assertTrue("el audio no se estampa", estampador.llamadas.isEmpty())
+            assertEquals("ni se le pide mapa", 0, proveedorMapa.veces)
         }
 
     @Test
