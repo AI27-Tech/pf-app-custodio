@@ -2,6 +2,19 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:10:01 — Subir versión a 1.0.1 (versionCode 2)
+
+**Resumen:** se incrementa la versión para publicar el APK con los cambios recientes (renombrado "placa" → "número económico" y aviso de captura inmediato). `versionName` pasa de "1.0" a **"1.0.1"** y `versionCode` de 1 a **2**. El `versionCode` debe crecer de forma monótona para que Android instale la actualización **in-place** sobre la instalación v1 en campo sin desinstalar (desinstalar borraría la cola local de evidencia).
+
+**Cambios:**
+- `app/build.gradle.kts`: `versionCode = 2`, `versionName = "1.0.1"`.
+
+**Verificación:** cambio de build-script (requiere Gradle sync). El APK release se regenera a partir de esta versión.
+
+**Archivos modificados:**
+- `app/build.gradle.kts`
+- `CHANGELOG.md`
+
 ## 2026:10:01 — El aviso de captura aparece de inmediato, sin esperar el GPS
 
 **Resumen:** al tomar una foto (o detener una nota de voz), el banner "Tu evidencia se enviará en breve" aparecía **tarde** —hasta ~8 s después— y la captura se sentía lenta y sin respuesta. La causa: el aviso (`avisoEncolado`) se disparaba dentro de `encolarCuandoListo()`, que primero hace `join()` del trabajo de GPS (timeout de 8 s) y de la marca de agua, y solo entonces mostraba el banner. Ahora el aviso se dispara **apenas el medio se persiste localmente**, que es cuando la evidencia ya está a salvo; el encolado real (GPS + marca de agua) sigue ocurriendo en segundo plano, sin bloquear el aviso. El texto del banner es una promesa ("se enviará en breve"), no una confirmación de subida, así que mostrarlo al persistir es correcto.
