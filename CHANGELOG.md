@@ -2,6 +2,21 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:10:01 — El aviso de captura aparece de inmediato, sin esperar el GPS
+
+**Resumen:** al tomar una foto (o detener una nota de voz), el banner "Tu evidencia se enviará en breve" aparecía **tarde** —hasta ~8 s después— y la captura se sentía lenta y sin respuesta. La causa: el aviso (`avisoEncolado`) se disparaba dentro de `encolarCuandoListo()`, que primero hace `join()` del trabajo de GPS (timeout de 8 s) y de la marca de agua, y solo entonces mostraba el banner. Ahora el aviso se dispara **apenas el medio se persiste localmente**, que es cuando la evidencia ya está a salvo; el encolado real (GPS + marca de agua) sigue ocurriendo en segundo plano, sin bloquear el aviso. El texto del banner es una promesa ("se enviará en breve"), no una confirmación de subida, así que mostrarlo al persistir es correcto.
+
+**Cambios:**
+- `ui/captura/CapturaViewModel.kt`: el incremento de `avisoEncolado` se movió a la rama `Result.Success` de `capturarFoto` y de `detenerGrabacionDeAudio` (al persistir), y se quitó de `encolarCuandoListo` (que conserva el `join()` del GPS y el encolado, ahora sin tocar el aviso). Un tic por captura, igual que antes, pero inmediato.
+- `ui/captura/CapturaViewModelTest.kt`: el test del tic ahora **prueba el arreglo** — que `avisoEncolado` crezca ANTES de completar el GPS, y que completarlo después no vuelva a tocarlo (un tic por captura). Antes solo comprobaba el estado final tras el GPS, sin distinguir el comportamiento viejo del nuevo.
+
+**Verificación:** `compileReleaseKotlin` verde; `testDebugUnitTest` 253/253, 0 fallos. La sensación de inmediatez en sí se valida manualmente en dispositivo (pendiente tras instalar el APK nuevo).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `CHANGELOG.md`
+
 ## 2026:10:01 — Renombrar "placa" a "número económico" en el texto visible
 
 **Resumen:** se corrige el **vocabulario visible** de la app: el identificador de la unidad que el custodio captura es su **número económico interno** (no una matrícula), y la app lo rotulaba como "placa". Se actualizan solo los **valores de los strings que ve el usuario** de "placa" a "número económico", sincronizando el vocabulario con el panel del analista (que ya muestra "Número económico" sobre el mismo dato). Cambio de solo texto (Nivel 1): **no se tocan** los nombres de recurso (`campo_placa_*`, `error_*_placa`, `historial_buscar_placa`), ni los identificadores Kotlin (`CampoPlaca`, `normalizarPlaca`, `placaEscrita`), ni el campo de datos `placas` ni las columnas Room — todo eso es el contrato con `pf-infra-firebase` y `pf-web-frontend-analist-panel`, y renombrarlo sería una migración de tres repos.

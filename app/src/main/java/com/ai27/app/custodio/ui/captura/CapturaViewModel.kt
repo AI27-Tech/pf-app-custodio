@@ -213,9 +213,16 @@ class CapturaViewModel @Inject constructor(
                 when (resultado) {
                     // RETIRO_ETIQUETADO (Task 1): ya no se abre la hoja de etiquetado; el
                     // medio pasa directo a la cola de subida (ver encolarCuandoListo).
+                    //
+                    // UX de captura: el aviso "se enviará en breve" se dispara AQUÍ, apenas
+                    // la foto queda persistida localmente, no en encolarCuandoListo. El
+                    // encolado real espera al GPS (hasta 8 s) y a la marca de agua; esperar a
+                    // eso para avisar hacía sentir la captura lenta y "sin respuesta". La foto
+                    // ya está a salvo en este punto, así que el aviso es honesto.
                     is Result.Success -> it.copy(
                         capturando = false,
                         ubicacionTextoEscrita = "",
+                        avisoEncolado = it.avisoEncolado + 1,
                     )
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
@@ -316,9 +323,14 @@ class CapturaViewModel @Inject constructor(
                 when (resultado) {
                     // RETIRO_ETIQUETADO (Task 1): sin hoja de etiquetado; la nota pasa
                     // directo a la cola de subida.
+                    //
+                    // UX de captura: igual que la foto, el aviso "se enviará en breve" se
+                    // dispara AQUÍ, apenas la nota queda persistida, no en encolarCuandoListo
+                    // (que espera el GPS). La nota ya está a salvo en este punto.
                     is Result.Success -> it.copy(
                         capturando = false,
                         ubicacionTextoEscrita = "",
+                        avisoEncolado = it.avisoEncolado + 1,
                     )
                     is Result.Failure -> it.copy(capturando = false, error = resultado.error.aRecurso())
                 }
@@ -379,13 +391,16 @@ class CapturaViewModel @Inject constructor(
     // RETIRO_ETIQUETADO (Task 1): nuevo camino de encolado. Antes la subida se encolaba
     // dentro de guardarEtiqueta; ahora, retirado el etiquetado, se encola apenas termina
     // de adjuntarse el GPS en segundo plano. Se conserva el join() del trabajo de GPS para
-    // que el documento remoto lleve la ubicación igual que antes, y se bumpea avisoEncolado
-    // para que la UI dispare su tic de "se enviará en breve".
+    // que el documento remoto lleve la ubicación igual que antes.
+    //
+    // UX de captura: el aviso "se enviará en breve" YA NO se dispara aquí, sino al persistir
+    // el medio (ver capturarFoto / detenerGrabacionDeAudio). Esperar al join() del GPS
+    // (hasta 8 s) para avisar hacía sentir la captura lenta; el encolado real sigue ocurriendo
+    // aquí en segundo plano, sin bloquear el aviso.
     private fun encolarCuandoListo(reporteId: String, medioId: String) {
         viewModelScope.launch {
             trabajosGps.remove(medioId)?.join()
             programadorSubidas.encolarSubidaMedio(reporteId, medioId)
-            interno.update { it.copy(avisoEncolado = it.avisoEncolado + 1) }
         }
     }
 
