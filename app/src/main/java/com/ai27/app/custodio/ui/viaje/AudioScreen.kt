@@ -37,7 +37,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
-import com.ai27.app.custodio.ui.captura.HojaEtiqueta
+// RETIRO_ETIQUETADO (Task 7): HojaEtiqueta queda retirada de esta pantalla; se comenta su
+// import para reactivarlo con el etiquetado.
+// import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
 import com.ai27.app.custodio.ui.components.BarraSuperior
 import com.ai27.app.custodio.ui.components.BotonGrabacion
@@ -59,7 +61,8 @@ import kotlinx.coroutines.delay
  *
  * El botón redondo ([BotonGrabacion]) alterna iniciar/detener; el cronómetro usa el
  * estilo tabular del sistema y el tope de 5 minutos lo impone el propio grabador. Al
- * terminar, el medio abre [HojaEtiqueta] con su etiqueta obligatoria.
+ * terminar, el medio pasa directo a la cola de subida (RETIRO_ETIQUETADO Task 7: ya no se
+ * abre ninguna hoja de etiquetado).
  *
  * Al pasar la app a segundo plano (`ON_STOP`) la nota **se pausa sola**: seguir grabando
  * exigiría un servicio en primer plano, y dejarla corriendo sin él termina en audio en
@@ -76,9 +79,11 @@ fun AudioScreen(
     onPausarAudio: () -> Unit,
     onReanudarAudio: () -> Unit,
     onDescartarAudio: () -> Unit,
-    onGuardarEtiqueta: (medioId: String, etiquetas: List<String>) -> Unit,
-    onUbicacionTextoCambio: (String) -> Unit,
-    onCerrarHoja: () -> Unit,
+    // RETIRO_ETIQUETADO (Task 7): los callbacks del etiquetado se retiran de la firma.
+    // Comentados —no borrados— para reactivarlos junto con HojaEtiqueta.
+    // onGuardarEtiqueta: (medioId: String, etiquetas: List<String>) -> Unit,
+    // onUbicacionTextoCambio: (String) -> Unit,
+    // onCerrarHoja: () -> Unit,
     onConsumirError: () -> Unit,
     onConsumirAvisoNotaPerdida: () -> Unit,
     modifier: Modifier = Modifier,
@@ -254,14 +259,16 @@ fun AudioScreen(
 
     TicDeEncolado(avisoEncolado = estado.avisoEncolado, retroalimentacion = retroalimentacion)
 
-    estado.medioPendienteDeEtiquetar?.let {
-        HojaEtiqueta(
-            estado = estado,
-            onGuardar = onGuardarEtiqueta,
-            onUbicacionTextoCambio = onUbicacionTextoCambio,
-            onCerrar = onCerrarHoja,
-        )
-    }
+    // RETIRO_ETIQUETADO (Task 7): la hoja de etiquetado se retira. La nota capturada pasa
+    // directo a la cola de subida; ya no se clasifica aquí. Comentado, no borrado.
+    // estado.medioPendienteDeEtiquetar?.let {
+    //     HojaEtiqueta(
+    //         estado = estado,
+    //         onGuardar = onGuardarEtiqueta,
+    //         onUbicacionTextoCambio = onUbicacionTextoCambio,
+    //         onCerrar = onCerrarHoja,
+    //     )
+    // }
     estado.error?.let { error ->
         DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
@@ -301,9 +308,6 @@ private fun AudioVistaClaro() {
             onPausarAudio = {},
             onReanudarAudio = {},
             onDescartarAudio = {},
-            onGuardarEtiqueta = { _, _ -> },
-            onUbicacionTextoCambio = {},
-            onCerrarHoja = {},
             onConsumirError = {},
             onConsumirAvisoNotaPerdida = {},
         )
@@ -328,9 +332,6 @@ private fun AudioVistaOscuro() {
             onPausarAudio = {},
             onReanudarAudio = {},
             onDescartarAudio = {},
-            onGuardarEtiqueta = { _, _ -> },
-            onUbicacionTextoCambio = {},
-            onCerrarHoja = {},
             onConsumirError = {},
             onConsumirAvisoNotaPerdida = {},
         )
@@ -356,9 +357,6 @@ private fun AudioPausadoVistaClaro() {
             onPausarAudio = {},
             onReanudarAudio = {},
             onDescartarAudio = {},
-            onGuardarEtiqueta = { _, _ -> },
-            onUbicacionTextoCambio = {},
-            onCerrarHoja = {},
             onConsumirError = {},
             onConsumirAvisoNotaPerdida = {},
         )
@@ -384,9 +382,6 @@ private fun AudioPausadoVistaOscuro() {
             onPausarAudio = {},
             onReanudarAudio = {},
             onDescartarAudio = {},
-            onGuardarEtiqueta = { _, _ -> },
-            onUbicacionTextoCambio = {},
-            onCerrarHoja = {},
             onConsumirError = {},
             onConsumirAvisoNotaPerdida = {},
         )
@@ -410,9 +405,6 @@ private fun AudioNotaPerdidaVistaOscuro() {
             onPausarAudio = {},
             onReanudarAudio = {},
             onDescartarAudio = {},
-            onGuardarEtiqueta = { _, _ -> },
-            onUbicacionTextoCambio = {},
-            onCerrarHoja = {},
             onConsumirError = {},
             onConsumirAvisoNotaPerdida = {},
         )

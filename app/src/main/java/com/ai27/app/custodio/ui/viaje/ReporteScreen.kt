@@ -189,17 +189,18 @@ private fun ReporteAbierto(
             FranjaAviso(texto = stringResource(R.string.reporte_limite_alcanzado))
         }
 
-        // Evidencia sin clasificar: no sube hasta que se etiquete (E3), así que hay que
-        // decirlo aquí, en el hub, y no solo dentro de Archivos.
-        if (estado.mediosSinEtiquetar.isNotEmpty()) {
-            FranjaAviso(
-                texto = pluralStringResource(
-                    R.plurals.archivos_aviso_sin_etiquetar,
-                    estado.mediosSinEtiquetar.size,
-                    estado.mediosSinEtiquetar.size,
-                ),
-            )
-        }
+        // RETIRO_ETIQUETADO: se retira el aviso de "sin clasificar" del hub. La captura
+        // sube de inmediato sin etiquetar, así que ya no hay evidencia pendiente de
+        // clasificar que anunciar. Comentado, no borrado.
+        // if (estado.mediosSinEtiquetar.isNotEmpty()) {
+        //     FranjaAviso(
+        //         texto = pluralStringResource(
+        //             R.plurals.archivos_aviso_sin_etiquetar,
+        //             estado.mediosSinEtiquetar.size,
+        //             estado.mediosSinEtiquetar.size,
+        //         ),
+        //     )
+        // }
 
         BotonPrimario(
             texto = stringResource(R.string.captura_titulo),

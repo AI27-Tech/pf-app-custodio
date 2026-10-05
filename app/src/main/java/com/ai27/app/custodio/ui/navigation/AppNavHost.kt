@@ -181,9 +181,7 @@ fun AppNavHost() {
                         onAtras = { navController.popBackStack() },
                         onTomarFoto = viewModel::capturarFoto,
                         onFallaDeCaptura = viewModel::fallaDeCaptura,
-                        onGuardarEtiqueta = viewModel::guardarEtiqueta,
-                        onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
-                        onCerrarHoja = viewModel::descartarEtiquetado,
+                        // RETIRO_ETIQUETADO (Task 7): callbacks de etiquetado retirados.
                         onConsumirError = viewModel::consumirError,
                         modifier = Modifier
                             .fillMaxSize()
@@ -204,9 +202,7 @@ fun AppNavHost() {
                         onPausarAudio = viewModel::pausarGrabacionDeAudio,
                         onReanudarAudio = viewModel::reanudarGrabacionDeAudio,
                         onDescartarAudio = viewModel::descartarAudio,
-                        onGuardarEtiqueta = viewModel::guardarEtiqueta,
-                        onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
-                        onCerrarHoja = viewModel::descartarEtiquetado,
+                        // RETIRO_ETIQUETADO (Task 7): callbacks de etiquetado retirados.
                         onConsumirError = viewModel::consumirError,
                         onConsumirAvisoNotaPerdida = viewModel::consumirAvisoNotaPerdida,
                         modifier = Modifier
@@ -225,10 +221,7 @@ fun AppNavHost() {
                         onAtras = { navController.popBackStack() },
                         onBorrarPendiente = viewModel::borrarPendiente,
                         onReintentar = viewModel::reintentar,
-                        onRetomarEtiquetado = viewModel::retomarEtiquetado,
-                        onGuardarEtiqueta = viewModel::guardarEtiqueta,
-                        onUbicacionTextoCambio = viewModel::onUbicacionTextoCambio,
-                        onCerrarHoja = viewModel::descartarEtiquetado,
+                        // RETIRO_ETIQUETADO (Task 7): callbacks de etiquetado retirados.
                         onConsumirError = viewModel::consumirError,
                         onIrACaptura = { navController.navigate(Rutas.CAPTURA) { launchSingleTop = true } },
                         modifier = Modifier

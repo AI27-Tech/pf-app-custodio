@@ -23,11 +23,11 @@
     <!-- Biblioteca de componentes: barra superior -->
     <string name="barra_superior_volver">Volver</string>
 
-    <!-- Biblioteca de componentes: campo de placa -->
-    <string name="campo_placa_rotulo">Placa de la unidad</string>
-    <string name="campo_placa_placeholder">INGRESE PLACA</string>
-    <string name="campo_placa_limpiar">Limpiar placa</string>
-    <string name="campo_placa_titulo">PLACAS RECIENTES EN RUTA</string>
+    <!-- Biblioteca de componentes: campo de número económico -->
+    <string name="campo_placa_rotulo">Número económico</string>
+    <string name="campo_placa_placeholder">INGRESE NÚMERO ECONÓMICO</string>
+    <string name="campo_placa_limpiar">Limpiar número económico</string>
+    <string name="campo_placa_titulo">NÚMEROS ECONÓMICOS RECIENTES EN RUTA</string>
 
     <!-- Texto común entre pantallas -->
     <string name="comun_cancelar">Cancelar</string>
@@ -61,21 +61,16 @@
     </plurals>
 
     <!-- Login -->
-    <string name="login_subtitulo">Escribe tu número de teléfono para recibir el código de acceso.</string>
-    <string name="login_telefono">Teléfono</string>
-    <!-- El +52 (México) ya va fijo en el campo: el usuario solo escribe los 10 dígitos. -->
-    <string name="login_telefono_prefijo">+52</string>
-    <string name="login_telefono_hint">55 1234 5678</string>
-    <string name="login_enviar_codigo">Enviar código</string>
-    <string name="login_codigo">Código</string>
-    <string name="login_codigo_enviado">Te enviamos un SMS con el código.</string>
-    <string name="login_verificar">Verificar</string>
-    <string name="login_reenviar_en">Reenviar en %1$d s</string>
-    <string name="login_reenviar">Reenviar código</string>
-    <string name="login_regresar">Regresar</string>
+    <string name="login_subtitulo">Escribe tu correo y contraseña para entrar.</string>
+    <string name="login_correo">Correo</string>
+    <string name="login_correo_hint">nombre@ai27.com</string>
+    <string name="login_contrasena">Contraseña</string>
+    <string name="login_iniciar_sesion">Iniciar sesión</string>
+    <string name="login_mostrar_contrasena">Mostrar</string>
+    <string name="login_ocultar_contrasena">Ocultar</string>
 
     <!-- Mensajes de error del dominio -->
-    <string name="error_placa_vacia_sin_valor">La placa no es válida: escribe un número de placa.</string>
+    <string name="error_placa_vacia_sin_valor">El número económico no es válido: escribe un número económico.</string>
     <string name="error_ya_existe_activo">Ya hay un reporte en curso en este teléfono.</string>
     <string name="error_no_hay_activo">No hay un reporte en curso.</string>
     <string name="error_no_encontrado">No se encontró el reporte.</string>
@@ -91,17 +86,16 @@
     <string name="error_medio_no_encontrado">La evidencia ya no existe.</string>
     <string name="error_medio_en_subida">La evidencia ya está en envío y no puede borrarse.</string>
     <string name="error_medio_ya_subido">La evidencia ya fue enviada.</string>
-    <string name="error_numero_invalido">El número debe tener 10 dígitos; el +52 va incluido.</string>
-    <string name="error_sin_respuesta_sms">El envío tardó demasiado. Revisa tu conexión y vuelve a intentarlo.</string>
-    <string name="error_codigo_invalido">El código no es válido. Revísalo e inténtalo de nuevo.</string>
-    <string name="error_codigo_expirado">El código expiró. Pide un código nuevo.</string>
+    <string name="error_credenciales_invalidas">El correo o la contraseña no son correctos.</string>
+    <string name="error_cuenta_deshabilitada">Esta cuenta está deshabilitada. Contacta al administrador.</string>
+    <string name="error_correo_invalido">El correo no es válido. Revísalo e inténtalo de nuevo.</string>
     <string name="error_demasiados_intentos">Demasiados intentos. Espera un momento y vuelve a intentar.</string>
-    <string name="error_tel_no_autorizado">Este teléfono no está autorizado para usar la app. Contacta al administrador.</string>
+    <string name="error_correo_no_autorizado">Este correo no está autorizado para usar la app. Contacta al administrador.</string>
     <string name="error_sin_conexion">Sin conexión. Revisa tu red e inténtalo de nuevo.</string>
     <string name="error_inesperado">Algo salió mal. Intenta de nuevo.</string>
 
     <!-- Errores de validación de las pantallas -->
-    <string name="error_escribe_placa">Escribe la placa para iniciar el reporte.</string>
+    <string name="error_escribe_placa">Escribe el número económico para iniciar el reporte.</string>
     <string name="error_grabacion_no_inicio">No se pudo iniciar la grabación.</string>
     <string name="error_grabacion_no_reanudo">No se pudo reanudar la nota. Detenla para guardar lo grabado.</string>
     <string name="error_grabacion_fallo">La grabación falló y la nota se descartó. Vuelve a intentarlo.</string>
@@ -115,7 +109,7 @@
     <string name="descarte_texto">Esto marca el reporte como descartado. Lo que ya se envió no se borra; se excluye de los reportes del analista.</string>
     <string name="descarte_motivo_rotulo">Motivo del descarte</string>
     <string name="descarte_motivo_placeholder">Escribe el motivo</string>
-    <string name="descarte_motivo_placa_equivocada">Placa equivocada</string>
+    <string name="descarte_motivo_placa_equivocada">Número económico equivocado</string>
     <string name="descarte_motivo_cancelado_cliente">Reporte cancelado por el cliente</string>
     <string name="descarte_motivo_duplicado">Duplicado</string>
     <string name="descarte_motivo_prueba_error">Prueba / error</string>
@@ -125,7 +119,7 @@
 
     <!-- DialogoCerrarSesion -->
     <string name="cierre_sesion_titulo">¿Cerrar sesión?</string>
-    <string name="cierre_sesion_telefono">Sesión de %1$s</string>
+    <string name="cierre_sesion_correo">Sesión de %1$s</string>
     <string name="cierre_sesion_pendientes">Tienes %1$s. Si cierras sesión, esa evidencia perderá su cola de subida.</string>
     <string name="cierre_sesion_salir">Salir</string>
     <string name="cierre_sesion_salir_de_todos_modos">Salir de todos modos</string>
@@ -223,7 +217,7 @@
     <string name="hoja_guardar">Guardar</string>
 
     <!-- Historial -->
-    <string name="historial_buscar_placa">Buscar por placa</string>
+    <string name="historial_buscar_placa">Buscar por número económico</string>
     <string name="historial_vacio">Sin reportes en los últimos 30 días.</string>
     <string name="historial_sin_coincidencias">Ningún reporte coincide con «%1$s».</string>
     <string name="historial_detalle_viaje">Reporte del %1$s · %2$d de %3$d enviados</string>

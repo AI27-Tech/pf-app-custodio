@@ -39,7 +39,7 @@ class CrearReporte(
             placas = placas,
             placasCapturadas = placasCapturadas.trim(),
             custodioUid = custodio.uid,
-            custodioTelefono = custodio.telefono,
+            custodioCorreo = custodio.correo,
             clienteId = clienteId,
             deviceId = deviceId,
             fechaLocal = fechaLocalDe(instante),

@@ -12,7 +12,7 @@ import org.junit.Test
 
 class RootViewModelTest {
 
-    private val custodio = Custodio(uid = "c-1", telefono = "+525544880512")
+    private val custodio = Custodio(uid = "c-1", correo = "custodio@ai27.com")
 
     private fun crearViewModel(reportes: FakeReporteRepository) = RootViewModel(
         sesionRepositorio = FakeSesionRepositorio(custodio),
@@ -46,7 +46,7 @@ class RootViewModelTest {
         runTest {
             val reportes = FakeReporteRepository()
             val vm = crearViewModel(reportes)
-            val otroCustodio = Custodio(uid = "c-2", telefono = "+525544880513")
+            val otroCustodio = Custodio(uid = "c-2", correo = "otro@ai27.com")
             CrearReporte(reportes).invoke(otroCustodio, "dev-test", "cli", "XYZ-0000")
 
             assertFalse(vm.hayReporteActivo(custodio.uid))

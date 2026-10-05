@@ -73,7 +73,7 @@ class SubidaMedioProcesoRoomTest {
         placas = "ABC-1",
         placasCapturadas = "ABC-1",
         custodioUid = "c-1",
-        custodioTelefono = "a@b.cl",
+        custodioCorreo = "a@b.cl",
         clienteId = "cli-tmp",
         deviceId = "dev-1",
         fechaLocal = "2026-09-18",

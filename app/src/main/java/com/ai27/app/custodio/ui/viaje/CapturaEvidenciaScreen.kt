@@ -45,7 +45,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.ai27.app.custodio.R
 import com.ai27.app.custodio.ui.captura.CapturaUiState
-import com.ai27.app.custodio.ui.captura.HojaEtiqueta
+// RETIRO_ETIQUETADO (Task 4): HojaEtiqueta queda retirada de esta pantalla; se comenta su
+// import para reactivarlo con el etiquetado.
+// import com.ai27.app.custodio.ui.captura.HojaEtiqueta
 import com.ai27.app.custodio.ui.captura.VistaCamara
 import com.ai27.app.custodio.ui.captura.tomarFoto
 import com.ai27.app.custodio.ui.components.AvisoSubidaFlotante
@@ -74,8 +76,8 @@ private data class PermisosCamara(
  * Pantalla de captura de evidencia a pantalla completa (`captura_de_evidencia_cámara_visor_negro`).
  *
  * La cámara llena el área; la barra superior y el disparador se dibujan encima como
- * overlays opacos. Al disparar, el medio queda pendiente de etiquetar y [HojaEtiqueta]
- * se abre sobre esta pantalla.
+ * overlays opacos. Al disparar, el medio queda persistido y pasa directo a la cola de
+ * subida (RETIRO_ETIQUETADO Task 4: ya no se abre ninguna hoja de etiquetado).
  */
 @Composable
 fun CapturaEvidenciaScreen(
@@ -84,9 +86,11 @@ fun CapturaEvidenciaScreen(
     onAtras: () -> Unit,
     onTomarFoto: (jpeg: ByteArray, miniatura: ByteArray) -> Unit,
     onFallaDeCaptura: (causa: Throwable) -> Unit,
-    onGuardarEtiqueta: (medioId: String, etiquetas: List<String>) -> Unit,
-    onUbicacionTextoCambio: (String) -> Unit,
-    onCerrarHoja: () -> Unit,
+    // RETIRO_ETIQUETADO (Task 4): los callbacks del etiquetado se retiran de la firma.
+    // Se dejan comentados —no borrados— para reactivarlos junto con HojaEtiqueta.
+    // onGuardarEtiqueta: (medioId: String, etiquetas: List<String>) -> Unit,
+    // onUbicacionTextoCambio: (String) -> Unit,
+    // onCerrarHoja: () -> Unit,
     onConsumirError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -309,14 +313,16 @@ fun CapturaEvidenciaScreen(
 
     TicDeEncolado(avisoEncolado = estado.avisoEncolado, retroalimentacion = retroalimentacion)
 
-    estado.medioPendienteDeEtiquetar?.let {
-        HojaEtiqueta(
-            estado = estado,
-            onGuardar = onGuardarEtiqueta,
-            onUbicacionTextoCambio = onUbicacionTextoCambio,
-            onCerrar = onCerrarHoja,
-        )
-    }
+    // RETIRO_ETIQUETADO (Task 4): la hoja de etiquetado se retira. El medio capturado pasa
+    // directo a la cola de subida; ya no se clasifica aquí. Comentado, no borrado.
+    // estado.medioPendienteDeEtiquetar?.let {
+    //     HojaEtiqueta(
+    //         estado = estado,
+    //         onGuardar = onGuardarEtiqueta,
+    //         onUbicacionTextoCambio = onUbicacionTextoCambio,
+    //         onCerrar = onCerrarHoja,
+    //     )
+    // }
     estado.error?.let { error ->
         DialogoError(mensaje = stringResource(error), onCerrar = onConsumirError)
     }
@@ -336,9 +342,6 @@ private fun CapturaEvidenciaVistaClaro() {
             onAtras = {},
             onTomarFoto = { _, _ -> },
             onFallaDeCaptura = {},
-            onGuardarEtiqueta = { _, _ -> },
-            onUbicacionTextoCambio = {},
-            onCerrarHoja = {},
             onConsumirError = {},
         )
     }
@@ -358,9 +361,6 @@ private fun CapturaEvidenciaVistaOscuro() {
             onAtras = {},
             onTomarFoto = { _, _ -> },
             onFallaDeCaptura = {},
-            onGuardarEtiqueta = { _, _ -> },
-            onUbicacionTextoCambio = {},
-            onCerrarHoja = {},
             onConsumirError = {},
         )
     }

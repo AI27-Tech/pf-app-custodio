@@ -1,6 +1,5 @@
 package com.ai27.app.custodio
 
-import android.app.Activity
 import com.ai27.app.custodio.data.diagnostico.MetodoAuth
 import com.ai27.app.custodio.data.diagnostico.RegistroDeEventos
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
@@ -13,7 +12,6 @@ import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.Custodio
-import com.ai27.app.custodio.domain.model.EventoVerificacion
 import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.repository.AllowlistRepositorio
 import com.ai27.app.custodio.domain.repository.SesionRepositorio
@@ -21,48 +19,27 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 
 class FakeSesionRepositorio(custodio: Custodio?) : SesionRepositorio {
     private val flujo = MutableStateFlow(custodio)
 
-    /** El custodio que "autentica" [enviarCodigo]/[verificarCodigo]; la verificación de
-     *  TeléfonoNoAutorizado la decide la capa de allowlist (Task 4), no este fake. */
-    var custodioAlVerificar: Custodio = custodio ?: Custodio("u-fake", "+525544880512")
+    /** El custodio que "autentica" [iniciarSesion]; la verificación de CorreoNoAutorizado la
+     *  decide la capa de allowlist, no este fake. */
+    var custodioAlAutenticar: Custodio = custodio ?: Custodio("u-fake", "custodio@ai27.com")
 
-    /** Si se fija, [enviarCodigo]/[verificarCodigo] fallan con este error. */
-    var errorAlVerificar: DominioError? = null
+    /** Si se fija, [iniciarSesion] falla con este error. */
+    var errorAlAutenticar: DominioError? = null
 
-    /** Qué evento emite `enviarCodigo`/`reenviarCodigo` según el teléfono pedido. */
-    var alEnviarSms: (telefono: String) -> EventoVerificacion =
-        { EventoVerificacion.CodigoEnviado("vid-1", 0L) }
-
-    /** E.164 con el que se pidió cada SMS, para afirmar la composición del prefijo +52. */
-    val telefonosSolicitados = mutableListOf<String>()
-
-    /** verificationId de cada `reenviarCodigo`, para afirmar que se reutiliza la sesión. */
-    val reenviosSolicitados = mutableListOf<String>()
+    /** Par (correo, contraseña) de cada intento, en orden. */
+    val intentos = mutableListOf<Pair<String, String>>()
 
     override fun observarCustodio(): Flow<Custodio?> = flujo
 
-    override fun enviarCodigo(activity: Activity?, telefono: String): Flow<EventoVerificacion> {
-        telefonosSolicitados.add(telefono)
-        return flowOf(alEnviarSms(telefono))
-    }
-
-    override fun reenviarCodigo(
-        activity: Activity?,
-        verificationId: String,
-        resendToken: Long,
-    ): Flow<EventoVerificacion> {
-        reenviosSolicitados.add(verificationId)
-        return flowOf(alEnviarSms(verificationId))
-    }
-
-    override suspend fun verificarCodigo(verificationId: String, codigo: String): Result<Custodio> {
-        errorAlVerificar?.let { return Result.Failure(it) }
-        flujo.value = custodioAlVerificar
-        return Result.Success(custodioAlVerificar)
+    override suspend fun iniciarSesion(correo: String, contrasena: String): Result<Custodio> {
+        intentos.add(correo to contrasena)
+        errorAlAutenticar?.let { return Result.Failure(it) }
+        flujo.value = custodioAlAutenticar
+        return Result.Success(custodioAlAutenticar)
     }
 
     /** Cierres de sesión efectuados, en orden, para poder afirmar qué pasó antes del signOut. */
@@ -80,15 +57,15 @@ class FakeSesionRepositorio(custodio: Custodio?) : SesionRepositorio {
 }
 
 /**
- * Allowlist falsa: guarda qué teléfonos se consultaron y la respuesta es configurable.
- * Basa la verificación de TeléfonoNoAutorizado del PHONE_AUTH_PLAN Task 4 sin tocar red.
+ * Allowlist falsa: guarda qué correos se consultaron y la respuesta es configurable.
+ * Basa la verificación de CorreoNoAutorizado sin tocar red.
  */
 class FakeAllowlistRepositorio : AllowlistRepositorio {
     val consultados = mutableListOf<String>()
     var respuesta: Result<Boolean> = Result.Success(true)
 
-    override suspend fun contiene(telefono: String): Result<Boolean> {
-        consultados.add(telefono)
+    override suspend fun contiene(correo: String): Result<Boolean> {
+        consultados.add(correo)
         return respuesta
     }
 }
@@ -216,5 +193,34 @@ class FakeRegistroDeEventos : RegistroDeEventos {
     val registrados = mutableListOf<Pair<MetodoAuth, ResultadoLogin>>()
     override fun registroLogin(metodo: MetodoAuth, resultado: ResultadoLogin) {
         registrados.add(metodo to resultado)
+    }
+}
+
+/**
+ * Estampador falso: no decodifica bitmaps (imposible en JVM). Registra qué marca y qué mapa
+ * recibió y devuelve bytes marcadores, para afirmar en JVM que la composición de la marca de
+ * agua se invocó con los datos esperados.
+ */
+class FakeEstampadorFoto : com.ai27.app.custodio.data.marcaDeAgua.EstampadorFoto {
+    val llamadas = mutableListOf<Pair<com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua, com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa?>>()
+    override fun estampar(
+        jpegLimpio: ByteArray,
+        marca: com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua,
+        mapa: com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa?,
+    ): ByteArray {
+        llamadas.add(marca to mapa)
+        return byteArrayOf(0x4D, 0x41, 0x52, 0x43, 0x41) // "MARCA"
+    }
+    override fun ladoMapaPx(jpegLimpio: ByteArray): Int = 240
+}
+
+/** Proveedor de snapshot falso: devuelve [resultado] (por defecto null, como sin red). */
+class FakeProveedorSnapshotMapa(
+    private val resultado: com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa? = null,
+) : com.ai27.app.custodio.data.mapa.ProveedorSnapshotMapa {
+    var veces = 0
+    override suspend fun snapshot(gps: Gps, ladoPx: Int): com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa? {
+        veces++
+        return resultado
     }
 }

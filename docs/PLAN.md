@@ -22,7 +22,7 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 |---|---|
 | Usuario | **Custodio de AI27**, 37 personas. No el operador del tracto |
 | Cliente | **Uno solo** por ahora; se escribe `clienteId` con valor fijo para no migrar después |
-| Auth | Firebase Auth por **teléfono verificado por SMS** (E.164 +52), login de dos fases número→OTP; identidad = teléfono, no correo. Allowlist de teléfonos en `telefonos_autorizados/{e164}` verificada tras el OTP; sesión persistente, logout visible. Ver "Lo que cambió" (PHONE_AUTH) |
+| Auth | Firebase Auth por **correo + contraseña**, login de una sola fase; identidad = correo, no teléfono. Allowlist de correos en `correos_autorizados/{email}` verificada tras autenticar; sesión persistente, logout visible. Ver "Lo que cambió" (EMAIL_AUTH) |
 | Unidad de agrupación | **Un reporte = un viaje.** Se abre al tomar el transporte, se cierra al entregarlo |
 | Reporte activo | **Uno a la vez.** No se puede crear otro hasta cerrar o descartar el actual |
 | Identificador | **Placa del tracto**, capturada al crear el reporte. Se cruza con fecha para ligar a un servicio (no hay folio) |
@@ -43,7 +43,8 @@ De ahí salen las tres reglas que gobiernan todo el diseño:
 - **Se quitó el selector de galería** (R6). Pediste GPS y hora por archivo; una foto sacada de la galería puede ser de otro día y otro lugar, y vacía justamente el dato que da valor.
 - **Se desnormalizan campos del reporte en cada documento de media** (B2). Firestore no hace joins: sin esto, "todos los audios de la placa XYZ la semana pasada" es imposible.
 - **Las fotos subieron de 10 a 50** (D3, R11). La resolución quedó en 1920×1080 calidad 88, y está en revisión porque el propósito real —leer el contenido de la foto— pide más (§3.4).
-- **La identidad del custodio pasó de correo+contraseña a teléfono verificado por SMS** (PHONE_AUTH, 2026-09-23). El login es de dos fases (número → OTP), la autorización se resuelve con una allowlist de teléfonos en `telefonos_autorizados/{e164}` (un documento por número, modelo P1-6) verificada **después** del OTP (el refuerzo de servidor `beforeCreate` quedó desplegado pero **inerte**, pendiente de la decisión de subir a Identity Platform/GCIP — ver §9 A2), y el contrato de datos cambió `custodioCorreo` → `custodioTelefono`. El correo+contraseña quedó descartado por completo; el único correo que sobrevive es el del **analista** del panel (`config/analistas.correos`), que es otro eje. Detalle del contrato en §5.1, provisión en §9 (A1/A2).
+- **La identidad del custodio pasó de correo+contraseña a teléfono verificado por SMS** (PHONE_AUTH, 2026-09-23). El login era de dos fases (número → OTP), la autorización se resolvía con una allowlist de teléfonos en `telefonos_autorizados/{e164}` (un documento por número, modelo P1-6) verificada **después** del OTP, y el contrato de datos cambió `custodioCorreo` → `custodioTelefono`.
+- **…y de vuelta al correo, ahora con contraseña** (EMAIL_AUTH, 2026-09-28). El SMS no se entrega de forma confiable en campo y dejaba al custodio fuera de la app, así que el método se cambió a `signInWithEmailAndPassword`: una sola fase, sin OTP, sin `Activity`, sin reCAPTCHA y sin round-trip. **Es un cutover completo, sin retrocompatibilidad**: la identidad vuelve a ser el correo (`Custodio(uid, correo)`, `correos_autorizados/{email}` verificada después de autenticar, contrato `custodioCorreo` de nuevo, columna Room `custodioCorreo` con migración 4→5). El teléfono queda **solo como dato informativo** en el aprovisionamiento: ya no es llave de autenticación ni de autorización. El `beforeCreate` de GCIP sigue siendo el candado de servidor, y ahora autoriza por existencia de `correos_autorizados/{email}`. Detalle en §5.1, §5.4 y §5.5.
 
 ---
 
@@ -141,10 +142,10 @@ Convención de nombres: los conceptos de negocio en español (`reportes`, `medio
 
 ```
 usuarios/{uid}
-  telefono, nombre, rol, activo                  ← identidad por teléfono (PHONE_AUTH)
+  correo, telefono, nombre, rol, activo         ← identidad por correo; el teléfono es dato (EMAIL_AUTH)
 
-telefonos_autorizados/{e164}
-  telefono, nombre, activo        ← allowlist E.164 (+52…); un documento por número, id == E.164. Ver §5.4
+correos_autorizados/{email}
+  correo, telefono, nombre, activo   ← allowlist de correo; un documento por correo, id == correo en minúsculas. Ver §5.4
 
 catalogos/etiquetas
   valores: [{ id, nombre, categoria, orden, activo }]   ← A4 entregado §3.1
@@ -154,7 +155,7 @@ reportes/{reporteId}                             ← contenedor de un viaje
   placas            string   normalizada: mayúsculas, sin espacios ni guiones
   placasCapturadas  string   lo que el custodio tecleó, tal cual
   custodioUid       string
-  custodioTelefono  string   E.164; reemplazó a custodioCorreo (PHONE_AUTH)
+  custodioCorreo   string   correo del custodio; vuelve a ser el contrato (EMAIL_AUTH)
   clienteId         string   valor fijo por ahora
   deviceId          string
   fechaLocal        string   "YYYY-MM-DD" en America/Mexico_City
@@ -216,12 +217,12 @@ Agrupado por reporte porque "evidencia para el cliente" significa descargar un v
 - `reportes`: se puede actualizar mientras `ciclo == ACTIVO`. Transiciones permitidas: `ACTIVO → CERRADO` y `ACTIVO → DESCARTADO`. Una vez `CERRADO`, sólo se admite avanzar `subida`, `mediosSubidos` y `completo` — nada más, y nunca de regreso a `ACTIVO`.
 - `medios`: creación permitida al dueño; **update y delete negados siempre**.
 - `delete` negado en `reportes` siempre. Descartar es un estado.
-- `telefonos_autorizados/{e164}` (allowlist de teléfonos, PHONE_AUTH): un documento por número, escritura negada desde el cliente. La regla deja leer **solo el documento del propio custodio** (`request.auth.token.phone_number == e164`); así nadie enumera los teléfonos de los demás (P1-6). La escribe el aprovisionamiento con Admin SDK (§9 A2). Sustituye al documento enumerable `config/telefonos`.
-- El acceso de lectura del dashboard se resuelve por **correo del analista** en `config/analistas.correos` (no por custom claim). El correo del analista es un eje aparte de la identidad del custodio, que es por teléfono. Fuera de este plan en cuanto a UI, pero las reglas se escriben desde ahora para no dejarlas abiertas "temporalmente".
+- `correos_autorizados/{email}` (allowlist de correos, EMAIL_AUTH): un documento por correo, escritura negada desde el cliente. La regla deja leer **solo el documento del propio custodio** (`request.auth.token.email == email`); así nadie enumera los correos de los demás (P1-6). La escribe el aprovisionamiento con Admin SDK (§9 A2). Sustituye a `telefonos_autorizados/{e164}`, que queda de baja con el corte a correo.
+- El acceso de lectura del dashboard se resuelve por **correo del analista** en `config/analistas.correos` (no por custom claim). El correo del analista es un eje aparte del de la identidad del custodio, que ahora también es por correo pero con otra lista. Fuera de este plan en cuanto a UI, pero las reglas se escriben desde ahora para no dejarlas abiertas "temporalmente".
 
 ### 5.4 Identidad, autenticación e idempotencia
 
-**Autenticación (PHONE_AUTH).** La identidad del custodio es su **teléfono E.164 verificado por SMS** (Firebase Phone Auth), no un correo. El login es de dos fases: el custodio teclea el número, recibe un OTP y lo confirma. La **autorización** se resuelve **después** del OTP contra la allowlist `telefonos_autorizados/{e164}`: un teléfono verificado cuyo documento no exista no entra. La app solo lee la **existencia** de su propio documento, permitido porque el token ya trae `phone_number` (`docs/PLAN_ALLOWLIST_POR_DOCUMENTO.md`). El `beforeCreate` (`firebase/functions`) que reforzaría esa puerta del lado del servidor está **desplegado pero inerte**: exige `subtype: GCIP` (migración irreversible, decisión de producto diferida — §9 A2). `Custodio(uid, telefono)` es lo que circula por la sesión; el correo+contraseña anterior quedó descartado.
+**Autenticación (EMAIL_AUTH).** La identidad del custodio es su **correo**, con contraseña de Firebase Auth (`signInWithEmailAndPassword`). El login es de una sola fase: correo y contraseña, sin OTP y sin `Activity`. Se sustituyó al OTP por SMS porque el mensaje no se entrega de forma confiable en campo y dejaba al custodio fuera de la app. La **autorización** se resuelve **después** de autenticar contra la allowlist `correos_autorizados/{email}`: un correo que autenticó pero cuyo documento no exista no entra, y su sesión se cierra. La app solo lee la **existencia** de su propio documento, permitido porque el token ya trae `email` (`docs/PLAN_ALLOWLIST_POR_DOCUMENTO.md`). El `beforeCreate` (`firebase/functions`, hoy **`bloquearCorreoNoAutorizado`**) es el candado de servidor y autoriza por la misma existencia: exige `subtype: GCIP`, que ya está activo desde 2026-09-25. `Custodio(uid, correo)` es lo que circula por la sesión. El teléfono se conserva **solo como dato informativo** en `usuarios/{uid}` y en el documento de allowlist: ya no es llave de autenticación ni de autorización.
 
 `reporteId` y `medioId` son **UUID generados en el cliente**. La ruta en Storage y el id del documento se derivan de ellos, así que un reintento sobrescribe en lugar de duplicar. Es lo que hace segura una cola offline con backoff.
 
@@ -306,6 +307,8 @@ Estado al 2026-09-23: **A1 hecha, A2 hecha (provisión) + beforeCreate inerte, A
 
 [^1] Nota A2: registrable cuando exista GCIP vía `PATCH .../admin/v2/projects/{project}/config?updateMask=blockingFunctions.triggers.beforeCreate` con el `functionUri` de la función ya desplegada (`https://us-central1-custodio-906e7268.cloudfunctions.net/bloquearTelefonoNoAutorizado`).
 
+> **Nota EMAIL_AUTH (2026-09-28):** A2/A3 registran el aprovisionamiento y despliegue del modelo por **teléfono** (histórico, `telefonos_autorizados/{e164}`, cuentas por teléfono, `bloquearTelefonoNoAutorizado`). Con el cutover a correo + contraseña esos pasos cambian: el aprovisionamiento crea cuentas **correo + contraseña** desde `custodios.csv` y puebla `correos_autorizados/{email}` (el teléfono queda como dato en `usuarios/{uid}`); las reglas y el `beforeCreate` (ahora `bloquearCorreoNoAutorizado`) se re-keyean a correo. La ejecución en producción de esos despliegues es la **Task 9** del plan raíz (`~/Documents/ai-27/PLAN-AUTH-CUSTODIO-CORREO.md`), de blast radius alto y pendiente de confirmación del humano; se re-registrará aquí cuando se ejecute. Detalle del modelo nuevo en §5.1/§5.4.
+
 ### Carril B — app
 
 | # | Fase | Termina cuando |
@@ -334,7 +337,7 @@ Cada fase cierra con `./gradlew testDebugUnitTest` en verde y un commit.
 
 ## 10. Trazabilidad
 
-Cada decisión de este plan sale de una respuesta del cuestionario `to-questionnaire-app-custodio.md`.
+Cada decisión de este plan sale de una respuesta del cuestionario `docs/cuestionarios/to-questionnaire-app-custodio.md`.
 
 | Decisión | Origen |
 |---|---|
@@ -372,6 +375,7 @@ Cada decisión de este plan sale de una respuesta del cuestionario `to-questionn
 | Plan en español; fases reordenadas | G7, G8 |
 | SHA-256, EXIF conservado, sin retención aún | D6, D7 |
 | Identidad por teléfono verificado por SMS; allowlist tras OTP | PHONE_AUTH (supersede la fila "Auth = correo+contraseña" de §2) |
+| Identidad por correo + contraseña; allowlist tras autenticar | EMAIL_AUTH (supersede a PHONE_AUTH) |
 
 
 ---

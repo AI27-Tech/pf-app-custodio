@@ -2,6 +2,290 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:10:05 13:30
+
+**Resumen:** Se eliminó el diálogo de confirmación al cerrar un reporte; el botón ahora confirma directamente.
+
+**Cambios:**
+- El botón "Cerrar viaje" en `CierreScreen` llama directamente a `onCerrarViaje` sin mostrar el `DialogoConfirmacion` intermedio.
+- Se eliminó el estado `mostrarConfirmacionCierre` y el bloque `DialogoConfirmacion` del cierre.
+- Se conserva el `DialogoConfirmacion` de la confirmación de salida (U11) y el `DialogoDescarte`.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CierreScreen.kt`
+
+## 2026:10:01 — Subir versión a 1.0.1 (versionCode 2)
+
+**Resumen:** se incrementa la versión para publicar el APK con los cambios recientes (renombrado "placa" → "número económico" y aviso de captura inmediato). `versionName` pasa de "1.0" a **"1.0.1"** y `versionCode` de 1 a **2**. El `versionCode` debe crecer de forma monótona para que Android instale la actualización **in-place** sobre la instalación v1 en campo sin desinstalar (desinstalar borraría la cola local de evidencia).
+
+**Cambios:**
+- `app/build.gradle.kts`: `versionCode = 2`, `versionName = "1.0.1"`.
+
+**Verificación:** cambio de build-script (requiere Gradle sync). El APK release se regenera a partir de esta versión.
+
+**Archivos modificados:**
+- `app/build.gradle.kts`
+- `CHANGELOG.md`
+
+## 2026:10:01 — El aviso de captura aparece de inmediato, sin esperar el GPS
+
+**Resumen:** al tomar una foto (o detener una nota de voz), el banner "Tu evidencia se enviará en breve" aparecía **tarde** —hasta ~8 s después— y la captura se sentía lenta y sin respuesta. La causa: el aviso (`avisoEncolado`) se disparaba dentro de `encolarCuandoListo()`, que primero hace `join()` del trabajo de GPS (timeout de 8 s) y de la marca de agua, y solo entonces mostraba el banner. Ahora el aviso se dispara **apenas el medio se persiste localmente**, que es cuando la evidencia ya está a salvo; el encolado real (GPS + marca de agua) sigue ocurriendo en segundo plano, sin bloquear el aviso. El texto del banner es una promesa ("se enviará en breve"), no una confirmación de subida, así que mostrarlo al persistir es correcto.
+
+**Cambios:**
+- `ui/captura/CapturaViewModel.kt`: el incremento de `avisoEncolado` se movió a la rama `Result.Success` de `capturarFoto` y de `detenerGrabacionDeAudio` (al persistir), y se quitó de `encolarCuandoListo` (que conserva el `join()` del GPS y el encolado, ahora sin tocar el aviso). Un tic por captura, igual que antes, pero inmediato.
+- `ui/captura/CapturaViewModelTest.kt`: el test del tic ahora **prueba el arreglo** — que `avisoEncolado` crezca ANTES de completar el GPS, y que completarlo después no vuelva a tocarlo (un tic por captura). Antes solo comprobaba el estado final tras el GPS, sin distinguir el comportamiento viejo del nuevo.
+
+**Verificación:** `compileReleaseKotlin` verde; `testDebugUnitTest` 253/253, 0 fallos. La sensación de inmediatez en sí se valida manualmente en dispositivo (pendiente tras instalar el APK nuevo).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `CHANGELOG.md`
+
+## 2026:10:01 — Renombrar "placa" a "número económico" en el texto visible
+
+**Resumen:** se corrige el **vocabulario visible** de la app: el identificador de la unidad que el custodio captura es su **número económico interno** (no una matrícula), y la app lo rotulaba como "placa". Se actualizan solo los **valores de los strings que ve el usuario** de "placa" a "número económico", sincronizando el vocabulario con el panel del analista (que ya muestra "Número económico" sobre el mismo dato). Cambio de solo texto (Nivel 1): **no se tocan** los nombres de recurso (`campo_placa_*`, `error_*_placa`, `historial_buscar_placa`), ni los identificadores Kotlin (`CampoPlaca`, `normalizarPlaca`, `placaEscrita`), ni el campo de datos `placas` ni las columnas Room — todo eso es el contrato con `pf-infra-firebase` y `pf-web-frontend-analist-panel`, y renombrarlo sería una migración de tres repos.
+
+**Cambios (`app/src/main/res/values/strings.xml`, solo valores):**
+- `campo_placa_rotulo`: "Placa de la unidad" → "Número económico".
+- `campo_placa_placeholder`: "INGRESE PLACA" → "INGRESE NÚMERO ECONÓMICO".
+- `campo_placa_limpiar`: "Limpiar placa" → "Limpiar número económico".
+- `campo_placa_titulo`: "PLACAS RECIENTES EN RUTA" → "NÚMEROS ECONÓMICOS RECIENTES EN RUTA".
+- `error_placa_vacia_sin_valor`: → "El número económico no es válido: escribe un número económico.".
+- `error_escribe_placa`: → "Escribe el número económico para iniciar el reporte.".
+- `descarte_motivo_placa_equivocada`: "Placa equivocada" → "Número económico equivocado".
+- `historial_buscar_placa`: "Buscar por placa" → "Buscar por número económico".
+
+**Fuera de alcance (deliberado):** las strings de etiqueta/Situación (p. ej. `archivos_sin_etiqueta`, la "Hoja de etiquetado") son del RETIRO_ETIQUETADO ya completado y no se tocan. Dos fixtures de preview/demo (`Dialogos.kt`, `DatosDemo.kt`) conservan "Placa registrada equivocada." por no ser texto de producción.
+
+**Verificación:** `strings.xml` bien formado; `./gradlew assembleDebug --offline` verde. Al ser cambio de solo valores de string (ningún `R.string.*` renombrado), no afecta compilación ni pruebas.
+
+**Archivos modificados:**
+- `app/src/main/res/values/strings.xml`
+- `CHANGELOG.md`
+
+## 2026:10:01 14:29
+
+**Resumen:** se **verificó la marca de agua en dispositivo contra producción** (CPH2769, Android 16, APK release sobre `custodio-906e7268`): la foto estampada sube a Storage (`medios/{reporteId}/{medioId}.jpg`) y a Firestore con las rutas correctas, y la marca se ve grabada (fecha arriba-izquierda, coordenadas abajo-derecha, tile de mapa abajo-izquierda; miniatura limpia). Se documentó además un **quirk del Emulator Suite de Storage** descubierto durante la prueba, ajeno a esta feature: contra el emulador, `FirebaseMedioRemoto.objetoExiste()` no recibe `ERROR_OBJECT_NOT_FOUND` para un objeto inexistente, así que `subirSiNoExiste` se salta el `putBytes` y el blob no aparece en el emulador aunque el documento sí; en producción sube bien. No hay cambios de código en esta entrada: solo documentación de la verificación.
+
+**Cambios:**
+- `docs/PLAN_MARCA_DE_AGUA.md`: nueva sección "Verificación en dispositivo (2026-10-01)" con el resultado en producción, el quirk del emulador de Storage y el recordatorio operativo de `adb reverse` + reinicio de la app para pruebas en debug.
+
+**Archivos modificados:**
+- `docs/PLAN_MARCA_DE_AGUA.md`
+
+## 2026:10:01 13:31
+
+**Resumen:** se agregó la **marca de agua irreversible en las fotos de evidencia**: cada JPEG se graba con la fecha/hora de captura (arriba-izquierda, `YYYY/MM/DD HH:MM:SS` en **hora local del dispositivo**), las coordenadas GPS en grados decimales (abajo-derecha) y un snapshot del mapa del punto (abajo-izquierda). Solo las fotos; el audio no se toca. La composición es **diferida**: el obturador sigue inmediato, se guarda un original limpio y, una vez que el GPS resuelve en segundo plano, se compone la marca y se **reescribe solo el archivo original** antes de encolar la subida. Sin fix de GPS la foto se graba igual con solo la fecha; si el snapshot del mapa falla o no hay red, se omite solo el tile y se conservan fecha+coords. La miniatura de 320 px queda limpia. El mapa usa el **Maps SDK for Android** (modo lite, snapshot fuera de pantalla), con la API key leída de `local.properties` (gitignored) — alta documentada en el README. Diseño completo en `docs/PLAN_MARCA_DE_AGUA.md`.
+
+**Cambios:**
+- **Dominio puro (`domain/marcaDeAgua/`):** `MarcaDeAgua` (modelo), `FormatoMarcaDeAgua` (fecha `uuuu/MM/dd HH:mm:ss` en hora local; coords `%.6f` con signo; `null` sin GPS) y `DisposicionMarcaDeAgua` (geometría del texto y del tile, proporcional al lado menor del bitmap).
+- **Dibujo Android (`data/local/media/DibujanteMarcaDeAgua`):** estampa sobre una copia mutable del bitmap (fecha, coords, tile de mapa con borde; fondo semitransparente) y recomprime a JPEG con `CALIDAD_ORIGINAL`; no muta el original ni toca la miniatura.
+- **Snapshot de mapa (`data/mapa/`):** `ProveedorSnapshotMapa` (interface, devuelve `ImagenMapa?`) y `MapsSnapshotMapa` (`MapView` lite-mode fuera de pantalla en el hilo principal, espera `onMapLoaded`, `snapshot {}`, detecta blanco, degrada a `null` ante cualquier fallo y lo registra como no fatal).
+- **Orquestación (`data/marcaDeAgua/`):** `ComponerMarcaDeAgua` (sin GPS no pide snapshot; con GPS sí), `EstampadorFoto`/`BitmapEstampadorFoto` y el envoltorio opaco `ImagenMapa`/`BitmapImagenMapa` (ocultan `Bitmap` para que la orquestación sea probable en JVM), y `GrabarMarcaDeAguaEnFoto` (lee el original limpio, compone y reescribe; solo FOTO; nunca lanza).
+- **Persistencia:** `MedioRepository.leerOriginal` y `MedioRepository.reescribirOriginal` (reescritura solo mientras `PENDIENTE`, refresca `sizeBytes`) con `MedioDao.actualizarTamano`; implementados en `RoomMedioRepository` y en el fake de pruebas. **Sin migración de Room** (no cambia el esquema).
+- **Flujo de captura:** `CapturaViewModel.adjuntarGpsEnSegundoPlano` graba la marca tras resolver el GPS; `encolarCuandoListo` ya hace `join()` del trabajo de GPS, así que la subida espera a la foto estampada.
+- **Build/manifest:** `play-services-maps` en el catálogo y en `app/build.gradle.kts`; `MAPS_API_KEY` leída de `local.properties` → `manifestPlaceholders`; `meta-data com.google.android.geo.API_KEY` en el manifest (requiere **Gradle Sync**).
+- **DI:** `di/MapaModule` provee el proveedor de snapshot, el estampador, el orquestador y el caso de uso.
+- **Docs:** nuevo `docs/PLAN_MARCA_DE_AGUA.md`; README con la sección "Marca de agua en fotos" (alta de la API key) y tres escenarios de verificación manual.
+
+**Verificación:** `testDebugUnitTest` **253/253** y `assembleDebug` verdes; `compileDebugAndroidTestKotlin` verde. Tests nuevos: `FormatoMarcaDeAguaTest`, `DisposicionMarcaDeAguaTest`, `ComponerMarcaDeAguaTest` y tres casos en `CapturaViewModelTest` (con GPS estampa fecha+coords y reescribe el original; sin fix solo fecha y no pide mapa; el audio no se estampa). **Pendiente de dispositivo** (no verificado en esta sesión, sin equipo): el test instrumentado `DibujanteMarcaDeAguaTest` (dibujo real sobre `Bitmap`/`Canvas`), el snapshot real de Maps, y los tres escenarios de campo del README. También **pendiente humano**: dar de alta la `MAPS_API_KEY` en Google Cloud y ponerla en `local.properties` (sin ella, las fotos salen con fecha+coords sin mapa).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/domain/marcaDeAgua/MarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/marcaDeAgua/FormatoMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/marcaDeAgua/DisposicionMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapa/ProveedorSnapshotMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapa/MapsSnapshotMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/EstampadorFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapImagenMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapEstampadorFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/GrabarMarcaDeAguaEnFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/MapaModule.kt`
+- `app/src/main/AndroidManifest.xml`
+- `app/build.gradle.kts`
+- `gradle/libs.versions.toml`
+- `app/src/test/java/com/ai27/app/custodio/domain/marcaDeAgua/FormatoMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/domain/marcaDeAgua/DisposicionMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAguaTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `docs/PLAN_MARCA_DE_AGUA.md`
+- `README.md`
+
+## 2026:10:01 12:17
+
+**Resumen:** se agregó un **toggle de ver/ocultar contraseña** (ícono de ojo) en el campo de contraseña del login, para que el custodio pueda verificar lo que teclea y evitar errores. Es un control de UI puramente local: nunca sale al `LoginViewModel` ni al estado persistido, solo revela en pantalla lo que el usuario ya escribió en su propio dispositivo. Arranca oculto. Para el ícono se agregó la dependencia `material-icons-extended` (el set `core` no trae `Visibility`/`VisibilityOff`); la versión la fija el Compose BOM.
+
+**Cambios:**
+- **`LoginScreen`:** el campo de contraseña gana un `trailingIcon` con `IconButton` + `Icons.Filled.Visibility`/`VisibilityOff`; estado local `contrasenaVisible` (`rememberSaveable`, inicia en false, sobrevive rotación) que alterna `visualTransformation` entre `PasswordVisualTransformation()` y `VisualTransformation.None`. El `contentDescription` del ícono usa las cadenas "Mostrar"/"Ocultar" para accesibilidad.
+- **Strings:** `login_mostrar_contrasena` ("Mostrar") y `login_ocultar_contrasena` ("Ocultar").
+- **Dependencias:** `androidx-compose-material-icons-extended` agregada al catálogo (`gradle/libs.versions.toml`) y a `app/build.gradle.kts` (requiere **Gradle Sync**).
+
+**Verificación:** `assembleDebug` + `testDebugUnitTest` verdes (rebuild completo tras el Sync); APK debug reinstalado en CPH2769 y toggle probado manualmente en el dispositivo. (El toggle no lleva prueba automática aún; se puede cubrir con un test de Compose en androidTest que verifique el cambio de `visualTransformation`.)
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginScreen.kt`
+- `app/src/main/res/values/strings.xml`
+- `gradle/libs.versions.toml`
+- `app/build.gradle.kts`
+- `CHANGELOG.md`
+
+## 2026:10:01 11:27
+
+**Resumen:** se retiró el **etiquetado de medios** y el **candado de subida por Situación** del flujo de captura (plan `docs/PLAN_RETIRO_ETIQUETADO.md`). La captura pasa a ser lo más simple posible: tomar foto o grabar nota de voz y que **suba de inmediato** apenas lo permita la conexión, sin clasificar. También se retiró el interruptor de "novedad" del cierre (se conserva el comentario opcional). Es un **retiro por comentado, no por borrado**: nada del código de etiquetado se elimina, queda inerte y comentado para reactivarlo sin reconstruirlo. **El contrato de datos no cambia** (`etiquetas`, `tieneSituacion`, `catalogos/etiquetas`, `hayNovedad` se conservan; sin migración de Room).
+
+**Cambios:**
+- **`CapturaViewModel`:** nuevo helper `encolarCuandoListo(reporteId, medioId)` que espera el GPS en segundo plano (`trabajosGps.remove(medioId)?.join()`), encola la subida y bumpea `avisoEncolado`. Se invoca tras `adjuntarGpsEnSegundoPlano` en `capturarFoto` y `detenerGrabacionDeAudio`. Comentados (inertes): carga de etiquetas en `init`, `idsSituacion`, `guardarEtiqueta`, `descartarEtiquetado`, `retomarEtiquetado`. `etiquetarMedio`/`obtenerEtiquetas` quedan inyectados (`@Suppress("unused")`). Ya no se escribe `medioPendienteDeEtiquetar`.
+- **`SubidaMedioProceso.ejecutar`:** comentado el candado `esSituacion` (`etiquetaRepository.obtener()` + `if (!esSituacion) return`). `etiquetaRepository` queda inyectado inerte. Un medio sin etiqueta sube hasta `COMPLETA`.
+- **`MedioDao.obtenerPendientes`:** comentado el filtro `AND m.tieneSituacion = 1`. La reconciliación repone cualquier medio no `COMPLETA`. `FakeMedioRepository.obtenerPendientes` alineado.
+- **`CapturaEvidenciaScreen` / `AudioScreen`:** retirada la `HojaEtiqueta` y sus callbacks (`onGuardarEtiqueta`/`onUbicacionTextoCambio`/`onCerrarHoja`); se conservan obturador, captura y grabación.
+- **`ArchivosScreen`:** retirada toda la señal de etiquetado (franja "sin clasificar", borde/clic de "etiquetar ahora", sobre de nombres de etiqueta, hoja). Se conservan miniaturas, borrado pre-subida, reintento y el chip de estado de subida. Eliminadas las dos previews "Sin etiquetar".
+- **`ReporteScreen`:** comentado el aviso de "sin clasificar" del hub (`estado.mediosSinEtiquetar`), que de otro modo quedaría permanentemente encendido al no clasificarse ningún medio. No estaba en la lista original del plan; se incluyó por coherencia funcional.
+- **`CierreScreen`:** comentado el `RenglonSwitch` de novedad y su estado; se conserva el comentario. `onCerrarViaje` pasa `hayNovedad = false`; la firma `cerrarViaje(comentario, hayNovedad)` y el contrato `hayNovedad` no cambian.
+- **`AppNavHost`:** ajustados los call sites del grafo `viaje` (CAPTURA/AUDIO/ARCHIVOS) a las firmas sin callbacks de etiquetado.
+- **Archivos inertes:** `ui/captura/HojaEtiqueta.kt` queda comentado por completo (incluye `hojaPuedeCerrarse`); `domain/usecase/EtiquetarMedio.kt` se conserva como clase viva con nota de inerte (sigue inyectado en Hilt).
+- **Pruebas:** `CapturaViewModelTest` reescrito (captura persiste y encola sin etiquetar; el tic de encolado lo dispara la captura; eliminados los tests de descartar/retomar); `SubidaMedioProcesoTest` reemplaza los tres tests del candado por uno de "sube sin etiquetas"; `ContratoRepositoriosTest` invierte el test de `obtenerPendientes` (ahora incluye medios sin Situación); `RoomMedioRepositoryTest` A4 verifica `tieneSituacion` sobre la fila de Room en vez de vía la cola; `FakeMedioRepository` alineado. En androidTest: `ReconciliacionColaTest` invierte el test SIN_situación y `ui/captura/HojaEtiquetaTest` queda comentado (inerte). El unit `HojaEtiquetaTest` también.
+
+**Verificación:** `testDebugUnitTest` 235/235, `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. Los tests instrumentados tocados (`ReconciliacionColaTest`) **no se ejecutaron**: no hay dispositivo ni emulador conectado en esta sesión; queda pendiente la prueba manual en dispositivo (tomar foto/audio y ver la subida inmediata con red y el encolado sin red; cerrar viaje con comentario).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProceso.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/AudioScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/ArchivosScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/ReporteScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CierreScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/AppNavHost.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/EtiquetarMedio.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProcesoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRepositoriosTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/RoomMedioRepositoryTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/worker/ReconciliacionColaTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt`
+- `AGENTS.md`
+- `CHANGELOG.md`
+
+## 2026:09:28 19:06
+
+**Resumen:** la hoja de clasificación de cada medio **abre vacía**. Se revierte la herencia de la última Situación confirmada (D-B1/U2, de la tanda G3-B del 2026-09-24): la preselección venía de que al custodio le bastaba un toque, pero en campo se convertía en guardar sin mirar —la foto siguiente quedaba clasificada con la situación de la anterior—, que es justo el dato que el analista no puede filtrar.
+
+**Cambios:**
+- **`CapturaUiState`:** se elimina el campo `ultimaSituacion: List<String>`; no queda ningún rastro de la selección anterior en el estado.
+- **`CapturaViewModel.guardarEtiqueta`:** deja de escribir `ultimaSituacion` al confirmar. `idsSituacion()` se conserva porque `retomarEtiquetado` sigue usándola para reabrir solo los medios sin Situación.
+- **`HojaEtiqueta`:** la selección nace de `mutableStateOf(emptyList<String>())` en vez de `estado.ultimaSituacion.toList()`. El `rememberSaveable(medio.id)` no cambia: sigue reiniciando por medio y preservando la elección del custodio ante recomposiciones y rotación.
+- **Pruebas:** se borran los tres tests de JVM de `CapturaViewModelTest` que medían la herencia (region "herencia de Situación") y se agregan dos tests de Compose en `HojaEtiquetaTest` (androidTest): la hoja abre con cero chips seleccionados y "Guardar" sigue bloqueado hasta que el custodio elige Situación, mandando exactamente las que tocó.
+
+**Verificación:** `testDebugUnitTest` 243/243, `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. Los dos tests nuevos son instrumentados y **no se pudieron ejecutar**: no hay dispositivo ni emulador conectado en esta sesión.
+
+**Nota:** `docs/AUDIT.md` U2 y `docs/PLAN_GRUPO_3.md` D-B1 quedan como registro histórico fechado del 2026-09-24; no se reescriben. La decisión vigente es la de esta entrada.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaUiState.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/HojaEtiqueta.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/ui/captura/HojaEtiquetaTest.kt`
+- `CHANGELOG.md`
+
+## 2026:09:28 19:05
+
+**Resumen:** se ejecutó y verificó el **despliegue a producción de EMAIL_AUTH** (Task 9 del plan raíz) en `custodio-906e7268`. La migración de teléfono (SMS OTP) a correo + contraseña quedó viva de punta a punta: reglas, función de bloqueo, aprovisionamiento y APK release, con login por correo confirmado en el dispositivo CPH2769.
+
+**Cambios (producción y docs):**
+- Reglas Firestore/Storage desplegadas (regla `correos_autorizados/{email}` + contrato `custodioCorreo`; `telefonos_autorizados` retirado).
+- Función `bloquearTelefonoNoAutorizado` (us-central1) borrada; `bloquearCorreoNoAutorizado` (us-east1) desplegada con trigger `user.beforeCreate` registrado.
+- `provisionar.js custodios.csv`: 38 cuentas correo+contraseña creadas (33 B + 5 nombradas de prueba con correo `FirstName@ai27.com`), `correos_autorizados` y `usuarios/{uid}` escritos, 38 documentos `telefonos_autorizados` borrados.
+- APK release firmado, instalado en CPH2769; login por correo verificado en dispositivo (y sign-in REST contra prod con `idToken` válido).
+
+**Verificación:** sign-in `signInWithPassword` contra producción devolvió `idToken` válido para `fabricio@ai27.com`; login por correo confirmado en el dispositivo CPH2769.
+
+**Archivos modificados:**
+- `AGENTS.md` (nota de despliegue ejecutado)
+- `CHANGELOG.md`
+
+## 2026:09:28 18:44
+
+**Resumen:** nota de reconciliación EMAIL_AUTH en `docs/PLAN.md` §9. Los pasos de aprovisionamiento y despliegue A2/A3 registran el modelo por teléfono (histórico); se agrega una nota que apunta al modelo por correo (`correos_autorizados/{email}`, cuentas correo+contraseña, `bloquearCorreoNoAutorizado`) y aclara que su ejecución en producción es la Task 9 del plan raíz, pendiente de confirmación. No se reescriben los registros históricos fechados.
+
+**Cambios:**
+- `docs/PLAN.md`: nota EMAIL_AUTH tras la nota al pie A2, aclarando el cambio de modelo de aprovisionamiento/despliegue y remitiendo a §5.1/§5.4 y a la Task 9 del plan raíz.
+
+**Archivos modificados:**
+- `docs/PLAN.md`
+- `CHANGELOG.md`
+
+## 2026:09:28 18:28
+
+**Resumen:** se implementaron las **tareas 5 a 8 de `docs/PLAN_EMAIL_AUTH.md`**: el login del custodio pasa de OTP por SMS a **correo + contraseña** (`signInWithEmailAndPassword`). Es un **cutover completo, sin retrocompatibilidad** — la identidad del custodio vuelve a ser el correo en todo el repo (dominio, Room, contrato Firestore, UI y analítica) — porque el SMS no se entrega de forma confiable en campo y dejaba al custodio fuera de la app. Lo que se desarma es todo el andamiaje de Phone Auth: `PhoneAuthProvider`, `PhoneAuthOptions`, los callbacks, el watchdog de 30 s contra el broker de GMS mudo, el `ForceResendingToken` de reenvío, la cuenta regresiva y el `EventoVerificacion`.
+
+**Cambios:**
+- **Dominio (Task 5).** `Custodio(uid, telefono)` → `Custodio(uid, correo)`, igual que `Reporte.custodioTelefono` → `custodioCorreo`. `SesionRepositorio` se reduce a tres funciones —`observarCustodio()`, `iniciarSesion(correo, contrasena)`, `cerrarSesion()`— y se elimina `domain/model/EventoVerificacion.kt`. El `Activity` desapareció de la frontera de auth: `signInWithEmailAndPassword` no lo necesita (ni reCAPTCHA ni el SMS Retriever), así que el dominio ya no importa `android.app.Activity`. En `DominioError` se retiran los cuatro casos exclusivos de SMS (`NumeroInvalido`, `CodigoInvalido`, `CodigoExpirado`, `SinRespuestaSms`), `TelefonoNoAutorizado` se renombra a `CorreoNoAutorizado` y se agregan `CredencialesInvalidas` y `CuentaDeshabilitada`. 28 → 26 variantes.
+- **`FirebaseAuthSesionRepositorio` (Task 6).** `AuthDataSource.kt` pasa de 254 a 118 líneas: queda `signInWithEmailAndPassword(correo, contrasena).await()` mapeado a `Custodio(uid, email)`, y se van el `ConcurrentHashMap` de tokens de reenvío, el `AtomicLong`, el watchdog del broker, los `PhoneAuthOptions` y los `callbackFlow` de verificación. El mapeo de errores se conserva **puro y probable en JVM** (`mapearErrorAutenticacion(tipo, codigo)`), con códigos de correo: `ERROR_INVALID_EMAIL`, `ERROR_WRONG_PASSWORD`, `ERROR_INVALID_LOGIN_CREDENTIALS`, `ERROR_USER_NOT_FOUND`, `ERROR_USER_DISABLED`, `ERROR_TOO_MANY_REQUESTS`, `ERROR_NETWORK_REQUEST_FAILED`.
+- **Allowlist re-keada a correo.** `FirestoreAllowlistRepositorio.contiene(correo)` hace `get()` a `correos_autorizados/{correo.lowercase()}`. El `.lowercase()` **no es cosmético**: el id del documento es el correo en minúsculas (así lo siembra el aprovisionamiento), y sin esa normalización el `get()` no encontraría nada y **cerraría la sesión del propio custodio**. Se conserva el patrón "autenticar → consultar allowlist → cerrar sesión si no autorizado" y el cierre seguro por omisión. `telefonos_autorizados/{e164}` queda de baja.
+- **Login de una sola fase (Task 7).** `LoginUiState` es `{correoEscrito, contrasenaEscrita, autenticando, error}`: sin `FaseLogin`, sin `codigoEscrito`, sin `enviandoSms`/`verificando`, sin `segundosParaReenviar`. `LoginViewModel` tiene un método `iniciarSesion()` en vez de cinco, y valida el formato con el predicado puro `esCorreoValido` **antes** de gastar la llamada al backend. `LoginScreen` es una columna con correo, contraseña (`PasswordVisualTransformation`) y "Iniciar sesión", y se le quitan el `LocalContext.current as? Activity` y el `BackHandler` de la fase OTP.
+- **Room 4→5 (Task 8).** `schemaVersion = 5` y `MIGRACION_4_5` (`ALTER TABLE reportes RENAME COLUMN custodioTelefono TO custodioCorreo`, con `DROP_INDICE_UNICO_ACTIVO` como las previas), **espejo exacto** de la `MIGRACION_3_4`. `RENAME COLUMN` conserva el valor, así que la migración no toca ni una fila de los reportes que ya están en cola local. Entidad, `ReporteMappers` y `DocumentoMappers` siguen el renombrado; el contrato Firestore vuelve a `custodioCorreo`.
+- **Analítica.** `MetodoAuth.PHONE` → `EMAIL` y `ResultadoLogin` se recorta de nueve a siete: `OK`, `CORREO_INVALIDO`, `CREDENCIALES_INVALIDAS`, `CORREO_NO_AUTORIZADO`, `DEMASIADOS_INTENTOS`, `SIN_CONEXION`, `INESPERADO`. **Los valores del OTP no se reutilizan** (nada de `numero_invalido` renombrado a `correo_invalido`): las dimensiones viejas siguen siendo legítimas en la consola y reusarlas mezclaría dos embudos en el mismo reporte. Sigue sin PII — el método es constante y el desenlace un valor de un conjunto cerrado. `CuentaDeshabilitada` cae en `INESPERADO` a propósito: no es un paso del embudo que el custodio pueda corregir.
+- **UI y textos.** Ajustes y el diálogo de cierre de sesión muestran el **correo** (`cierre_sesion_correo`); `strings.xml` pierde los diez textos de SMS/OTP y gana los de correo (`error_credenciales_invalidas`, `error_cuenta_deshabilitada`, `error_correo_invalido`, `error_correo_no_autorizado`).
+- **Pruebas.** `MigracionCorreoATelefonoTest` → `MigracionTelefonoACorreoTest` (siembra una base v4 con la columna `custodioTelefono` y afirma que migra a `custodioCorreo` conservando el valor). `AuthErrorMappingTest` pasa de 6 a 7 casos con los códigos de correo. `ResultadoLoginTest` cuenta 26 variantes y **gana un caso nuevo** que afirma que ningún valor del enum de correo colisiona con los cinco del login por SMS. `LoginViewModelTest` se reescribe para el flujo de una fase: 17 → 12 casos (los seis que se van son los del OTP —composición del E.164, reenvío, `regresarANumero`, regresiva, broker de GMS mudo— y no tienen a qué trasladarse; entran tres nuevos: el par se manda tal cual, el error de credenciales en pantalla, y el predicado `esCorreoValido`).
+- **Documentos.** `docs/PLAN.md` §2 (fila de Auth y "Lo que cambió"), §5.1 (el contrato `usuarios/`, `correos_autorizados/{email}` y `custodioCorreo`), §5.3 (la regla de lectura de la allowlist), §5.4 (la sección de autenticación, que ahora describe correo) y la tabla de decisiones de §10. `AGENTS.md` gana el bloque EMAIL_AUTH.
+
+**Dos decisiones que el plan no tomaba y conviene dejar escritas:**
+- **`ERROR_INVALID_EMAIL` se fusiona en `CredencialesInvalidas` y no tiene `DominioError` propio.** El plan pedía agregar solo `CredencialesInvalidas` y `CuentaDeshabilitada`, y `ResultadoLogin` sí tiene `CORREO_INVALIDO`: ese valor lo produce la **validación local de la pantalla** (`esCorreoValido`), igual que antes `NUMERO_INVALIDO` lo producía la validación local del teléfono y no un `DominioError`. Lo que llega del backend con el formato mal se junta con "correo o contraseña incorrectos", porque el custodio no puede arreglar eso en el campo y el mensaje es honesto.
+- **El "Done" del teclado de la contraseña consulta la misma condición `listoParaEntrar` que el botón.** Sin eso, una contraseña vacía llegaba a Firebase, que la rechaza en local con `ERROR_MISSING_PASSWORD` — un código que no está en el mapeo, así que habría salido como "Algo salió mal" por no haber tecleado nada. Cierra una esquina real de UX sin agregar superficie al dominio.
+
+**Verificación:** `testDebugUnitTest` **246/246**, 0 fallos, corrido con `--rerun-tasks`. `assembleDebug` y `compileDebugAndroidTestKotlin` verdes. El conteo baja de 249 a 246 **por los seis casos de OTP que se fueron**, no por cobertura perdida: lo que se midía era el flujo que dejó de existir. Cero referencias vivas a `PhoneAuthProvider`, `PhoneAuthOptions`, `ForceResendingToken`, `EventoVerificacion`, `MetodoAuth.PHONE`, los valores `NUMERO_INVALIDO`/`CODIGO_INVALIDO`/`CODIGO_EXPIRADO`/`SIN_RESPUESTA_SMS`/`TELEFONO_NO_AUTORIZADO` y los strings de SMS; las únicas que quedan a `custodioTelefono` y `telefonos_autorizados` están en el `MIGRACION_3_4`/`MIGRACION_4_5` (que tienen que nombrarlas), en el DDL de la base v4 que siembra la prueba de migración y en KDoc histórico.
+
+> **Lo que ninguna prueba de este cambio cubre:** que un custodio real pueda entrar. El seed del emulador (`../pf-infra-firebase/seed`) es una exportación del modelo viejo, y las reglas, el `beforeCreate` y el aprovisionamiento de `pf-infra-firebase` **siguen keados a teléfono**. Mientras no se redeployen **junto con** el APK nuevo, publicar uno sin el otro deja custodios sin acceso. Todo eso vive en Tasks 1-4 y 9 del plan raíz y **requiere confirmación del humano antes de tocar producción**.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/domain/model/Custodio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/model/Reporte.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/model/EventoVerificacion.kt` (eliminado)
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/SesionRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/AllowlistRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioError.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/CrearReporte.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/AuthDataSource.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirestoreAllowlistRepositorio.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/EchoDatabase.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/ReporteEntity.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapper/DocumentoMappers.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapper/ReporteMappers.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginUiState.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/login/LoginScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/error/DominioErrorRecurso.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/navigation/RootViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/ajustes/AjustesScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/components/Dialogos.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/previews/DatosDemo.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/login/LoginViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/remote/AuthErrorMappingTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/diagnostico/ResultadoLoginTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/local/db/MigracionCorreoATelefonoTest.kt` → `MigracionTelefonoACorreoTest.kt`
+- 13 pruebas y `androidTest` que usaban `telefono =` / `custodioTelefono =` en sus datos de ejemplo
+- `docs/PLAN.md`
+- `AGENTS.md`
+- `CHANGELOG.md`
+
 ## 2026:09:28 13:05
 
 **Resumen:** `MainActivity` ya **no declara `android:screenOrientation`**. El atributo venía en `fullSensor` desde un cambio del autor del proyecto posterior a la auditoría, y eso hace que la app **gire aunque el custodio tenga la rotación automática apagada**: `fullSensor` es el único valor de `screenOrientation` que ignora el ajuste del usuario. Se retira el atributo (no se cambia por `fullUser`) siguiendo la primera de las dos vías que ofrece la guía vigente de Android, y se documenta la decisión en `docs/AUDIT.md` (A9) y `docs/PLAN.md` §17.3.

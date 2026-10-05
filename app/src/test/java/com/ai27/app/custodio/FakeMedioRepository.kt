@@ -71,6 +71,28 @@ class FakeMedioRepository(
     override suspend fun obtenerDelReporte(reporteId: String): List<Medio> =
         medios.filter { it.reporteId == reporteId }
 
+    override suspend fun leerOriginal(medioId: String): ByteArray? {
+        val ruta = medios.firstOrNull { it.id == medioId }?.localPath ?: return null
+        return archivosGuardados[ruta]
+    }
+
+    override suspend fun reescribirOriginal(medioId: String, bytes: ByteArray): Result<Medio> {
+        val indice = medios.indexOfFirst { it.id == medioId }
+        if (indice == -1) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
+        }
+        val anterior = medios[indice]
+        // Refleja la query real: solo reescribe mientras sigue PENDIENTE y hay ruta local.
+        if (anterior.estadoSubida != EstadoSubida.PENDIENTE || anterior.localPath == null) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
+        }
+        archivosGuardados[anterior.localPath] = bytes
+        val actualizado = anterior.copy(sizeBytes = bytes.size.toLong())
+        medios[indice] = actualizado
+        actualizarPendientes()
+        return Result.Success(actualizado)
+    }
+
     override fun observarDelReporte(reporteId: String): Flow<List<Medio>> =
         todos.map { lista -> lista.filter { it.reporteId == reporteId } }
 
@@ -181,11 +203,13 @@ class FakeMedioRepository(
     }
 
     override suspend fun obtenerPendientes(custodioUid: String): List<Medio> =
-        // Mismo filtro que MedioDao.obtenerPendientes: del custodio, no COMPLETA (FALLIDA
-        // incluida, para que la reconciliación los reintente) y con Situación marcada.
+        // RETIRO_ETIQUETADO (Task 3): mismo filtro que MedioDao.obtenerPendientes tras
+        // retirar el candado: del custodio y no COMPLETA (FALLIDA incluida, para que la
+        // reconciliación los reintente). Ya NO se exige Situación. El filtro conSituacion
+        // queda comentado para reactivarlo con el etiquetado.
         medios.filter {
             it.estadoSubida != EstadoSubida.COMPLETA &&
-                conSituacion(it) &&
+                // conSituacion(it) &&
                 esDelCustodio(it.reporteId, custodioUid)
         }
 

@@ -68,7 +68,7 @@ abstract class ContratoRepositoriosTest {
         placas = "ABC123",
         placasCapturadas = "abc-123",
         custodioUid = custodioUid,
-        custodioTelefono = "custodio@ai27.test",
+        custodioCorreo = "custodio@ai27.test",
         clienteId = "cliente-provisional",
         deviceId = "dispositivo-1",
         fechaLocal = fechaLocal,
@@ -155,10 +155,12 @@ abstract class ContratoRepositoriosTest {
     }
 
     @Test
-    fun `obtenerPendientes excluye los medios sin etiqueta de situacion`() = runBlocking {
-        // Hallazgo E3: un medio sin Situación no puede subirse (siempre se exige al menos
-        // una, decisión A del PLAN §14), así que encolarlo solo produce trabajo que falla en
-        // bucle. Se queda fuera de la cola hasta que alguien lo clasifique.
+    fun `obtenerPendientes incluye los medios sin etiqueta de situacion`() = runBlocking {
+        // RETIRO_ETIQUETADO (Task 3): se retiró el candado de Situación. La cola de subida
+        // vuelve a reponer CUALQUIER medio no COMPLETA, con o sin etiqueta, porque la
+        // subida ya no exige clasificar. Antes (hallazgo E3) este test afirmaba lo
+        // contrario. La columna tieneSituacion se conserva en el esquema; solo dejó de usarse
+        // como filtro de obtenerPendientes.
         val reporte = reporteGuardado()
         val sinEtiqueta = medioGuardado(reporte.id, etiquetas = emptyList())
         val soloEvidencia = medioGuardado(reporte.id, etiquetas = listOf("accidente"))
@@ -166,12 +168,12 @@ abstract class ContratoRepositoriosTest {
 
         val pendientes = medios.obtenerPendientes(reporte.custodioUid)
 
-        assertFalse(
-            "Un medio sin etiqueta de Situación no debe entrar a la cola de subida",
+        assertTrue(
+            "Un medio sin etiqueta ahora sí entra a la cola: la subida ya no exige Situación",
             pendientes.any { it.id == sinEtiqueta.id },
         )
-        assertFalse(
-            "Un medio solo con Evidencia no debe entrar a la cola de subida",
+        assertTrue(
+            "Un medio solo con Evidencia también entra a la cola",
             pendientes.any { it.id == soloEvidencia.id },
         )
         assertTrue(pendientes.any { it.id == conSituacion.id })

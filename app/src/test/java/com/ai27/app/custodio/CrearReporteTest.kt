@@ -14,7 +14,7 @@ import org.junit.Test
 
 class CrearReporteTest {
 
-    private val custodio = Custodio(uid = "c-1", telefono = "+525544880512")
+    private val custodio = Custodio(uid = "c-1", correo = "custodio@ai27.com")
     private val fijo = Instant.parse("2026-09-18T15:00:00Z")
 
     @Test

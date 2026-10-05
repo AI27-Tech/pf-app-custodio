@@ -175,6 +175,35 @@ firebase appdistribution:distribute app/build/outputs/apk/release/app-release.ap
 
 Flujo sugerido: grupo `testers` (verificación) primero y grupo `campo` (los 37 custodios) cuando el reporte de prueba esté aprobado. Las notas de versión van en español (México).
 
+## Marca de agua en fotos
+
+Cada foto de evidencia se graba con una marca de agua **irreversible** sobre el JPEG: fecha y
+hora de captura (arriba-izquierda, `YYYY/MM/DD HH:MM:SS` en **hora local del dispositivo**),
+coordenadas GPS en grados decimales (abajo-derecha) y un snapshot del mapa del punto
+(abajo-izquierda). Solo las fotos se marcan; el audio no. El diseño completo está en
+`docs/PLAN_MARCA_DE_AGUA.md`.
+
+La marca se compone **en segundo plano**, después de que el GPS resuelve: el obturador sigue
+siendo inmediato, se guarda un original limpio y luego se reescribe ese mismo archivo ya
+estampado antes de encolar la subida. La miniatura de 320 px queda limpia.
+
+### Alta de la API key de Google Maps (paso humano)
+
+El snapshot del mapa usa el **Maps SDK for Android**, que exige una API key. Sin ella la app
+compila y funciona, pero las fotos salen con fecha+coords **sin** el tile de mapa (y lo mismo
+pasa en campo sin conectividad: el mapa se omite y el resto se graba igual).
+
+1. En la **consola de Google Cloud** del proyecto, habilitar **Maps SDK for Android** y crear
+   una API key (conviene restringirla al `applicationId` `com.ai27.app.custodio` y a ese SDK).
+2. Agregar la key a `local.properties` (gitignored, igual que `sdk.dir`):
+
+   ```properties
+   MAPS_API_KEY=AIza...tu_key
+   ```
+
+3. Reconstruir. El build la inyecta como `manifestPlaceholders["MAPS_API_KEY"]` en el
+   `meta-data` `com.google.android.geo.API_KEY` del manifest. **La key nunca se commitea.**
+
 ## Crashlytics
 
 Integrado desde B7: plugin de Gradle aplicado y SDK inicializado en `AppCustodioApplication`. La recolección está explícitamente habilitada en el manifest. Con el proyecto de producción ya configurado (carril A cerrado, 2026-09-25), el reporte de crashes queda operativo. Nota: con R8 apagado no hay archivo de mapping, así que las trazas no vienen desofuscadas (es aceptable con el código sin ofuscar).
@@ -188,3 +217,8 @@ Con un equipo real (producción ya disponible, carril A cerrado):
 3. Descartar otro viaje con motivo y verificar que se sincroniza y que no sube evidencia nueva.
 4. En modo avión: capturar, recuperar red y ver cómo la cola sube sola; reintentar manualmente una celda FALLIDA.
 5. Derribar la app con una excepción y confirmar el crash en Crashlytics.
+6. **Marca de agua** (requiere `MAPS_API_KEY` configurada): capturar una foto en tres condiciones y confirmar lo grabado sobre el pixel del archivo subido:
+   - Con red + permiso de ubicación → fecha (arriba-izq) + coordenadas (abajo-der) + mapa (abajo-izq).
+   - Sin permiso de ubicación → solo fecha.
+   - Con permiso pero en modo avión → fecha + coordenadas, sin mapa.
+   Confirmar además que la miniatura de la rejilla queda **sin** marca y que el obturador no se demora.

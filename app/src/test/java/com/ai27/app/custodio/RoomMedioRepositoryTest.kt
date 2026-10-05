@@ -255,8 +255,10 @@ class RoomMedioRepositoryTest {
     @Test
     fun `etiquetar usa el catalogo activo para decidir la situacion (A4)`() = runBlocking {
         // A4: la Situación ya no es un set fijo en código; la define el catálogo (remoto
-        // con fallback). Un id de Situación que SOLO existe en el catálogo nuevo debe
-        // habilitar el medio para la cola de subida, sin recompilar.
+        // con fallback). `etiquetar` recalcula la columna `tieneSituacion` con el catálogo
+        // activo. RETIRO_ETIQUETADO: la columna se CONSERVA y se sigue calculando igual,
+        // pero ya NO filtra `obtenerPendientes` (la cola repone todo lo no COMPLETA), así
+        // que este test lo verifica directo sobre la fila de Room, no vía la cola.
         val caprichoso = FakeEtiquetaRepository(
             catalogo = listOf(
                 Etiqueta("apagon", "Apagón", CategoriaEtiqueta.SITUACION, 0, activo = true),
@@ -271,14 +273,14 @@ class RoomMedioRepositoryTest {
         val conSituacionNueva = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
         repoMedios.etiquetar(conSituacionNueva.id, listOf("apagon"))
 
-        // `tieneSituacion = 1`: el medio entra a la cola de subida.
-        assertTrue(repoMedios.obtenerPendientes("c-1").map { it.id }.contains(conSituacionNueva.id))
+        // Una Situación que SOLO existe en el catálogo nuevo marca `tieneSituacion = 1`.
+        assertTrue(database.medioDao().obtenerPorId(conSituacionNueva.id)!!.tieneSituacion)
 
         val soloEvidencia = (repoMedios.guardar(medio(reporte.id), ByteArray(10)) as Result.Success).value
         repoMedios.etiquetar(soloEvidencia.id, listOf("llanta"))
 
-        // Con solo Evidencia no entra a la cola, aunque "llanta" exista en el catálogo.
-        assertFalse(repoMedios.obtenerPendientes("c-1").map { it.id }.contains(soloEvidencia.id))
+        // Solo Evidencia no marca Situación, aunque "llanta" exista en el catálogo.
+        assertFalse(database.medioDao().obtenerPorId(soloEvidencia.id)!!.tieneSituacion)
     }
 
     /** Deja pasar la primera escritura (el original) y falla la segunda (la miniatura). */

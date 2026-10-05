@@ -33,7 +33,7 @@ class AjustesViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val custodio = Custodio(uid = "c-1", telefono = "+525544880512")
+    private val custodio = Custodio(uid = "c-1", correo = "custodio@ai27.com")
     private lateinit var sesion: FakeSesionRepositorio
     private lateinit var repoMedios: FakeMedioRepository
     private lateinit var scheduler: FakeSubidaScheduler

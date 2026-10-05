@@ -76,6 +76,12 @@ interface MedioDao {
     )
     suspend fun actualizarGps(id: String, lat: Double, lng: Double, accuracyM: Double, ageMs: Long?): Int
 
+    // Marca de agua: tras reescribir el JPEG original estampado, el tamaño en bytes cambia.
+    // Igual que actualizarGps, solo mientras el medio sigue PENDIENTE: una vez EN_PROGRESO
+    // la subida ya tomó el archivo y no debe mutar.
+    @Query("UPDATE medios SET sizeBytes = :sizeBytes WHERE id = :id AND estadoSubida = 'PENDIENTE'")
+    suspend fun actualizarTamano(id: String, sizeBytes: Long): Int
+
     @Query("UPDATE medios SET estadoSubida = :estado WHERE id = :id")
     suspend fun actualizarEstadoSubida(id: String, estado: String): Int
 
@@ -101,7 +107,11 @@ interface MedioDao {
         INNER JOIN reportes r ON m.reporteId = r.id
         WHERE r.custodioUid = :custodioUid
           AND m.estadoSubida != 'COMPLETA'
-          AND m.tieneSituacion = 1
+          -- RETIRO_ETIQUETADO (Task 3): se retira el filtro de Situación. La reposición de
+          -- la cola vuelve a encolar cualquier medio no COMPLETA, porque la subida ya no
+          -- exige etiqueta. Se deja comentado —no borrado— para reactivarlo con el
+          -- etiquetado; la columna tieneSituacion se conserva en el esquema.
+          -- AND m.tieneSituacion = 1
         ORDER BY m.createdAtDevice ASC
         """,
     )

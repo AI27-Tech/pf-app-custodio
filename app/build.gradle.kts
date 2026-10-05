@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -11,21 +13,37 @@ plugins {
 // Firma de release: el keystore y sus contraseñas viven en keystore.properties
 // (gitignored). Si el archivo no existe, release queda sin firmar y solo se usa
 // para verificaciones locales (assembleRelease exige firma, installRelease no).
-import java.util.Properties
 
 val archivoKeystore = rootProject.file("keystore.properties")
 val keystoreProperties: Properties? =
     if (archivoKeystore.exists()) {
         val props = Properties()
         val entrada = archivoKeystore.inputStream()
+        entrada.use { entrada ->
+            props.load(entrada)
+        }
+        props
+    } else {
+        null
+    }
+
+// Marca de agua: la API key de Google Maps (snapshot de mapa) se lee de local.properties
+// (gitignored, igual que sdk.dir), NUNCA del repo. Si falta, el placeholder queda vacío:
+// el snapshot del mapa fallará y las fotos saldrán con fecha+coords sin mapa, sin romper la
+// captura. Alta de la key: README, sección "Marca de agua".
+val archivoLocalProperties = rootProject.file("local.properties")
+val mapsApiKey: String =
+    if (archivoLocalProperties.exists()) {
+        val props = Properties()
+        val entrada = archivoLocalProperties.inputStream()
         try {
             props.load(entrada)
         } finally {
             entrada.close()
         }
-        props
+        props.getProperty("MAPS_API_KEY", "")
     } else {
-        null
+        ""
     }
 
 android {
@@ -38,10 +56,14 @@ android {
         applicationId = "com.ai27.app.custodio"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Marca de agua: el manifest lee la key vía ${MAPS_API_KEY}; el valor viene de
+        // local.properties (gitignored). Vacío si no se configuró (ver comentario arriba).
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     signingConfigs {
@@ -109,6 +131,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
@@ -142,6 +165,9 @@ dependencies {
 
     // Ubicación (GPS por archivo)
     implementation(libs.play.services.location)
+
+    // Marca de agua: snapshot de mapa en el dispositivo (GoogleMap.snapshot)
+    implementation(libs.play.services.maps)
 
     // Firebase
     implementation(platform(libs.firebase.bom))
