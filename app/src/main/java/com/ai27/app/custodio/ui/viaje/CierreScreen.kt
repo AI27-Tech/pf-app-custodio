@@ -66,7 +66,7 @@ fun CierreScreen(
     // hayNovedad = false.
     // var novedad by rememberSaveable { mutableStateOf(false) }
     var comentario by rememberSaveable { mutableStateOf("") }
-    var mostrarConfirmacionCierre by rememberSaveable { mutableStateOf(false) }
+
     var mostrarDescarte by rememberSaveable { mutableStateOf(false) }
     var motivoDescarte by rememberSaveable { mutableStateOf("") }
     // U11: si el custodio escribe/activa algo y pulsa atrás, se le pregunta si de verdad quiere
@@ -173,7 +173,11 @@ fun CierreScreen(
                 } else {
                     stringResource(R.string.cerrar_viaje)
                 },
-                onClick = { mostrarConfirmacionCierre = true },
+                onClick = {
+                    // RETIRO_ETIQUETADO (Task 6): sin interruptor de novedad, siempre se pasa
+                    // hayNovedad = false; el contrato de cerrarViaje(comentario, hayNovedad) no cambia.
+                    onCerrarViaje(comentario.trim().ifEmpty { null }, false)
+                },
                 habilitado = !estado.cerrandoViaje && !estado.descartandoViaje,
             )
             BotonSecundario(
@@ -188,31 +192,6 @@ fun CierreScreen(
         }
     }
 }
-
-    val archivosAlCerrar = pluralStringResource(
-        R.plurals.cantidad_archivos,
-        estado.medios.size,
-        estado.medios.size,
-    )
-    DialogoConfirmacion(
-        visible = mostrarConfirmacionCierre,
-        titulo = stringResource(R.string.cierre_confirmar_titulo),
-        texto = stringResource(R.string.cierre_confirmar_texto, archivosAlCerrar),
-        textoConfirmar = stringResource(R.string.cierre_confirmar),
-        textoConfirmarProcesando = if (estado.cerrandoViaje) {
-            stringResource(R.string.cierre_cerrando)
-        } else {
-            null
-        },
-        confirmarHabilitado = !estado.cerrandoViaje,
-        onConfirmar = {
-            // RETIRO_ETIQUETADO (Task 6): sin interruptor de novedad, siempre se pasa
-            // hayNovedad = false; el contrato de cerrarViaje(comentario, hayNovedad) no cambia.
-            onCerrarViaje(comentario.trim().ifEmpty { null }, false)
-            mostrarConfirmacionCierre = false
-        },
-        onCancelar = { mostrarConfirmacionCierre = false },
-    )
 
     DialogoDescarte(
         visible = mostrarDescarte,

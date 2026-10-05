@@ -2,6 +2,18 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:10:05 13:30
+
+**Resumen:** Se eliminó el diálogo de confirmación al cerrar un reporte; el botón ahora confirma directamente.
+
+**Cambios:**
+- El botón "Cerrar viaje" en `CierreScreen` llama directamente a `onCerrarViaje` sin mostrar el `DialogoConfirmacion` intermedio.
+- Se eliminó el estado `mostrarConfirmacionCierre` y el bloque `DialogoConfirmacion` del cierre.
+- Se conserva el `DialogoConfirmacion` de la confirmación de salida (U11) y el `DialogoDescarte`.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CierreScreen.kt`
+
 ## 2026:10:01 — Subir versión a 1.0.1 (versionCode 2)
 
 **Resumen:** se incrementa la versión para publicar el APK con los cambios recientes (renombrado "placa" → "número económico" y aviso de captura inmediato). `versionName` pasa de "1.0" a **"1.0.1"** y `versionCode` de 1 a **2**. El `versionCode` debe crecer de forma monótona para que Android instale la actualización **in-place** sobre la instalación v1 en campo sin desinstalar (desinstalar borraría la cola local de evidencia).
