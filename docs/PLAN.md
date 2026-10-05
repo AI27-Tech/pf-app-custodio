@@ -337,7 +337,7 @@ Cada fase cierra con `./gradlew testDebugUnitTest` en verde y un commit.
 
 ## 10. Trazabilidad
 
-Cada decisión de este plan sale de una respuesta del cuestionario `to-questionnaire-app-custodio.md`.
+Cada decisión de este plan sale de una respuesta del cuestionario `docs/cuestionarios/to-questionnaire-app-custodio.md`.
 
 | Decisión | Origen |
 |---|---|
