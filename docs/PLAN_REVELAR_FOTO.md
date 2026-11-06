@@ -8,8 +8,8 @@
 >
 > **Origen:** candidato 1 de `docs/REVISION_ARQUITECTURA_ZTE.html` (revisión del 2026-11-06).
 >
-> **Estado:** BORRADOR. Las decisiones de la sección "Decisiones abiertas" están pendientes de
-> confirmar con el humano. Nada de esto se implementa hasta cerrarlas.
+> **Estado:** BORRADOR. Decisiones D1–D8 cerradas el 2026-11-06; quedan abiertas las de la ronda 2.
+> Nada de esto se implementa hasta cerrarlas.
 
 ---
 
@@ -92,10 +92,12 @@ pico de 1–2 bitmaps en vez de 4, política de imagen en un módulo.
 
 Cada tarea termina en una comprobación y va en su propio PR hacia `pf-appcus-d`.
 
-### Task 0 — Hotfix: sacar la marca de agua del hilo principal
-- `GrabarMarcaDeAguaEnFoto`: envolver la composición en `withContext(Dispatchers.Default)`.
-- Test JVM: la composición no corre en el hilo del llamador.
-- Se libera como 1.0.4 junto con WebP (ver D2). La Task 5 borra este código después.
+### Sin hotfix aparte (D1)
+El bug del hilo principal **no** sale en un PR aparte: lo arregla el propio refactor, porque
+`RevelarFoto` fija `Dispatchers.Default` dentro de su interfaz (Task 3) y la Task 5 cambia al
+llamador. Producción (1.0.3) no tiene WebP, así que el costo de esperar es el bug que ya existe con
+JPEG. Consecuencia: **no se construye un release desde `pf-appcus-d` hasta cerrar la Task 7**,
+porque `-d` ya tiene WebP con el bug.
 
 ### Task 1 — Línea base sin ZTE físico
 No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuentes (ver D3):
@@ -141,18 +143,34 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
 - Prueba manual: ráfaga de fotos, sin red, sin GPS, matar el proceso entre captura y subida.
 - `AGENTS.md`, `CHANGELOG.md`, release.
 
-## Decisiones abiertas
+## Decisiones
 
-| # | Decisión | Recomendación |
+### Cerradas (2026-11-06)
+
+| # | Decisión | Resuelto |
 | --- | --- | --- |
-| D1 | ¿Hotfix aparte (Task 0) ahora, o esperar a que el refactor lo arregle? | Hotfix aparte ahora |
-| D2 | ¿Liberar 1.0.4 = WebP + hotfix antes del refactor? | Sí, tras desplegar `storage.rules` |
-| D3 | Sin ZTE físico (confirmado): ¿medir con el TECNO POP 7 de Test Lab (tiene costo por minuto) y con telemetría de campo en 1.0.4? | Las dos |
-| D4 | Captura cruda: copiar el búfer del `ImageProxy` a bytes, o que CameraX escriba el archivo | Copiar el búfer y usar `AlmacenArchivos` |
-| D5 | Estado "revelada": columnas nuevas con migración, o reusar `contentType` como bandera | Columnas nuevas |
-| D6 | Revelado en el worker (proceso muerto): con mapa, sin mapa, o no revelar | Sin mapa |
-| D7 | Nombre y paquete del módulo, y si se crea un glosario | `RevelarFoto` en `data/foto/` |
-| D8 | ¿El revelado fija el lado largo ≤ 1600 px aunque el HAL entregue más? | Sí |
+| D1 | Hotfix aparte o dentro del refactor | Dentro del refactor; no se libera `-d` hasta la Task 7 |
+| D2 | Liberar 1.0.4 = WebP + hotfix antes del refactor | No aplica (sale todo junto) |
+| D3 | Medición sin ZTE físico | TECNO POP 7 en Test Lab (gasto autorizado) + telemetría de campo |
+| D4 | Captura cruda | Copiar el búfer del `ImageProxy` y guardar con `AlmacenArchivos`; rotación en Room |
+| D5 | Estado "revelada" | Columnas nuevas (`revelada`, `rotacionGrados`) con `MIGRACION_5_6`; filas existentes = reveladas |
+| D6 | Proceso muerto antes de revelar | El worker revela con fecha y coordenadas, sin mapa |
+| D7 | Nombre y lugar | `RevelarFoto` en `data/foto/`, sin glosario aparte |
+| D8 | Tamaño final | El revelado fija el lado largo ≤ 1600 px |
+
+Glosario mínimo (D7): **foto cruda** = los bytes JPEG del HAL tal como llegan, sin rotar ni marcar;
+**revelar** = decode → rotación → marca → WebP, una sola vez; **foto revelada** = el WebP final que
+se sube.
+
+Hechos verificados que sostienen D4–D5: CameraX entrega el `ImageProxy` en JPEG **sin rotación
+aplicada**; los grados vienen en `imageInfo.rotationDegrees` (documentación de
+`ImageCapture.OnImageCapturedCallback`). Por eso la rotación se guarda en Room. Las pruebas de
+migración del repo son de JVM (`MigracionTelefonoACorreoTest`), sin `MigrationTestHelper` ni
+esquemas exportados.
+
+### Abiertas
+
+Ver la ronda 2 en la conversación; se pasan aquí al cerrarse.
 
 ## Notas / riesgos
 
@@ -163,7 +181,7 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
   conservar `armeabi-v7a`; filtrar a `arm64-v8a` dejaría a los custodios sin poder instalar.
 - Firebase Test Lab se retira el 2027-09-30 (aviso de `gcloud`); sirve para este plan.
 - `pf-appcus-d` ya tiene WebP (PR #10) con el bug del hilo principal: **no construir un release
-  desde `-d` sin la Task 0**.
+  desde `-d` hasta cerrar la Task 7**. Producción (1.0.3) conserva el bug con JPEG hasta entonces.
 - `storage.rules` con `image/webp` está mergeado (PR #6 de infra) pero hay que desplegarlo
   (`firebase deploy --only storage`) **antes** de liberar cualquier APK con WebP.
 - Cambiar el esquema de Room afecta a instalaciones en campo: la migración se prueba antes de
