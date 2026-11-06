@@ -8,7 +8,7 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
 **Cambios:**
 - `docs/REVISION_ARQUITECTURA_ZTE.html`: reporte con tres candidatos (revelar la foto en un módulo profundo, contexto geográfico con caché, preparación de evidencia en el pipeline durable), ajustes de build y el hallazgo de que la marca de agua corre en el hilo principal.
-- `docs/PLAN_REVELAR_FOTO.md`: borrador del plan del candidato 1, sin hotfix aparte (el refactor arregla el bug y `-d` no se libera hasta cerrarlo) y con la línea base sin ZTE físico (TECNO POP 7 de Firebase Test Lab, mismo chip, más telemetría de campo). Decisiones D1–D8 cerradas; queda una segunda ronda abierta.
+- `docs/PLAN_REVELAR_FOTO.md`: borrador del plan del candidato 1, sin hotfix aparte (el refactor arregla el bug y `-d` no se libera hasta cerrarlo) y con la línea base sin ZTE físico (TECNO POP 7 de Firebase Test Lab, mismo chip, más telemetría de campo). Decisiones D1–D14 cerradas.
 
 **Archivos modificados:**
 - `docs/REVISION_ARQUITECTURA_ZTE.html`

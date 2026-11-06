@@ -8,8 +8,8 @@
 >
 > **Origen:** candidato 1 de `docs/REVISION_ARQUITECTURA_ZTE.html` (revisión del 2026-11-06).
 >
-> **Estado:** BORRADOR. Decisiones D1–D8 cerradas el 2026-11-06; quedan abiertas las de la ronda 2.
-> Nada de esto se implementa hasta cerrarlas.
+> **Estado:** decisiones D1–D14 cerradas el 2026-11-06. Pendiente la confirmación final del humano
+> antes de empezar la Task 1.
 
 ---
 
@@ -88,9 +88,10 @@ revela antes de subirla (ver D6).
 Resultado esperado (inferido, no medido): obturador sin decode completo, una sola pérdida WebP,
 pico de 1–2 bitmaps en vez de 4, política de imagen en un módulo.
 
-## Desglose de tareas (propuesto; se ajusta al cerrar las decisiones)
+## Desglose de tareas
 
-Cada tarea termina en una comprobación y va en su propio PR hacia `pf-appcus-d`.
+Cada tarea termina en una comprobación y va en su propio PR hacia `pf-appcus-d` (D9). Todo sale
+junto en un solo release, **1.0.4**, al cerrar la Task 7.
 
 ### Sin hotfix aparte (D1)
 El bug del hilo principal **no** sale en un PR aparte: lo arregla el propio refactor, porque
@@ -105,9 +106,17 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
   (Unisoc SC9863A1), 2 GB de RAM (menos que el ZTE, así que es un proxy pesimista), Android 12 Go,
   pantalla 720×1612 y userspace **solo de 32 bits** (`armeabi-v7a`). Una prueba instrumentada mide
   el tratamiento de una foto de 1600×1200: decode, rotación, marca, encode WebP, tiempos y pico de
-  memoria nativa. Corre antes y después del refactor con el mismo fixture.
-- **Telemetría de campo** en los A55 reales de los custodios: un evento de analítica sin PII con la
-  duración del disparo y del revelado. El modelo del dispositivo lo agrega Analytics solo.
+  memoria nativa. Corre sobre el código actual de `-d` (antes) y después del refactor, con el mismo
+  fixture.
+- **Fixture (D13):** una foto con licencia CC0 de una escena parecida a la evidencia (carretera o
+  tráiler, sin placas legibles ni personas), versionada en `app/src/androidTest/assets` con su
+  fuente y licencia anotadas. No se usa una imagen sintética: se comprime distinto y falsea los
+  tiempos de WebP.
+- **Tope de gasto (D14):** máximo 3 corridas en el TECNO POP 7 (antes, después y un reintento),
+  ~15 minutos de dispositivo. Más corridas requieren preguntar antes.
+- **Sin "antes" de campo (D10):** el 1.0.3 no tiene telemetría y no se saca un release solo para
+  medir. La comparación antes/después sale de Test Lab; la telemetría de campo (Task 5) confirma
+  el "después" en los A55 reales.
 - Sin esta línea base no hay forma de probar que el refactor mejora algo.
 
 ### Task 2 — Esquema: estado de revelado
@@ -120,6 +129,10 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
   `DibujanteMarcaDeAgua` para dibujar sobre el bitmap (sin `copy`), `Miniaturas.webp` para codificar,
   reciclado explícito.
 - Política concentrada: tamaño máximo, calidades, formato, extensión de Storage y `contentType`.
+- Fallos (D12), conservando la regla "subir sin marca es mejor que no subir":
+  - falla solo la marca → se revela sin marca (rotada, en WebP);
+  - falla el decode (archivo corrupto) → se deja la foto cruda como `image/jpeg` con la orientación
+    escrita en EXIF, para que no quede de lado, y se registra el fallo en `RegistroDeFallos`.
 - Pruebas: JVM a través de la interfaz con el codec falso (ya existe el patrón en
   `ComponerMarcaDeAguaTest`); instrumentadas para el codec real.
 
@@ -127,21 +140,28 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
 - `tomarFoto` deja de decodificar: entrega bytes crudos + rotación.
 - `CapturarMedio` persiste la foto cruda (`image/jpeg`, no revelada) y la miniatura rápida.
 
-### Task 5 — Revelado diferido y limpieza
+### Task 5 — Revelado diferido, telemetría y limpieza
 - `adjuntarGpsEnSegundoPlano` llama a `RevelarFoto` en vez de `GrabarMarcaDeAguaEnFoto`.
+- Telemetría (D11): evento `foto_revelada` vía `RegistroDeEventos`, sin PII, con
+  `ms_disparo` (toque → obturador liberado), `ms_revelado` (decode → archivo escrito), `con_gps`,
+  `con_mapa`, `origen` (`captura` | `subida`), `resultado` (enum cerrado: `OK`, `SIN_MARCA`,
+  `FALLO_DECODE`) y `kb_final`. El modelo del dispositivo lo agrega Analytics.
 - Se borran `GrabarMarcaDeAguaEnFoto`, el decode de `BitmapEstampadorFoto`,
   `Miniaturas.fotoOriginalYMiniatura` y `VistaCamara.aBitmap` si quedan sin llamadores.
 
 ### Task 6 — Red de seguridad en la subida y rutas
-- `SubidaMedioProceso` revela antes de subir si hace falta.
+- `SubidaMedioProceso` revela antes de subir si hace falta (emite `foto_revelada` con
+  `origen = subida`).
 - `RutasStorage` toma la extensión del `contentType` (`.webp` para fotos nuevas, `.jpg` para las
   viejas pendientes).
 
-### Task 7 — Verificación y documentación
-- Repetir en el TECNO POP 7 de Test Lab la prueba de la Task 1 y comparar; después, comparar la
-  telemetría de campo de los A55 entre la versión anterior y la nueva.
-- Prueba manual: ráfaga de fotos, sin red, sin GPS, matar el proceso entre captura y subida.
-- `AGENTS.md`, `CHANGELOG.md`, release.
+### Task 7 — Verificación y release 1.0.4
+- Repetir en el TECNO POP 7 de Test Lab la prueba de la Task 1 y comparar.
+- Prueba manual en CPH2769: ráfaga de fotos, sin red, sin GPS, matar el proceso entre captura y
+  subida, y actualizar desde 1.0.3 con fotos pendientes (prueba la migración).
+- **Antes del APK:** desplegar `storage.rules` (`firebase deploy --only storage`, PR #6 de infra).
+- Subir a 1.0.4 (versionCode 5), APK firmado desde `-d`, GitHub Release, `AGENTS.md` y `CHANGELOG.md`.
+- Tras el rollout: revisar `foto_revelada` en la consola, filtrado por modelo ZTE.
 
 ## Decisiones
 
@@ -157,6 +177,12 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
 | D6 | Proceso muerto antes de revelar | El worker revela con fecha y coordenadas, sin mapa |
 | D7 | Nombre y lugar | `RevelarFoto` en `data/foto/`, sin glosario aparte |
 | D8 | Tamaño final | El revelado fija el lado largo ≤ 1600 px |
+| D9 | Cómo se parten los PRs | Un PR por tarea hacia `-d`; todo sale junto en el release 1.0.4 |
+| D10 | Medición "antes" en campo | No hay; la telemetría va en 1.0.4 y el antes/después sale de Test Lab |
+| D11 | Evento de telemetría | `foto_revelada` con `ms_disparo`, `ms_revelado`, `con_gps`, `con_mapa`, `origen`, `resultado`, `kb_final` |
+| D12 | Si el revelado falla | Sin marca si falla la marca; cruda con EXIF si falla el decode; nunca se pierde la foto |
+| D13 | Foto de prueba | CC0, escena parecida, sin placas ni personas, en `androidTest/assets` |
+| D14 | Tope de Test Lab | 3 corridas, ~15 min de dispositivo |
 
 Glosario mínimo (D7): **foto cruda** = los bytes JPEG del HAL tal como llegan, sin rotar ni marcar;
 **revelar** = decode → rotación → marca → WebP, una sola vez; **foto revelada** = el WebP final que
@@ -167,10 +193,6 @@ aplicada**; los grados vienen en `imageInfo.rotationDegrees` (documentación de
 `ImageCapture.OnImageCapturedCallback`). Por eso la rotación se guarda en Room. Las pruebas de
 migración del repo son de JVM (`MigracionTelefonoACorreoTest`), sin `MigrationTestHelper` ni
 esquemas exportados.
-
-### Abiertas
-
-Ver la ronda 2 en la conversación; se pasan aquí al cerrarse.
 
 ## Notas / riesgos
 
