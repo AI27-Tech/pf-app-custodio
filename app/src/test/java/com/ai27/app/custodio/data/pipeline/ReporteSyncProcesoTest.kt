@@ -181,6 +181,23 @@ class ReporteSyncProcesoTest {
     }
 
     @Test
+    fun `cierra en el servidor cuando los medios ya estan completos (regresion)`() = runBlocking {
+        // Regresión del bug de cierre atascado: con el doc remoto ACTIVO y los medios ya
+        // COMPLETA, el orden viejo mandaba actualizarContadores(completo=true) sobre el doc
+        // aún ACTIVO -> la regla lo rechazaba (PERMISSION_DENIED) y se retornaba antes de
+        // cerrar (cierres==0, ciclo seguía ACTIVO). Con el fix el cierre va directo.
+        crearReporteLocal(Ciclo.CERRADO)
+        crearMedioCompleto()
+        remoto.ciclos["r-1"] = Ciclo.ACTIVO
+
+        val resultado = proceso.ejecutar("r-1")
+
+        assertTrue(resultado is Result.Success)
+        assertEquals(1, remoto.cierres)
+        assertEquals(Ciclo.CERRADO, remoto.ciclos["r-1"])
+    }
+
+    @Test
     fun `propaga fallo al consultar el servidor`() = runBlocking {
         crearReporteLocal(Ciclo.ACTIVO)
         remoto.debeFallarObtencion = true

@@ -2,6 +2,32 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 13:31 — Fix: el reporte se atascaba sin cerrar en el servidor cuando los medios ya estaban completos
+
+**Resumen:** un reporte cerrado localmente podía quedar **atascado sin cerrar en el servidor**. Al transicionar de ACTIVO a CERRADO, `ReporteSyncProceso` adelantaba una escritura remota de contadores con `completo=true` sobre el documento **todavía ACTIVO**; la regla de Firestore `contadoresValidos.completoCoherente` la rechazaba (PERMISSION_DENIED) porque un documento ACTIVO tiene `mediosEsperados=null` y la regla exige `completo=false` mientras tanto. El proceso retornaba el fallo antes de cerrar, así que el documento nunca transicionaba. El fix recompone los contadores desde los medios y **cierra en un solo update** (ciclo + mediosEsperados + completo + contadores), que la regla acepta por la rama `activoACerrado`; el pipeline de medios sigue empujando contadores sobre el documento ya CERRADO por su cuenta.
+
+**Cambios de producción:**
+- `data/pipeline/ReporteSyncProceso.kt`: la rama `Ciclo.CERRADO` ya no llama a `sincronizarContadores` (escritura remota adelantada sobre el doc ACTIVO). Recompone los contadores con `contadoresDe(reporte)` y cierra con ellos (`reporteRemoto.cerrar`); solo si el cierre remoto gana refleja el estado en Room (remoto-primero).
+- `domain/model/SubidaReporte.kt`: `completo` compara `mediosSubidos == mediosEsperados` en lugar de `>=`. Alinea la bandera con el invariante exacto de la regla (ni de menos ni de más).
+
+**Corrección de fixtures imposibles en pruebas:** varios tests construían un reporte **ACTIVO con `mediosEsperados = 1`/`2`**, un estado que **no existe en producción** (todo reporte ACTIVO tiene `mediosEsperados=null`; el valor solo se fija al cerrar, lo crea `CrearReporte`). Esos fixtures enmascaraban el bug y dos tests incluso afirmaban `completo==true` sobre un documento ACTIVO, que la regla prohíbe. Se alinean con producción:
+- `SubidaMedioProcesoTest`: el reporte ACTIVO del `setUp` pasa a `mediosEsperados = null`. Dos aserciones `completo==true` → `completo==false` (en "avanza contadores al subir todos los medios esperados" y "un medio ya completo recalcula los contadores"), porque un ACTIVO con esperados=null siempre da `completo=false`; se conservan las aserciones de contadores (siguen avanzando).
+- `SubidaMedioProcesoRoomTest` (Room real): los dos reportes de prueba pasan a `mediosEsperados = null` (helper `reporte` ahora acepta `Int?`). Dos aserciones `completo==true` → `completo==false`; se conservan las de `mediosSubidos` (1 y 2) y las de la query de pendientes.
+- `FakesPipeline.kt` (`FakeReporteRemoto.actualizarContadores`): el fake rechaza `completo=true` sobre un doc ACTIVO con PERMISSION_DENIED, modelando la regla real. Se documenta con comentario que `ciclo==ACTIVO` es un **proxy** del invariante real "doc remoto con `mediosEsperados=null`", válido porque un reporte nace con esperados=null y solo se fija al cerrar.
+
+**Prueba de regresión:** `ReporteSyncProcesoTest` gana "cierra en el servidor cuando los medios ya estan completos (regresion)": con el doc remoto ACTIVO y los medios ya COMPLETA, el cierre debe llegar al servidor (`cierres==1`, ciclo→CERRADO). Comprobado que revertir el fix de `ReporteSyncProceso.kt` hace fallar este test (y "crea y luego cierra cuando el reporte se cerro offline").
+
+**Verificación:** `./gradlew :app:testDebugUnitTest` verde, **254 tests, 0 fallos, 0 errores** (JAVA_HOME del JBR de Android Studio). No se tocó el código de producción de `SubidaMedioProceso`.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/ReporteSyncProceso.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/model/SubidaReporte.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/FakesPipeline.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/ReporteSyncProcesoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProcesoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProcesoRoomTest.kt`
+- `CHANGELOG.md`
+
 ## 2026:10:05 13:30
 
 **Resumen:** Se eliminó el diálogo de confirmación al cerrar un reporte; el botón ahora confirma directamente.
