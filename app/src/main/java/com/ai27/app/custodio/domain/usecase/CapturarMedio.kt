@@ -60,7 +60,7 @@ class CapturarMedio(
             origen = origen,
             createdAtDevice = ahora(),
             contentType = when (tipo) {
-                TipoMedio.FOTO -> "image/jpeg"
+                TipoMedio.FOTO -> "image/webp"
                 TipoMedio.AUDIO -> "audio/mp4"
             },
             estadoSubida = EstadoSubida.PENDIENTE,

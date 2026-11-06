@@ -15,8 +15,7 @@ import org.junit.runner.RunWith
  * Prueba de humo del dibujo real sobre `Bitmap`/`Canvas` (no corre en JVM). Verifica que la
  * marca se graba en las esquinas correctas: se parte de un bitmap de un solo color y se
  * comprueba que esas esquinas cambiaron, mientras el centro queda intacto.
- */
-@RunWith(AndroidJUnit4::class)
+ */@RunWith(AndroidJUnit4::class)
 class DibujanteMarcaDeAguaTest {
 
     private val anchoPrueba = 1200
@@ -27,9 +26,9 @@ class DibujanteMarcaDeAguaTest {
             eraseColor(Color.RED)
         }
 
-    private fun decodificar(jpeg: ByteArray): Bitmap =
-        BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)
-            ?: error("El JPEG estampado no se pudo decodificar")
+    private fun decodificar(webp: ByteArray): Bitmap =
+        BitmapFactory.decodeByteArray(webp, 0, webp.size)
+            ?: error("El WebP estampado no se pudo decodificar")
 
     private fun esRojizo(color: Int): Boolean =
         Color.red(color) > 180 && Color.green(color) < 70 && Color.blue(color) < 70
@@ -42,8 +41,8 @@ class DibujanteMarcaDeAguaTest {
             llevaMapa = false,
         )
 
-        val jpeg = DibujanteMarcaDeAgua.estampar(lienzoRojo(), marca, mapa = null)
-        val resultado = decodificar(jpeg)
+        val webp = DibujanteMarcaDeAgua.estampar(lienzoRojo(), marca, mapa = null)
+        val resultado = decodificar(webp)
 
         assertNotNull(resultado)
         // La fecha ocupa la zona superior izquierda: ahí debe haber tinta no roja.

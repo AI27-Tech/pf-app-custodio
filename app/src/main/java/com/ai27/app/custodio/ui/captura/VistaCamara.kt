@@ -39,8 +39,9 @@ fun VistaCamara(
                 val nuevo = LifecycleCameraController(ctx).apply {
                     cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                     imageCaptureMode = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                    // Evidencia: 1600×1200 conserva lectura de placas/daños con menos bytes que 1920×1080.
                     setImageCaptureTargetSize(
-                        CameraController.OutputSize(android.util.Size(1920, 1080)),
+                        CameraController.OutputSize(android.util.Size(1600, 1200)),
                     )
                 }
                 preview.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
@@ -61,7 +62,7 @@ fun VistaCamara(
 }
 
 /**
- * Dispara una foto. [alTenerFoto] recibe el JPEG y su miniatura; [alFallar] recibe
+ * Dispara una foto. [alTenerFoto] recibe la foto (WebP) y su miniatura; [alFallar] recibe
  * cualquier fallo, incluidos los de CameraX y los del procesamiento de imagen.
  *
  * Los dos callbacks son excluyentes y **siempre se invoca exactamente uno**: de eso
@@ -71,7 +72,7 @@ fun VistaCamara(
 fun tomarFoto(
     controller: LifecycleCameraController,
     ejecutor: Executor,
-    alTenerFoto: (jpeg: ByteArray, miniatura: ByteArray) -> Unit,
+    alTenerFoto: (foto: ByteArray, miniatura: ByteArray) -> Unit,
     alFallar: (causa: Throwable) -> Unit,
 ) {
     try {
@@ -81,8 +82,8 @@ fun tomarFoto(
                 override fun onCaptureSuccess(image: ImageProxy) {
                     try {
                         val bitmap = image.aBitmap()
-                        val (jpeg, miniatura) = Miniaturas.fotoOriginalYJpeg(bitmap)
-                        alTenerFoto(jpeg, miniatura)
+                        val (foto, miniatura) = Miniaturas.fotoOriginalYMiniatura(bitmap)
+                        alTenerFoto(foto, miniatura)
                     } catch (causa: Throwable) {
                         // Throwable y no Exception: aquí es donde revienta un
                         // OutOfMemoryError al decodificar y recomprimir el bitmap.

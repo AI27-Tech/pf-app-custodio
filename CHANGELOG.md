@@ -2,6 +2,35 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 — Feature: evidencia en WebP y resolución de captura más baja
+
+**Resumen:** se reduce el peso de las fotos de evidencia que la app sube a Firebase Storage con dos palancas: codificar en **WebP lossy** (antes JPEG) y bajar el tope de captura de **1920×1080 a 1600×1200**. WebP-80 ≈ JPEG-88 en percepción con ~30% menos bytes, y 1600×1200 conserva la lectura de placas/daños. Aplica solo a fotos **nuevas**; no reconvierte las ya subidas. El frontend del analista consume por `storagePath` + `getDownloadURL` sin asumir extensión ni `contentType`, así que WebP no lo rompe.
+
+**Cambios de producción:**
+- `data/local/media/Miniaturas.kt`: nueva función `webp(bitmap, calidad)` que elige `WEBP_LOSSY` (API ≥ 30) o `WEBP` deprecado (API 26–29, lossy con calidad < 100) según `Build.VERSION.SDK_INT`. `fotoOriginalYJpeg` → `fotoOriginalYMiniatura` (el nombre ya no miente). `CALIDAD_ORIGINAL` 88 → **80**, `CALIDAD_MINIATURA` 75 → **70**. Se añaden `esWebp`/`esJpeg` (detección por magic bytes, funciones puras testeables en JVM).
+- `data/local/media/DibujanteMarcaDeAgua.kt`: la recompresión tras estampar la marca pasa de JPEG a `Miniaturas.webp`. Parámetro `calidadJpeg` → `calidadWebp` (default sigue `Miniaturas.CALIDAD_ORIGINAL`). Se elimina el `ByteArrayOutputStream` directo.
+- `domain/usecase/CapturarMedio.kt`: `contentType` de una FOTO pasa de `"image/jpeg"` a **`"image/webp"`** (único punto donde se asigna el contentType del medio; el de AUDIO queda intacto en `"audio/mp4"`).
+- `ui/captura/VistaCamara.kt`: `setImageCaptureTargetSize` 1920×1080 → **1600×1200**; renombrado del callback `jpeg` → `foto`.
+- `ui/captura/CapturaViewModel.kt`: `capturarFoto(jpeg …)` → `capturarFoto(foto …)` para no mentir sobre el formato.
+
+**Tests:** `CapturarMedioTest` afirma ahora `"image/webp"` para la foto. `MiniaturasFormatoTest` (nuevo, JVM puro) cubre `esWebp`/`esJpeg` con cabeceras de ejemplo (RIFF/WEBP, FF D8, RIFF-WAV negativo, buffers cortos). La compresión real de `Bitmap` no corre en unit test JVM sin Robolectric (el proyecto no lo usa), así que la cobertura del formato se afirma sobre esas funciones puras; el dibujo real sigue en `DibujanteMarcaDeAguaTest` (instrumentado), ajustado a WebP en nombres y mensajes.
+
+**Verificación:** `./gradlew :app:testDebugUnitTest` verde, **258 tests, 0 fallos, 0 errores** (254 previos + 4 nuevos).
+
+**Seguimiento (otro repo):** `storage.rules` vive en `pf-infra-firebase`, no aquí. Hay que verificar/actualizar que las reglas de Storage acepten `contentType` `image/webp` para las fotos (hoy validan contra una lista de tipos permitidos). No se tocó desde este repo.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/Miniaturas.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/CapturarMedio.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/VistaCamara.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturarMedioTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/local/media/MiniaturasFormatoTest.kt` (nuevo)
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAguaTest.kt`
+- `CHANGELOG.md`
+
+
 ## 2026:11:06 13:31 — Fix: el reporte se atascaba sin cerrar en el servidor cuando los medios ya estaban completos
 
 **Resumen:** un reporte cerrado localmente podía quedar **atascado sin cerrar en el servidor**. Al transicionar de ACTIVO a CERRADO, `ReporteSyncProceso` adelantaba una escritura remota de contadores con `completo=true` sobre el documento **todavía ACTIVO**; la regla de Firestore `contadoresValidos.completoCoherente` la rechazaba (PERMISSION_DENIED) porque un documento ACTIVO tiene `mediosEsperados=null` y la regla exige `completo=false` mientras tanto. El proceso retornaba el fallo antes de cerrar, así que el documento nunca transicionaba. El fix recompone los contadores desde los medios y **cierra en un solo update** (ciclo + mediosEsperados + completo + contadores), que la regla acepta por la rama `activoACerrado`; el pipeline de medios sigue empujando contadores sobre el documento ya CERRADO por su cuenta.

@@ -189,12 +189,12 @@ class CapturaViewModel @Inject constructor(
         }
     }
 
-    fun capturarFoto(jpeg: ByteArray, miniatura: ByteArray?) {
+    fun capturarFoto(foto: ByteArray, miniatura: ByteArray?) {
         val custodio = uiState.value.custodio
         val reporte = uiState.value.reporte
         if (custodio == null || reporte == null) return
         if (interno.value.capturando || interno.value.grabandoAudio) return
-        if (jpeg.isEmpty()) return
+        if (foto.isEmpty()) return
         viewModelScope.launch {
             interno.update { it.copy(capturando = true) }
             // La foto se persiste de inmediato SIN esperar el arreglo de GPS. La ubicación
@@ -205,7 +205,7 @@ class CapturaViewModel @Inject constructor(
                 reporteId = reporte.id,
                 tipo = TipoMedio.FOTO,
                 origen = OrigenMedio.CAMARA,
-                contenido = jpeg,
+                contenido = foto,
                 miniatura = miniatura,
                 gps = null,
             )
@@ -549,7 +549,7 @@ class CapturaViewModel @Inject constructor(
     // bloquea la captura: la hoja de etiquetado ya se mostró. actualizarGps solo pega la
     // ubicación mientras el medio sigue PENDIENTE, así que llegar tarde es inofensivo.
     //
-    // Marca de agua: una vez resuelto el GPS (haya fix o no), se graba la marca en el JPEG
+    // Marca de agua: una vez resuelto el GPS (haya fix o no), se graba la marca en la foto
     // original. Se hace aquí —y no en la captura— porque la marca necesita el GPS, que llega
     // tarde; encolarCuandoListo hace join() de este trabajo, así que la subida espera a que
     // la foto quede estampada. grabarMarcaDeAguaEnFoto es no-op para audio y nunca lanza.

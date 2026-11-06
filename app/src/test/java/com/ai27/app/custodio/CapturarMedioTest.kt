@@ -50,7 +50,7 @@ class CapturarMedioTest {
         assertTrue(resultado is Result.Success)
         val medio = (resultado as Result.Success).value
         assertEquals(TipoMedio.FOTO, medio.tipo)
-        assertEquals("image/jpeg", medio.contentType)
+        assertEquals("image/webp", medio.contentType)
         assertEquals(1, repoMedios.medios.size)
         assertEquals(2048L, medio.sizeBytes)
         assertTrue(medio.localPath!!.startsWith("fisico/"))
