@@ -2,6 +2,19 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 — Docs: revisión de arquitectura para ZTE Blade A54/A55 y plan de RevelarFoto
+
+**Resumen:** se agregan la revisión de arquitectura del pipeline de fotos para los dispositivos que usan los custodios (ZTE Blade A55/A54, Unisoc SC9863A, Android Go) y el borrador del plan del candidato 1. Solo documentación; no cambia código.
+
+**Cambios:**
+- `docs/REVISION_ARQUITECTURA_ZTE.html`: reporte con tres candidatos (revelar la foto en un módulo profundo, contexto geográfico con caché, preparación de evidencia en el pipeline durable), ajustes de build y el hallazgo de que la marca de agua corre en el hilo principal.
+- `docs/PLAN_REVELAR_FOTO.md`: borrador del plan del candidato 1, con un hotfix previo (Task 0) para sacar la marca del hilo principal y la línea base sin ZTE físico (TECNO POP 7 de Firebase Test Lab, mismo chip, más telemetría de campo). Las decisiones D1–D8 están pendientes de confirmar.
+
+**Archivos modificados:**
+- `docs/REVISION_ARQUITECTURA_ZTE.html`
+- `docs/PLAN_REVELAR_FOTO.md`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Feature: evidencia en WebP y resolución de captura más baja
 
 **Resumen:** se reduce el peso de las fotos de evidencia que la app sube a Firebase Storage con dos palancas: codificar en **WebP lossy** (antes JPEG) y bajar el tope de captura de **1920×1080 a 1600×1200**. WebP-80 ≈ JPEG-88 en percepción con ~30% menos bytes, y 1600×1200 conserva la lectura de placas/daños. Aplica solo a fotos **nuevas**; no reconvierte las ya subidas. El frontend del analista consume por `storagePath` + `getDownloadURL` sin asumir extensión ni `contentType`, así que WebP no lo rompe.
