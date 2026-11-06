@@ -34,7 +34,7 @@ class DibujanteMarcaDeAguaTest {
         Color.red(color) > 180 && Color.green(color) < 70 && Color.blue(color) < 70
 
     @Test
-    fun `estampa fecha arriba-izquierda y coordenadas abajo-derecha`() {
+    fun `estampa_fecha_arriba-izquierda_y_coordenadas_abajo-derecha`() {
         val marca = MarcaDeAgua(
             fechaHora = "2026/01/05 09:03:07",
             coordenadas = "19.432608, -99.133209",
@@ -67,7 +67,7 @@ class DibujanteMarcaDeAguaTest {
     }
 
     @Test
-    fun `sin coordenadas no marca la esquina inferior derecha`() {
+    fun `sin_coordenadas_no_marca_la_esquina_inferior_derecha`() {
         val marca = MarcaDeAgua(fechaHora = "2026/01/05 09:03:07", coordenadas = null, llevaMapa = false)
 
         val resultado = decodificar(DibujanteMarcaDeAgua.estampar(lienzoRojo(), marca, mapa = null))
@@ -84,7 +84,7 @@ class DibujanteMarcaDeAguaTest {
     }
 
     @Test
-    fun `con mapa dibuja el tile abajo-izquierda`() {
+    fun `con_mapa_dibuja_el_tile_abajo-izquierda`() {
         val marca = MarcaDeAgua(
             fechaHora = "2026/01/05 09:03:07",
             coordenadas = "19.432608, -99.133209",

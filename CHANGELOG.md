@@ -2,6 +2,22 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 — Test: línea base del tratamiento de fotos (Task 1 de PLAN_REVELAR_FOTO)
+
+**Resumen:** prueba instrumentada que mide el pipeline ACTUAL de una foto (decode, rotación, WebP del original y la miniatura, marca de agua con mapa) para comparar antes y después del refactor `RevelarFoto`. Corre en el TECNO POP 7 de Firebase Test Lab, mismo chip que el ZTE Blade A55. No cambia código de producción.
+
+**Cambios:**
+- `app/src/androidTest/.../data/foto/LineaBaseReveladoTest.kt`: 2 iteraciones de calentamiento y 10 medidas; publica tiempos (mín, mediana, p90, máx), pico de memoria nativa y pesos en logcat (`LineaBaseRevelado`) y en `getExternalFilesDir()/linea-base-revelado.json`.
+- `app/src/androidTest/assets/fixtures/foto_prueba_1600x1200.jpg` + `LEEME.md`: foto CC0 de Wikimedia Commons (camino rural, sin placas ni personas), con fuente, licencia y transformación anotadas.
+- `app/src/androidTest/.../data/local/media/DibujanteMarcaDeAguaTest.kt`: los nombres de método con espacios pasan a guiones bajos. D8 no acepta espacios en nombres de método con `minSdk 26` (DEX < 040), así que el APK de pruebas instrumentadas no se podía construir para un dispositivo externo. Mismo comportamiento de las pruebas.
+
+**Verificación:** `assembleDebug` y `assembleDebugAndroidTest` verdes; la prueba pasó en el emulador local (Pixel 9a, solo para validar que corre: sus tiempos no representan al SC9863A).
+
+**Archivos modificados:**
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/LineaBaseReveladoTest.kt`
+- `app/src/androidTest/assets/fixtures/foto_prueba_1600x1200.jpg`
+- `app/src/androidTest/assets/fixtures/LEEME.md`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAguaTest.kt`
 ## 2026:11:06 — Docs: revisión de arquitectura para ZTE Blade A54/A55 y plan de RevelarFoto
 
 **Resumen:** se agregan la revisión de arquitectura del pipeline de fotos para los dispositivos que usan los custodios (ZTE Blade A55/A54, Unisoc SC9863A, Android Go) y el borrador del plan del candidato 1. Solo documentación; no cambia código.
