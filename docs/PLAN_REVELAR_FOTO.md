@@ -100,24 +100,31 @@ llamador. Producción (1.0.3) no tiene WebP, así que el costo de esperar es el 
 JPEG. Consecuencia: **no se construye un release desde `pf-appcus-d` hasta cerrar la Task 7**,
 porque `-d` ya tiene WebP con el bug.
 
-### Task 1 — Línea base sin ZTE físico
-No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuentes (ver D3):
-- **Proxy en Firebase Test Lab: TECNO POP 7 (`TECNO-BF6`)**, dispositivo físico con el mismo chip
-  (Unisoc SC9863A1), 2 GB de RAM (menos que el ZTE, así que es un proxy pesimista), Android 12 Go,
-  pantalla 720×1612 y userspace **solo de 32 bits** (`armeabi-v7a`). Una prueba instrumentada mide
-  el tratamiento de una foto de 1600×1200: decode, rotación, marca, encode WebP, tiempos y pico de
-  memoria nativa. Corre sobre el código actual de `-d` (antes) y después del refactor, con el mismo
-  fixture.
-- **Fixture (D13):** una foto con licencia CC0 de una escena parecida a la evidencia (carretera o
-  tráiler, sin placas legibles ni personas), versionada en `app/src/androidTest/assets` con su
-  fuente y licencia anotadas. No se usa una imagen sintética: se comprime distinto y falsea los
-  tiempos de WebP.
-- **Tope de gasto (D14):** máximo 3 corridas en el TECNO POP 7 (antes, después y un reintento),
-  ~15 minutos de dispositivo. Más corridas requieren preguntar antes.
-- **Sin "antes" de campo (D10):** el 1.0.3 no tiene telemetría y no se saca un release solo para
-  medir. La comparación antes/después sale de Test Lab; la telemetría de campo (Task 5) confirma
-  el "después" en los A55 reales.
-- Sin esta línea base no hay forma de probar que el refactor mejora algo.
+### Task 1 — Línea base sin el chip (hecha el 2026-11-06)
+No hay un ZTE A55/A54 disponible, y el único dispositivo de Test Lab con el mismo chip no funcionó:
+- **Test Lab, intentado:** TECNO POP 7 (`TECNO-BF6`, Unisoc SC9863A1, Android 12 Go, solo
+  `armeabi-v7a`). Dos corridas terminaron `INCONCLUSIVE` por "Internal System Error 3" (3 intentos
+  internos cada una, sin artefactos). Según la documentación de Firebase, los errores de
+  infraestructura no se cobran.
+- **Decisión (2026-11-06): seguir sin la base del chip (D3).** No habrá tiempos del SC9863A antes
+  del refactor.
+- **Lo que sí se mide:** `LineaBaseReveladoTest` (instrumentada) corre el pipeline con las clases de
+  producción sobre el fixture (D13: foto CC0 de un camino rural, sin placas ni personas, en
+  `app/src/androidTest/assets/fixtures/` con su `LEEME.md`). La memoria nativa y el peso no dependen
+  del chip; los tiempos del emulador solo sirven para comparar antes y después en la misma máquina.
+- **Línea base en el emulador local** (Pixel 9a, API 37, arm64, código actual de `-d`, 10 medidas):
+
+  | Métrica | Mediana | p90 |
+  | --- | --- | --- |
+  | Disparo (decode + rotación + WebP + miniatura) | 347 ms | 446 ms |
+  | Marca (decode + copia + dibujo + WebP) | 284 ms | 386 ms |
+  | Total | 644 ms | 734 ms |
+  | Pico de memoria nativa | 15.0 MB | 29.6 MB |
+
+  Pesos: original limpio 508 KB, final con marca 481 KB, miniatura 19 KB. El pico de 15 MB son dos
+  bitmaps de 1600×1200 (7.3 MB cada uno) vivos a la vez, como predice la lectura del código.
+- **Sin "antes" de campo (D10):** el 1.0.3 no tiene telemetría. La telemetría de 1.0.4 (Task 5) da
+  los tiempos reales en los A55, solo del pipeline nuevo.
 
 ### Task 2 — Esquema: estado de revelado
 - Columnas nuevas en `MedioEntity` según D5, `MIGRACION_5_6` y su prueba.
@@ -156,7 +163,8 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
   viejas pendientes).
 
 ### Task 7 — Verificación y release 1.0.4
-- Repetir en el TECNO POP 7 de Test Lab la prueba de la Task 1 y comparar.
+- Repetir `LineaBaseReveladoTest` en el mismo emulador sobre el pipeline nuevo y comparar con la
+  tabla de la Task 1 (memoria nativa y peso; los tiempos solo como comparación relativa).
 - Prueba manual en CPH2769: ráfaga de fotos, sin red, sin GPS, matar el proceso entre captura y
   subida, y actualizar desde 1.0.3 con fotos pendientes (prueba la migración).
 - **Antes del APK:** desplegar `storage.rules` (`firebase deploy --only storage`, PR #6 de infra).
@@ -171,18 +179,18 @@ No hay un ZTE A55/A54 disponible para pruebas. La línea base sale de dos fuente
 | --- | --- | --- |
 | D1 | Hotfix aparte o dentro del refactor | Dentro del refactor; no se libera `-d` hasta la Task 7 |
 | D2 | Liberar 1.0.4 = WebP + hotfix antes del refactor | No aplica (sale todo junto) |
-| D3 | Medición sin ZTE físico | TECNO POP 7 en Test Lab (gasto autorizado) + telemetría de campo |
+| D3 | Medición sin ZTE físico | Test Lab (TECNO POP 7) falló por infraestructura; se sigue sin la base del chip. Emulador para antes/después + telemetría de campo |
 | D4 | Captura cruda | Copiar el búfer del `ImageProxy` y guardar con `AlmacenArchivos`; rotación en Room |
 | D5 | Estado "revelada" | Columnas nuevas (`revelada`, `rotacionGrados`) con `MIGRACION_5_6`; filas existentes = reveladas |
 | D6 | Proceso muerto antes de revelar | El worker revela con fecha y coordenadas, sin mapa |
 | D7 | Nombre y lugar | `RevelarFoto` en `data/foto/`, sin glosario aparte |
 | D8 | Tamaño final | El revelado fija el lado largo ≤ 1600 px |
 | D9 | Cómo se parten los PRs | Un PR por tarea hacia `-d`; todo sale junto en el release 1.0.4 |
-| D10 | Medición "antes" en campo | No hay; la telemetría va en 1.0.4 y el antes/después sale de Test Lab |
+| D10 | Medición "antes" en campo | No hay; la telemetría va en 1.0.4 y el antes/después sale del emulador |
 | D11 | Evento de telemetría | `foto_revelada` con `ms_disparo`, `ms_revelado`, `con_gps`, `con_mapa`, `origen`, `resultado`, `kb_final` |
 | D12 | Si el revelado falla | Sin marca si falla la marca; cruda con EXIF si falla el decode; nunca se pierde la foto |
 | D13 | Foto de prueba | CC0, escena parecida, sin placas ni personas, en `androidTest/assets` |
-| D14 | Tope de Test Lab | 3 corridas, ~15 min de dispositivo |
+| D14 | Tope de Test Lab | Sin efecto: Test Lab se dejó (D3). Las 2 corridas fallidas no se cobran |
 
 Glosario mínimo (D7): **foto cruda** = los bytes JPEG del HAL tal como llegan, sin rotar ni marcar;
 **revelar** = decode → rotación → marca → WebP, una sola vez; **foto revelada** = el WebP final que
@@ -196,12 +204,12 @@ esquemas exportados.
 
 ## Notas / riesgos
 
-- **No hay ZTE físico** y CPH2769 (el teléfono de pruebas) no usa el SC9863A. El TECNO POP 7 de
-  Test Lab es el proxy más cercano disponible; la confirmación final viene de la telemetría de campo.
+- **No hay ZTE físico ni medición del SC9863A.** CPH2769 (el teléfono de pruebas) no usa ese chip y
+  Test Lab falló con el único dispositivo equivalente. Los tiempos en el chip real solo llegan con la
+  telemetría de 1.0.4, después del refactor.
 - **Userspace de 32 bits:** el TECNO POP 7 de Test Lab solo soporta `armeabi-v7a`. Es probable que
   el ZTE A55 (también Go) sea igual (inferido, no verificado). Cualquier filtro de ABI futuro debe
   conservar `armeabi-v7a`; filtrar a `arm64-v8a` dejaría a los custodios sin poder instalar.
-- Firebase Test Lab se retira el 2027-09-30 (aviso de `gcloud`); sirve para este plan.
 - `pf-appcus-d` ya tiene WebP (PR #10) con el bug del hilo principal: **no construir un release
   desde `-d` hasta cerrar la Task 7**. Producción (1.0.3) conserva el bug con JPEG hasta entonces.
 - `storage.rules` con `image/webp` está mergeado (PR #6 de infra) pero hay que desplegarlo

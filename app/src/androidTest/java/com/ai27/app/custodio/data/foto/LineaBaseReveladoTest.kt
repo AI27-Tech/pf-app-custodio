@@ -36,7 +36,7 @@ import org.junit.runner.RunWith
  *
  * No es una prueba de comportamiento: solo verifica que las salidas existan y publica los
  * números en logcat (`LineaBaseRevelado`) y en `getExternalFilesDir()/linea-base-revelado.json`,
- * que Firebase Test Lab recupera con `--directories-to-pull`. Se corre igual antes y después del
+ * que se lee con `adb shell cat` (o `--directories-to-pull` en Test Lab). Se corre igual antes y después del
  * refactor para comparar. La app de prueba es debug: el código Kotlin corre algo más lento que en
  * release, pero el grueso del costo (decode, Skia, libwebp) es nativo y no cambia.
  */
