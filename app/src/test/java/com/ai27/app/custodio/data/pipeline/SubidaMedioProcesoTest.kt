@@ -70,7 +70,10 @@ class SubidaMedioProcesoTest {
             ciclo = Ciclo.ACTIVO,
             subida = EstadoSubida.PENDIENTE,
             completo = false,
-            mediosEsperados = 1,
+            // Un reporte ACTIVO nace con mediosEsperados=null (CrearReporte); el valor solo
+            // se fija al cerrar. En producción TODO reporte ACTIVO tiene esperados=null, así
+            // que un ACTIVO con esperados=1 es un estado imposible que enmascaraba el bug.
+            mediosEsperados = null,
             mediosSubidos = 0,
             resumenMedios = ResumenMedios(),
         )
@@ -237,7 +240,9 @@ class SubidaMedioProcesoTest {
         val actualizado = repoReportes.obtenerPorId("r-1")!!
         assertEquals(EstadoSubida.COMPLETA, actualizado.subida)
         assertEquals(1, actualizado.mediosSubidos)
-        assertTrue(actualizado.completo)
+        // El doc remoto sigue ACTIVO (esperados=null), así que completo=false: SubidaReporte
+        // .completo exige mediosEsperados!=null. El contador de subidos sí avanza.
+        assertFalse(actualizado.completo)
         assertEquals(1, reporteRemoto.actualizacionesContadores)
     }
 
@@ -265,7 +270,9 @@ class SubidaMedioProcesoTest {
         assertEquals(1, reporteRemoto.actualizacionesContadores)
         val actualizado = repoReportes.obtenerPorId("r-1")!!
         assertEquals(EstadoSubida.COMPLETA, actualizado.subida)
-        assertTrue(actualizado.completo)
+        // El doc sigue ACTIVO (esperados=null) -> completo=false. Lo que se sana es la
+        // divergencia de contadores (actualizacionesContadores=1), no la bandera completo.
+        assertFalse(actualizado.completo)
     }
 
     @Test

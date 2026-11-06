@@ -49,7 +49,16 @@ class FakeReporteRemoto(
         estado: EstadoSubida,
         mediosSubidos: Int,
         completo: Boolean,
-    ): Result<Unit> = escribir { actualizacionesContadores++ }
+    ): Result<Unit> {
+        // Proxy del invariante real "doc remoto con mediosEsperados=null": en producción un
+        // reporte ACTIVO siempre tiene esperados=null (nace así y solo se fija al cerrar), y
+        // la regla contadoresValidos.completoCoherente rechaza completo=true mientras esperados
+        // sea null. La regla mira esperados, no el ciclo; aquí ACTIVO lo representa.
+        if (ciclos[reporteId] == Ciclo.ACTIVO && completo) {
+            return Result.Failure(DominioError.PermisoDenegado)
+        }
+        return escribir { actualizacionesContadores++ }
+    }
 
     private inline fun escribir(bloque: () -> Unit): Result<Unit> =
         if (debeFallarEscritura) {
