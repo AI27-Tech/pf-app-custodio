@@ -42,11 +42,20 @@ class ReporteSyncProceso(
     private suspend fun transicionarDesdeActivo(reporte: Reporte): Result<Unit> = when (reporte.ciclo) {
         Ciclo.ACTIVO -> Result.Success(Unit) // ya quedó creado arriba o remoto, nada que hacer
         Ciclo.CERRADO -> {
-            val conContadores = when (val sincr = sincronizarContadores(reporte)) {
-                is Result.Success -> sincr.value
-                is Result.Failure -> return sincr
-            }
-            reporteRemoto.cerrar(conContadores)
+            // El cierre escribe ciclo + mediosEsperados + completo + contadores en un solo
+            // update (mapaCierre), que las reglas aceptan (rama activoACerrado). NO se
+            // adelanta una escritura remota de contadores sobre el doc aún ACTIVO: con
+            // completo=true la regla contadoresValidos.completoCoherente la rechazaría
+            // (PERMISSION_DENIED) y el reporte nunca transicionaría. Se recomputan los
+            // contadores desde los medios y se cierra con ellos; el pipeline de medios sigue
+            // empujando contadores sobre el doc ya CERRADO por su cuenta (rama cerradoContadores).
+            val (estado, subidos, completo) = contadoresDe(reporte)
+            val conContadores = reporte.copy(subida = estado, mediosSubidos = subidos, completo = completo)
+            val cerrado = reporteRemoto.cerrar(conContadores)
+            if (cerrado is Result.Failure) return cerrado
+            // Remoto-primero (C3/C1): solo si el cierre remoto gana se refleja el estado local.
+            reporteRepository.actualizarSubida(reporte.id, estado, subidos, completo)
+            Result.Success(Unit)
         }
         Ciclo.DESCARTADO -> reporteRemoto.descartar(reporte)
     }

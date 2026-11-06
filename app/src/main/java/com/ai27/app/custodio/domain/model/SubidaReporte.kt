@@ -17,5 +17,5 @@ object SubidaReporte {
 
     fun completo(reporte: Reporte, medios: List<Medio>): Boolean =
         reporte.mediosEsperados != null &&
-            mediosSubidos(medios) >= reporte.mediosEsperados
+            mediosSubidos(medios) == reporte.mediosEsperados
 }

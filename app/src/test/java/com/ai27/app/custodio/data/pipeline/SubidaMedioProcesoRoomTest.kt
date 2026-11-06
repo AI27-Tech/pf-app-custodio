@@ -68,7 +68,7 @@ class SubidaMedioProcesoRoomTest {
         directorioMedios.deleteRecursively()
     }
 
-    private fun reporte(reporteId: String, mediosEsperados: Int): Reporte = Reporte(
+    private fun reporte(reporteId: String, mediosEsperados: Int?): Reporte = Reporte(
         id = reporteId,
         placas = "ABC-1",
         placasCapturadas = "ABC-1",
@@ -86,7 +86,7 @@ class SubidaMedioProcesoRoomTest {
         resumenMedios = ResumenMedios(),
     )
 
-    private suspend fun crearReporteEnRoom(reporteId: String, mediosEsperados: Int) {
+    private suspend fun crearReporteEnRoom(reporteId: String, mediosEsperados: Int?) {
         assertTrue("se debe poder crear el reporte", repoReportes.crear(reporte(reporteId, mediosEsperados)) is Result.Success)
     }
 
@@ -111,7 +111,8 @@ class SubidaMedioProcesoRoomTest {
     @Test
     fun `el pipeline avanza el reporte contra Room real y borra el archivo`() = runBlocking {
         val reporteId = "r-c0-unico"
-        crearReporteEnRoom(reporteId, mediosEsperados = 1)
+        // Producción: un reporte ACTIVO nace con mediosEsperados=null (se fija al cerrar).
+        crearReporteEnRoom(reporteId, mediosEsperados = null)
         val medio = guardarMedio(reporteId)
         reporteRemoto.ciclos[reporteId] = Ciclo.ACTIVO
 
@@ -121,7 +122,8 @@ class SubidaMedioProcesoRoomTest {
         val reporte = repoReportes.obtenerPorId(reporteId)!!
         assertEquals(EstadoSubida.COMPLETA, reporte.subida)
         assertEquals(1, reporte.mediosSubidos)
-        assertTrue(reporte.completo)
+        // ACTIVO con esperados=null => completo=false (SubidaReporte.completo exige esperados!=null).
+        assertFalse(reporte.completo)
         val subido = repoMedios.obtenerPorId(medio.id)!!
         assertEquals(EstadoSubida.COMPLETA, subido.estadoSubida)
         assertTrue(subido.sha256!!.isNotBlank())
@@ -136,7 +138,8 @@ class SubidaMedioProcesoRoomTest {
     @Test
     fun `con dos medios el contador final no se infla ni se pierde`() = runBlocking {
         val reporteId = "r-c0-par"
-        crearReporteEnRoom(reporteId, mediosEsperados = 2)
+        // Producción: ACTIVO nace con esperados=null; los contadores avanzan igual.
+        crearReporteEnRoom(reporteId, mediosEsperados = null)
         val medioA = guardarMedio(reporteId, "a")
         val medioB = guardarMedio(reporteId, "b")
         reporteRemoto.ciclos[reporteId] = Ciclo.ACTIVO
@@ -147,10 +150,13 @@ class SubidaMedioProcesoRoomTest {
         val reporte = repoReportes.obtenerPorId(reporteId)!!
         assertEquals("cada medio suma exactamente uno", 2, reporte.mediosSubidos)
         assertEquals(EstadoSubida.COMPLETA, reporte.subida)
-        assertTrue(reporte.completo)
+        // ACTIVO con esperados=null => completo=false; lo que se verifica es que el contador
+        // no se infla ni se pierde (2), no la bandera completo.
+        assertFalse(reporte.completo)
         assertEquals(2, reporteRemoto.actualizacionesContadores)
 
-        // Con la subida terminada y sin divergencia, la reconciliación ya no lo devuelve.
+        // subida=COMPLETA y esperados=null: la query de pendientes no lo devuelve
+        // (pendiente exige subida!=COMPLETA o esperados!=null con completo=0).
         assertFalse(repoReportes.obtenerPendientesSubida("c-1", "2026-01-01").any { it.id == reporteId })
     }
 }
