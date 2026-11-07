@@ -13,6 +13,9 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 - `ui/viaje/CapturaEvidenciaScreen.kt`: `onTomarFoto(crudo, rotacionGrados)`. El cerrojo del obturador se libera al llegar la cruda; vibración, sonido y flash no cambian.
 - `di/FotoModule.kt` (nuevo): `CodecFoto` (`BitmapCodecFoto(context.cacheDir)`) y `RevelarFoto` como `@Singleton`. Una sola instancia hace falta para que su candado evite el doble revelado entre cámara y worker.
 - Pruebas: `CapturaViewModelTest` usa un `RevelarFoto` real con `FakeMedioRepository` y un codec falso. Hay casos nuevos para la cruda con rotación 90 y su miniatura, para la miniatura que falla, para el revelado antes de encolar (con GPS, sin fix y con timeout) y para el audio sin cambios. `CapturarMedioTest` ahora afirma la cruda `image/jpeg` no revelada con su rotación, y que el audio queda revelado. `FakeSubidaScheduler.alEncolar` permite observar el orden. Se borra `FakeEstampadorFoto`, que quedó sin uso.
+- `data/foto/RevelarFoto.kt` (revisión): `revelar` ya no lanza salvo por cancelación. Un error al leer o escribir el archivo se registra y devuelve `NO_APLICA` con la cruda intacta, y un fallo del snapshot del mapa deja la foto marcada sin tile. Antes, una `IOException` dentro de `adjuntarGpsEnSegundoPlano` (corrutina de `viewModelScope`, sin manejador) habría cerrado la app. Dos casos nuevos en `RevelarFotoTest`.
+
+**Verificación:** `testDebugUnitTest` 282/282 (277 previas + 3 de la captura + 2 de `RevelarFoto`), `assembleDebug` y `assembleDebugAndroidTest` verdes; Hilt compiló el grafo con `FotoModule`. En el emulador local (Pixel 9a, API 37): `BitmapCodecFotoTest` OK (7) y `DibujanteMarcaDeAguaTest` OK (3). **No verificado:** una foto real en dispositivo (en el emulador la app se queda en el login, porque el debug apunta al emulador de Firebase). Si el proceso muere antes de revelar, la reconciliación todavía sube la cruda; lo cierra la Task 6.
 
 **Archivos modificados:**
 - `app/src/main/java/com/ai27/app/custodio/ui/captura/VistaCamara.kt`
@@ -20,6 +23,8 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 - `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
 - `app/src/main/java/com/ai27/app/custodio/domain/usecase/CapturarMedio.kt`
 - `app/src/main/java/com/ai27/app/custodio/di/FotoModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/RevelarFoto.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
 - `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
 - `app/src/test/java/com/ai27/app/custodio/CapturarMedioTest.kt`
 - `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
