@@ -2,6 +2,27 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 — Feature: estado de revelado en la base local (Task 2 de PLAN_REVELAR_FOTO)
+
+**Resumen:** la base de Room pasa a la versión 6 con dos columnas nuevas en `medios`: `revelada` (si la foto ya es la final o todavía es la cruda del HAL) y `rotacionGrados` (la rotación que CameraX no aplica). Todavía nadie las lee ni las escribe con otro valor que el default: las usan las Tasks 3–6. Todo medio existente nace revelado y sin rotación pendiente, para que una foto del 1.0.3 pendiente de subir no se marque dos veces (D5).
+
+**Cambios:**
+- `data/local/db/EchoDatabase.kt`: `version = 6` y `MIGRACION_5_6` (`ALTER TABLE medios ADD COLUMN revelada INTEGER NOT NULL DEFAULT 1` y `rotacionGrados INTEGER NOT NULL DEFAULT 0`), registrada en `crearBaseDatos`.
+- `data/local/db/MedioEntity.kt`: columnas con el mismo `defaultValue` que la migración, para que una instalación nueva y una migrada tengan el mismo esquema.
+- `domain/model/Medio.kt`: `revelada = true` y `rotacionGrados = 0` por defecto; los llamadores existentes no cambian.
+- `data/mapper/MedioMappers.kt`: mapeo de los dos campos en ambos sentidos.
+- `test/.../data/local/db/MigracionReveladoTest.kt` (nuevo): siembra una base v5 con una foto pendiente y verifica que abre en v6 revelada, sin rotación y con los defaults de columna correctos.
+
+**Verificación:** `testDebugUnitTest` 260/260 (258 previas + 2 nuevas) y `assembleDebugAndroidTest` verdes. Prueba de mutación: con `DEFAULT 0` en `revelada`, las dos pruebas nuevas fallan.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/EchoDatabase.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioEntity.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/model/Medio.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapper/MedioMappers.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/local/db/MigracionReveladoTest.kt`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Test: línea base del tratamiento de fotos (Task 1 de PLAN_REVELAR_FOTO)
 
 **Resumen:** prueba instrumentada que mide el pipeline ACTUAL de una foto (decode, rotación, WebP del original y la miniatura, marca de agua con mapa) para comparar antes y después del refactor `RevelarFoto`. Se intentó correr en el TECNO POP 7 de Firebase Test Lab (mismo chip que el ZTE Blade A55), pero las dos corridas fallaron por infraestructura de Test Lab; se decidió seguir sin la base del chip y usar el emulador local para el antes/después. No cambia código de producción.
