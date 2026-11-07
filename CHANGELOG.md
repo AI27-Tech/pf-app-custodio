@@ -2,6 +2,29 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 — Feature: obturador sin decodificar y revelado conectado (Task 4 de PLAN_REVELAR_FOTO)
+
+**Resumen:** el obturador deja de decodificar: `tomarFoto` copia el búfer JPEG del HAL y entrega la **foto cruda** con sus grados de rotación. La foto se persiste cruda (`image/jpeg`, `revelada = false`, con su rotación), la miniatura sale de `RevelarFoto.miniaturaRapida`, y tras el GPS (o su timeout de 8 s) `adjuntarGpsEnSegundoPlano` llama a `RevelarFoto.revelar` en lugar de `GrabarMarcaDeAguaEnFoto`. Como `encolarCuandoListo` sigue esperando ese trabajo, la cámara nunca encola una cruda. Con esto el revelado (y la marca de agua) corre fuera del hilo principal. Telemetría y limpieza quedan para la Task 5.
+
+**Cambios:**
+- `ui/captura/VistaCamara.kt`: `tomarFoto(controller, ejecutor, alTenerFoto: (crudo, rotacionGrados), alFallar)`. Si el formato no es `ImageFormat.JPEG`, llama `alFallar`. El `ImageProxy` se cierra en `finally` antes de entregar la copia, y `alTenerFoto` va fuera del `try`, así que un fallo del receptor ya no dispara también `alFallar`. El target de captura sale de `CodecFoto.LADO_MAX_PX` (1280×960). Se borra `aBitmap`, que quedó sin llamadores.
+- `domain/usecase/CapturarMedio.kt`: parámetro `rotacionGrados`. La FOTO se guarda con `image/jpeg`, `revelada = false` y su rotación; el AUDIO no cambia (`revelada = true`, rotación 0).
+- `ui/captura/CapturaViewModel.kt`: `capturarFoto(crudo, rotacionGrados)` genera la miniatura con `miniaturaRapida`. Si la miniatura falla, la foto se guarda sin miniatura y el fallo se registra como `captura_miniatura`. Inyecta `RevelarFoto` en vez de `GrabarMarcaDeAguaEnFoto`.
+- `ui/viaje/CapturaEvidenciaScreen.kt`: `onTomarFoto(crudo, rotacionGrados)`. El cerrojo del obturador se libera al llegar la cruda; vibración, sonido y flash no cambian.
+- `di/FotoModule.kt` (nuevo): `CodecFoto` (`BitmapCodecFoto(context.cacheDir)`) y `RevelarFoto` como `@Singleton`. Una sola instancia hace falta para que su candado evite el doble revelado entre cámara y worker.
+- Pruebas: `CapturaViewModelTest` usa un `RevelarFoto` real con `FakeMedioRepository` y un codec falso. Hay casos nuevos para la cruda con rotación 90 y su miniatura, para la miniatura que falla, para el revelado antes de encolar (con GPS, sin fix y con timeout) y para el audio sin cambios. `CapturarMedioTest` ahora afirma la cruda `image/jpeg` no revelada con su rotación, y que el audio queda revelado. `FakeSubidaScheduler.alEncolar` permite observar el orden. Se borra `FakeEstampadorFoto`, que quedó sin uso.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/VistaCamara.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/CapturarMedio.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/FotoModule.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturarMedioTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Cambio: la foto revelada baja a 1280 px de lado largo (D8)
 
 **Resumen:** por decisión de producto, `CodecFoto.LADO_MAX_PX` baja de 1600 a 1280: la foto revelada queda en 1280×960 (≈1.2 MP), con menos bytes y la mitad de píxeles que procesar en el SC9863A. La marca de agua escala con el lado menor, así que sigue legible (texto ≈25 px, mapa de 211 px). Además, el plan mueve la conexión del revelado a la Task 4 para que cada PR deje la app funcionando.
