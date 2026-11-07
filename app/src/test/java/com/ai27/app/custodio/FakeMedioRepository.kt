@@ -93,6 +93,23 @@ class FakeMedioRepository(
         return Result.Success(actualizado)
     }
 
+    override suspend fun guardarRevelado(medioId: String, bytes: ByteArray, contentType: String): Result<Medio> {
+        val indice = medios.indexOfFirst { it.id == medioId }
+        if (indice == -1) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
+        }
+        val anterior = medios[indice]
+        // Refleja MedioDao.marcarRevelada: solo mientras sigue PENDIENTE y hay ruta local.
+        if (anterior.estadoSubida != EstadoSubida.PENDIENTE || anterior.localPath == null) {
+            return Result.Failure(com.ai27.app.custodio.domain.error.DominioError.MedioNoEncontrado)
+        }
+        archivosGuardados[anterior.localPath] = bytes
+        val actualizado = anterior.copy(sizeBytes = bytes.size.toLong(), contentType = contentType, revelada = true)
+        medios[indice] = actualizado
+        actualizarPendientes()
+        return Result.Success(actualizado)
+    }
+
     override fun observarDelReporte(reporteId: String): Flow<List<Medio>> =
         todos.map { lista -> lista.filter { it.reporteId == reporteId } }
 
