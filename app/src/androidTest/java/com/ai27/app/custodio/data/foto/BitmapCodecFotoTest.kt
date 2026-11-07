@@ -39,30 +39,30 @@ class BitmapCodecFotoTest {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: error("No se pudo decodificar la salida")
 
     @Test
-    fun revelar_con_rotacion_90_da_un_webp_de_1200x1600() {
+    fun revelar_con_rotacion_90_da_un_webp_de_960x1280() {
         val webp = codec.revelar(fixture(), 90, marca = null, mapa = null)
 
         assertTrue(Miniaturas.esWebp(webp))
         val bitmap = decodificar(webp)
-        assertEquals(1200, bitmap.width)
-        assertEquals(1600, bitmap.height)
+        assertEquals(960, bitmap.width)
+        assertEquals(1280, bitmap.height)
     }
 
     @Test
-    fun dimensiones_finales_del_fixture_rotado_son_1200x1600() {
-        assertEquals(Dimensiones(1200, 1600), codec.dimensionesFinales(fixture(), 90))
-        assertEquals(Dimensiones(1600, 1200), codec.dimensionesFinales(fixture(), 180))
+    fun dimensiones_finales_del_fixture_rotado_son_960x1280() {
+        assertEquals(Dimensiones(960, 1280), codec.dimensionesFinales(fixture(), 90))
+        assertEquals(Dimensiones(1280, 960), codec.dimensionesFinales(fixture(), 180))
     }
 
     @Test
-    fun revelar_un_jpeg_grande_acota_el_lado_largo_a_1600() {
+    fun revelar_un_jpeg_grande_acota_el_lado_largo_a_1280() {
         val grande = jpegDeColor(2592, 1944, Color.GRAY)
 
         val bitmap = decodificar(codec.revelar(grande, 0, marca = null, mapa = null))
 
-        assertEquals(1600, bitmap.width)
-        assertEquals(1200, bitmap.height)
-        assertEquals(Dimensiones(1200, 1600), codec.dimensionesFinales(grande, 270))
+        assertEquals(1280, bitmap.width)
+        assertEquals(960, bitmap.height)
+        assertEquals(Dimensiones(960, 1280), codec.dimensionesFinales(grande, 270))
     }
 
     @Test

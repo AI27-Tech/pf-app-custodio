@@ -80,7 +80,7 @@ imagen y del hilo donde corre. Dos momentos:
 - Corre siempre en `Dispatchers.Default`, fijado dentro del módulo: ningún llamador puede volver a
   ponerlo en el hilo principal.
 - Idempotente: revelar una foto ya revelada no hace nada.
-- Fija el tamaño final (lado largo ≤ 1600 px) aunque el HAL entregue más.
+- Fija el tamaño final (lado largo ≤ 1280 px, D8) aunque el HAL entregue más.
 
 **Red de seguridad:** `SubidaMedioProceso` nunca sube una foto sin revelar. Si encuentra una, la
 revela antes de subirla (ver D6).
@@ -143,20 +143,26 @@ No hay un ZTE A55/A54 disponible, y el único dispositivo de Test Lab con el mis
 - Pruebas: JVM a través de la interfaz con el codec falso (ya existe el patrón en
   `ComponerMarcaDeAguaTest`); instrumentadas para el codec real.
 
-### Task 4 — Obturador barato
-- `tomarFoto` deja de decodificar: entrega bytes crudos + rotación.
-- `CapturarMedio` persiste la foto cruda (`image/jpeg`, no revelada) y la miniatura rápida.
-
-### Task 5 — Revelado diferido, telemetría y limpieza
-- `adjuntarGpsEnSegundoPlano` llama a `RevelarFoto` en vez de `GrabarMarcaDeAguaEnFoto`.
+### Task 4 — Obturador barato y revelado conectado
+- `tomarFoto` deja de decodificar: entrega bytes crudos + rotación. El target de CameraX sale de
+  `CodecFoto.LADO_MAX_PX` (1280×960), así la política de tamaño vive en un solo lugar.
+- `CapturarMedio` persiste la foto cruda (`image/jpeg`, no revelada, con su rotación) y la
+  miniatura rápida de `RevelarFoto.miniaturaRapida`.
+- `adjuntarGpsEnSegundoPlano` llama a `RevelarFoto.revelar` en vez de `GrabarMarcaDeAguaEnFoto`.
+  Va en esta misma tarea porque una foto cruda que pasara por el estampado viejo quedaría de lado:
+  cada PR debe dejar la app funcionando.
 - `RevelarFoto` se provee como `@Singleton`: su candado solo evita el doble revelado si la cámara y
   el worker (Task 6) usan la misma instancia.
+
+### Task 5 — Telemetría y limpieza
 - Telemetría (D11): evento `foto_revelada` vía `RegistroDeEventos`, sin PII, con
   `ms_disparo` (toque → obturador liberado), `ms_revelado` (decode → archivo escrito), `con_gps`,
   `con_mapa`, `origen` (`captura` | `subida`), `resultado` (enum cerrado: `OK`, `SIN_MARCA`,
   `FALLO_DECODE`) y `kb_final`. El modelo del dispositivo lo agrega Analytics.
-- Se borran `GrabarMarcaDeAguaEnFoto`, el decode de `BitmapEstampadorFoto`,
-  `Miniaturas.fotoOriginalYMiniatura` y `VistaCamara.aBitmap` si quedan sin llamadores.
+- Se borran `GrabarMarcaDeAguaEnFoto`, `ComponerMarcaDeAgua`, `BitmapEstampadorFoto`,
+  `DibujanteMarcaDeAgua.estampar`, `Miniaturas.fotoOriginalYMiniatura`, `reescribirOriginal` y
+  `VistaCamara.aBitmap` si quedan sin llamadores. `LineaBaseReveladoTest` pasa a medir el pipeline
+  nuevo (la línea base vieja ya está registrada en la Task 1).
 
 ### Task 6 — Red de seguridad en la subida y rutas
 - `SubidaMedioProceso` revela antes de subir si hace falta (emite `foto_revelada` con
@@ -186,7 +192,7 @@ No hay un ZTE A55/A54 disponible, y el único dispositivo de Test Lab con el mis
 | D5 | Estado "revelada" | Columnas nuevas (`revelada`, `rotacionGrados`) con `MIGRACION_5_6`; filas existentes = reveladas |
 | D6 | Proceso muerto antes de revelar | El worker revela con fecha y coordenadas, sin mapa |
 | D7 | Nombre y lugar | `RevelarFoto` en `data/foto/`, sin glosario aparte |
-| D8 | Tamaño final | El revelado fija el lado largo ≤ 1600 px |
+| D8 | Tamaño final | El revelado fija el lado largo ≤ 1280 px (bajó de 1600 el 2026-11-06, decisión de producto) |
 | D9 | Cómo se parten los PRs | Un PR por tarea hacia `-d`; todo sale junto en el release 1.0.4 |
 | D10 | Medición "antes" en campo | No hay; la telemetría va en 1.0.4 y el antes/después sale del emulador |
 | D11 | Evento de telemetría | `foto_revelada` con `ms_disparo`, `ms_revelado`, `con_gps`, `con_mapa`, `origen`, `resultado`, `kb_final` |

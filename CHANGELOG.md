@@ -2,6 +2,22 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 — Cambio: la foto revelada baja a 1280 px de lado largo (D8)
+
+**Resumen:** por decisión de producto, `CodecFoto.LADO_MAX_PX` baja de 1600 a 1280: la foto revelada queda en 1280×960 (≈1.2 MP), con menos bytes y la mitad de píxeles que procesar en el SC9863A. La marca de agua escala con el lado menor, así que sigue legible (texto ≈25 px, mapa de 211 px). Además, el plan mueve la conexión del revelado a la Task 4 para que cada PR deje la app funcionando.
+
+**Cambios:**
+- `data/foto/CodecFoto.kt`: `LADO_MAX_PX = 1280`.
+- `BitmapCodecFotoTest` y `RevelarFotoTest`: valores esperados a 960×1280 / 1280×960 y lado de mapa 211.
+- `docs/PLAN_REVELAR_FOTO.md`: D8 actualizado; Task 4 = obturador barato **y** revelado conectado; Task 5 = telemetría y limpieza.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/foto/CodecFoto.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/BitmapCodecFotoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
+- `docs/PLAN_REVELAR_FOTO.md`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Feature: núcleo de RevelarFoto (Task 3 de PLAN_REVELAR_FOTO)
 
 **Resumen:** se construye y se prueba `RevelarFoto`, el único módulo que tratará la imagen de una foto: **una** decodificación al tamaño justo, rotación y escala en una sola pasada, marca de agua sobre ese mismo bitmap y **un** WebP q80, siempre en `Dispatchers.Default` fijado dentro del módulo (arregla de raíz el bug de la marca en el hilo principal en cuanto la Task 5 lo conecte). Si falla la marca se revela sin marca; si falla el decode se conserva la cruda como `image/jpeg` con la orientación en EXIF (D12). **Todavía no se conecta**: `CapturaViewModel`, `VistaCamara`, `CapturarMedio`, `GrabarMarcaDeAguaEnFoto` y el DI no cambian.

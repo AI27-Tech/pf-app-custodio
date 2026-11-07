@@ -35,7 +35,7 @@ class RevelarFotoTest {
 
     /** Registra cada llamada y el hilo donde ocurrió; falla a demanda. */
     private class CodecFotoFalso(
-        var dimensiones: Dimensiones? = Dimensiones(1200, 1600),
+        var dimensiones: Dimensiones? = Dimensiones(960, 1280),
         var fallarConMarca: Boolean = false,
         var fallarSinMarca: Boolean = false,
         var demoraMs: Long = 0,
@@ -166,8 +166,8 @@ class RevelarFotoTest {
         assertEquals("19.432608, -99.133209", llamada.marca?.coordenadas)
         assertEquals("2026/01/05 09:03:07", llamada.marca?.fechaHora)
         assertSame(mapa, llamada.mapa)
-        assertEquals(listOf(DisposicionMarcaDeAgua.ladoMapaPx(1200, 1600)), proveedor.ladosPedidos)
-        assertEquals(listOf(264), proveedor.ladosPedidos)
+        assertEquals(listOf(DisposicionMarcaDeAgua.ladoMapaPx(960, 1280)), proveedor.ladosPedidos)
+        assertEquals(listOf(211), proveedor.ladosPedidos)
         val guardado = repo.obtenerPorId("foto-1")!!
         assertTrue(guardado.revelada)
         assertEquals("image/webp", guardado.contentType)

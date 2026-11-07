@@ -39,7 +39,10 @@ interface CodecFoto {
     fun conOrientacionExif(crudo: ByteArray, rotacionGrados: Int): ByteArray
 
     companion object {
-        /** Lado largo máximo de la foto revelada (D8), aunque el HAL entregue más. */
-        const val LADO_MAX_PX = 1600
+        /**
+         * Lado largo máximo de la foto revelada (D8), aunque el HAL entregue más. Bajó de 1600 a
+         * 1280 el 2026-11-06 por decisión de producto: menos bytes y menos memoria en el SC9863A.
+         */
+        const val LADO_MAX_PX = 1280
     }
 }
