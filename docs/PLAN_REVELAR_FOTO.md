@@ -149,6 +149,8 @@ No hay un ZTE A55/A54 disponible, y el único dispositivo de Test Lab con el mis
 
 ### Task 5 — Revelado diferido, telemetría y limpieza
 - `adjuntarGpsEnSegundoPlano` llama a `RevelarFoto` en vez de `GrabarMarcaDeAguaEnFoto`.
+- `RevelarFoto` se provee como `@Singleton`: su candado solo evita el doble revelado si la cámara y
+  el worker (Task 6) usan la misma instancia.
 - Telemetría (D11): evento `foto_revelada` vía `RegistroDeEventos`, sin PII, con
   `ms_disparo` (toque → obturador liberado), `ms_revelado` (decode → archivo escrito), `con_gps`,
   `con_mapa`, `origen` (`captura` | `subida`), `resultado` (enum cerrado: `OK`, `SIN_MARCA`,

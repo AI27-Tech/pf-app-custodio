@@ -14,6 +14,8 @@ import com.ai27.app.custodio.domain.model.TipoMedio
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -36,6 +38,7 @@ class RevelarFotoTest {
         var dimensiones: Dimensiones? = Dimensiones(1200, 1600),
         var fallarConMarca: Boolean = false,
         var fallarSinMarca: Boolean = false,
+        var demoraMs: Long = 0,
     ) : CodecFoto {
         data class LlamadaRevelar(val rotacion: Int, val marca: MarcaDeAgua?, val mapa: ImagenMapa?)
 
@@ -51,6 +54,7 @@ class RevelarFotoTest {
         override fun revelar(crudo: ByteArray, rotacionGrados: Int, marca: MarcaDeAgua?, mapa: ImagenMapa?): ByteArray {
             registrar()
             revelados.add(LlamadaRevelar(rotacionGrados, marca, mapa))
+            if (demoraMs > 0) Thread.sleep(demoraMs)
             if (marca != null && fallarConMarca) throw OutOfMemoryError("marca")
             if (marca == null && fallarSinMarca) throw IllegalStateException("sin marca")
             return if (marca != null) REVELADA else SIN_MARCA
@@ -277,5 +281,25 @@ class RevelarFotoTest {
 
         assertArrayEquals(CodecFotoFalso.MINIATURA, miniatura)
         assertNotEquals(hiloDePrueba, codec.hilos.single())
+    }
+
+    // La cámara y el worker pueden revelar la misma foto a la vez (Tasks 5 y 6): solo uno debe
+    // decodificar y marcar; el otro ve la foto ya revelada.
+    @Test
+    fun dos_revelados_simultaneos_de_la_misma_foto_marcan_una_sola_vez() = runBlocking {
+        sembrar(foto())
+        codec.demoraMs = 200
+
+        val resultados = listOf(
+            async(Dispatchers.Default) { revelarFoto.revelar("foto-1").resultado },
+            async(Dispatchers.Default) { revelarFoto.revelar("foto-1").resultado },
+        ).awaitAll()
+
+        assertEquals(
+            listOf(ResultadoRevelado.OK, ResultadoRevelado.YA_REVELADA),
+            resultados.sortedBy { it.ordinal },
+        )
+        assertEquals(1, codec.revelados.size)
+        assertArrayEquals(CodecFotoFalso.REVELADA, repo.leerOriginal("foto-1"))
     }
 }

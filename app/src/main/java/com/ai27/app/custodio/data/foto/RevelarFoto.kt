@@ -12,6 +12,8 @@ import java.time.ZoneId
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Desenlace de [RevelarFoto.revelar]. `OK`, `SIN_MARCA` y `FALLO_DECODE` son los de la telemetría (D11). */
@@ -61,6 +63,11 @@ class RevelarFoto(
     /**
      * En segundo plano. Idempotente: una foto ya revelada no se toca. [conMapa] = `false` lo
      * usa el worker cuando el proceso murió antes de revelar (D6): fecha y coordenadas, sin mapa.
+     *
+     * El snapshot del mapa se pide fuera de [candado] porque puede tardar segundos; la parte
+     * de CPU y escritura va adentro y revalida `revelada`. Así dos llamadores de la misma foto
+     * (la cámara y el worker) no la marcan dos veces, y en un SC9863A nunca hay dos revelados
+     * de tamaño completo en memoria a la vez.
      */
     suspend fun revelar(medioId: String, conMapa: Boolean = true): Revelado = withContext(despachador) {
         val medio = medioRepository.obtenerPorId(medioId)
@@ -69,32 +76,41 @@ class RevelarFoto(
         val crudo = medioRepository.leerOriginal(medioId)
             ?: return@withContext Revelado(ResultadoRevelado.NO_APLICA)
         val rotacion = medio.rotacionGrados
-        val inicio = reloj()
 
         val dims = intentar("revelar_foto_dimensiones") { codec.dimensionesFinales(crudo, rotacion) }
-        if (dims == null) {
-            registroDeFallos.registrar("revelar_foto_decode", IllegalArgumentException("Foto cruda ilegible"))
-            return@withContext conservarCruda(medio, crudo, inicio)
-        }
-
         val gps = medio.gps
-        val marca = FormatoMarcaDeAgua.de(medio.createdAtDevice, gps, zona)
-        val mapa = if (conMapa && gps != null) {
+        val mapa = if (dims != null && conMapa && gps != null) {
             proveedorSnapshotMapa.snapshot(gps, DisposicionMarcaDeAgua.ladoMapaPx(dims.ancho, dims.alto))
         } else {
             null
         }
 
-        val conMarca = intentar("revelar_foto_marca") { codec.revelar(crudo, rotacion, marca, mapa) }
-        val (final, resultado) = if (conMarca != null) {
-            conMarca to ResultadoRevelado.OK
-        } else {
-            val sinMarca = intentar("revelar_foto_sin_marca") { codec.revelar(crudo, rotacion, marca = null, mapa = null) }
-                ?: return@withContext conservarCruda(medio, crudo, inicio)
-            sinMarca to ResultadoRevelado.SIN_MARCA
+        candado.withLock {
+            // Otro revelado de esta foto pudo terminar mientras se esperaba el mapa o el candado.
+            val vigente = medioRepository.obtenerPorId(medioId)
+                ?: return@withLock Revelado(ResultadoRevelado.NO_APLICA)
+            if (vigente.revelada) return@withLock Revelado(ResultadoRevelado.YA_REVELADA)
+            val inicio = reloj()
+
+            if (dims == null) {
+                registroDeFallos.registrar("revelar_foto_decode", IllegalArgumentException("Foto cruda ilegible"))
+                return@withLock conservarCruda(medio, crudo, inicio)
+            }
+
+            val marca = FormatoMarcaDeAgua.de(medio.createdAtDevice, gps, zona)
+            val conMarca = intentar("revelar_foto_marca") { codec.revelar(crudo, rotacion, marca, mapa) }
+            val (final, resultado) = if (conMarca != null) {
+                conMarca to ResultadoRevelado.OK
+            } else {
+                val sinMarca = intentar("revelar_foto_sin_marca") { codec.revelar(crudo, rotacion, marca = null, mapa = null) }
+                    ?: return@withLock conservarCruda(medio, crudo, inicio)
+                sinMarca to ResultadoRevelado.SIN_MARCA
+            }
+            guardar(medio, final, "image/webp", resultado, inicio, conMapa = resultado == ResultadoRevelado.OK && mapa != null)
         }
-        guardar(medio, final, "image/webp", resultado, inicio, conMapa = resultado == ResultadoRevelado.OK && mapa != null)
     }
+
+    private val candado = Mutex()
 
     /** Camino FALLO_DECODE: la cruda con la orientación en EXIF, o tal cual si ni eso se puede. */
     private suspend fun conservarCruda(medio: Medio, crudo: ByteArray, inicio: Long): Revelado {
