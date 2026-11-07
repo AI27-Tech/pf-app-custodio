@@ -84,7 +84,7 @@ fun CapturaEvidenciaScreen(
     estado: CapturaUiState,
     conectado: Boolean?,
     onAtras: () -> Unit,
-    onTomarFoto: (jpeg: ByteArray, miniatura: ByteArray) -> Unit,
+    onTomarFoto: (crudo: ByteArray, rotacionGrados: Int) -> Unit,
     onFallaDeCaptura: (causa: Throwable) -> Unit,
     // RETIRO_ETIQUETADO (Task 4): los callbacks del etiquetado se retiran de la firma.
     // Se dejan comentados —no borrados— para reactivarlos junto con HojaEtiqueta.
@@ -98,17 +98,17 @@ fun CapturaEvidenciaScreen(
     var controllerCamara by remember { mutableStateOf<LifecycleCameraController?>(null) }
 
     // Cerrojo del obturador, sincrónico con el toque. Es lo que impide que un segundo
-    // toque lance otra captura mientras la primera todavía se está comprimiendo: el
+    // toque lance otra captura mientras la primera todavía no llega de la cámara: el
     // `estado.capturando` del ViewModel llega demasiado tarde para eso (hallazgo E1).
     var disparoEnCurso by remember { mutableStateOf(false) }
 
-    // El procesamiento de la foto (rotación + compresión JPEG del original y la
-    // miniatura) es costoso y NO debe correr en el hilo principal: se ejecuta en el
-    // pool por defecto para que el visor no se congele en el momento del disparo.
+    // El callback de la foto solo copia el búfer JPEG del HAL (sin decodificar), pero esa
+    // copia de cientos de KB tampoco va en el hilo principal: corre en el pool por defecto para
+    // que el visor no tropiece en el disparo. La miniatura y el revelado los hace RevelarFoto.
     val ejecutorImagen = remember { Dispatchers.Default.asExecutor() }
 
     // "Flash" del obturador: se pinta un velo negro a pantalla completa que se desvanece.
-    // Se dispara en el toque, no al terminar de comprimir, para que el custodio tenga
+    // Se dispara en el toque, no al llegar la foto, para que el custodio tenga
     // confirmación inmediata de que la app registró la pulsación.
     val scope = rememberCoroutineScope()
     val flash = remember { Animatable(0f) }
@@ -233,13 +233,13 @@ fun CapturaEvidenciaScreen(
             Surface(
                 onClick = {
                     val camara = controllerCamara ?: return@Surface
-                    // Cerrojo SÍNCRONO: `estado.capturando` solo se pone en true cuando el
-                    // JPEG ya está comprimido, cientos de ms después, así que por sí solo
-                    // no impide el segundo toque (hallazgo E1). Se libera en los dos
-                    // callbacks de tomarFoto, que son excluyentes.
+                    // Cerrojo SÍNCRONO: `estado.capturando` solo se pone en true cuando la
+                    // foto cruda ya llegó de la cámara, así que por sí solo no impide el
+                    // segundo toque (hallazgo E1). Se libera en los dos callbacks de
+                    // tomarFoto, que son excluyentes, en cuanto llega la cruda.
                     disparoEnCurso = true
                     // U3: la confirmación háptica+sonido va EN el toque, como el flash, no en
-                    // el callback de éxito (que llega cientos de ms después de comprimir).
+                    // el callback de éxito (que llega cuando la cámara entrega la foto).
                     retroalimentacion.disparo()
                     // El flash va ANTES de disparar, no en el callback de éxito: el toque
                     // tiene que producir señal inmediata, porque la ausencia de señal es
@@ -251,9 +251,9 @@ fun CapturaEvidenciaScreen(
                     tomarFoto(
                         controller = camara,
                         ejecutor = ejecutorImagen,
-                        alTenerFoto = { jpeg, miniatura ->
+                        alTenerFoto = { crudo, rotacionGrados ->
                             disparoEnCurso = false
-                            onTomarFoto(jpeg, miniatura)
+                            onTomarFoto(crudo, rotacionGrados)
                         },
                         alFallar = { causa ->
                             disparoEnCurso = false

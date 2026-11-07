@@ -6,7 +6,7 @@ import com.ai27.app.custodio.R
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.local.media.EventoGrabacion
 import com.ai27.app.custodio.data.local.media.Grabadora
-import com.ai27.app.custodio.data.marcaDeAgua.GrabarMarcaDeAguaEnFoto
+import com.ai27.app.custodio.data.foto.RevelarFoto
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
@@ -35,6 +35,7 @@ import com.ai27.app.custodio.ui.error.aRecurso
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import javax.inject.Named
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -69,7 +70,7 @@ class CapturaViewModel @Inject constructor(
     @Suppress("unused") private val obtenerEtiquetas: ObtenerEtiquetas,
     private val reintentarSubida: ReintentarSubida,
     private val proveedorUbicacion: ProveedorUbicacion,
-    private val grabarMarcaDeAguaEnFoto: GrabarMarcaDeAguaEnFoto,
+    private val revelarFoto: RevelarFoto,
     private val grabadora: Grabadora,
     private val programadorSubidas: SubidaScheduler,
     private val registroDeFallos: RegistroDeFallos,
@@ -189,14 +190,28 @@ class CapturaViewModel @Inject constructor(
         }
     }
 
-    fun capturarFoto(foto: ByteArray, miniatura: ByteArray?) {
+    /**
+     * Recibe la **foto cruda** del obturador (JPEG del HAL sin decodificar) y sus grados de
+     * rotación. Genera la miniatura con [RevelarFoto.miniaturaRapida] (que cambia de hilo por
+     * su cuenta) y persiste la cruda; el revelado ocurre después, en adjuntarGpsEnSegundoPlano.
+     */
+    fun capturarFoto(crudo: ByteArray, rotacionGrados: Int) {
         val custodio = uiState.value.custodio
         val reporte = uiState.value.reporte
         if (custodio == null || reporte == null) return
         if (interno.value.capturando || interno.value.grabandoAudio) return
-        if (foto.isEmpty()) return
+        if (crudo.isEmpty()) return
         viewModelScope.launch {
             interno.update { it.copy(capturando = true) }
+            // Sin miniatura la foto se guarda igual: la evidencia no se pierde por la vista previa.
+            val miniatura = try {
+                revelarFoto.miniaturaRapida(crudo, rotacionGrados)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                registroDeFallos.registrar(CONTEXTO_MINIATURA, e)
+                null
+            }
             // La foto se persiste de inmediato SIN esperar el arreglo de GPS. La ubicación
             // se adjunta en segundo plano (ver adjuntarGpsEnSegundoPlano) y encolarCuandoListo
             // la espera antes de encolar la subida.
@@ -205,9 +220,10 @@ class CapturaViewModel @Inject constructor(
                 reporteId = reporte.id,
                 tipo = TipoMedio.FOTO,
                 origen = OrigenMedio.CAMARA,
-                contenido = foto,
+                contenido = crudo,
                 miniatura = miniatura,
                 gps = null,
+                rotacionGrados = rotacionGrados,
             )
             interno.update {
                 when (resultado) {
@@ -216,7 +232,7 @@ class CapturaViewModel @Inject constructor(
                     //
                     // UX de captura: el aviso "se enviará en breve" se dispara AQUÍ, apenas
                     // la foto queda persistida localmente, no en encolarCuandoListo. El
-                    // encolado real espera al GPS (hasta 8 s) y a la marca de agua; esperar a
+                    // encolado real espera al GPS (hasta 8 s) y al revelado; esperar a
                     // eso para avisar hacía sentir la captura lenta y "sin respuesta". La foto
                     // ya está a salvo en este punto, así que el aviso es honesto.
                     is Result.Success -> it.copy(
@@ -549,17 +565,18 @@ class CapturaViewModel @Inject constructor(
     // bloquea la captura: la hoja de etiquetado ya se mostró. actualizarGps solo pega la
     // ubicación mientras el medio sigue PENDIENTE, así que llegar tarde es inofensivo.
     //
-    // Marca de agua: una vez resuelto el GPS (haya fix o no), se graba la marca en la foto
-    // original. Se hace aquí —y no en la captura— porque la marca necesita el GPS, que llega
-    // tarde; encolarCuandoListo hace join() de este trabajo, así que la subida espera a que
-    // la foto quede estampada. grabarMarcaDeAguaEnFoto es no-op para audio y nunca lanza.
+    // Revelado: una vez resuelto el GPS (haya fix o no), la foto cruda se revela (rotación,
+    // marca de agua y WebP). Se hace aquí —y no en la captura— porque la marca necesita el
+    // GPS, que llega tarde; encolarCuandoListo hace join() de este trabajo, así que nunca se
+    // sube una cruda desde la cámara. revelar es no-op para audio y corre fuera del hilo
+    // principal por sí mismo.
     private fun adjuntarGpsEnSegundoPlano(medioId: String) {
         trabajosGps[medioId] = viewModelScope.launch {
             val gps = obtenerGpsLinear()
             if (gps != null) {
                 medioRepository.actualizarGps(medioId, gps)
             }
-            grabarMarcaDeAguaEnFoto(medioId)
+            revelarFoto.revelar(medioId)
         }
     }
 
@@ -569,6 +586,7 @@ class CapturaViewModel @Inject constructor(
         const val CLIENTE_PROVISIONAL = "Colgate"
         const val TIEMPO_OBTENER_UBICACION_MS = 8_000L
         const val CONTEXTO_CAPTURA_FOTO = "captura_foto"
+        const val CONTEXTO_MINIATURA = "captura_miniatura"
         const val CONTEXTO_GRABACION = "grabacion_audio"
     }
 }
