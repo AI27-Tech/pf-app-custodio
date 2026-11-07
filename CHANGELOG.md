@@ -2,6 +2,34 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:06 — Feature: núcleo de RevelarFoto (Task 3 de PLAN_REVELAR_FOTO)
+
+**Resumen:** se construye y se prueba `RevelarFoto`, el único módulo que tratará la imagen de una foto: **una** decodificación al tamaño justo, rotación y escala en una sola pasada, marca de agua sobre ese mismo bitmap y **un** WebP q80, siempre en `Dispatchers.Default` fijado dentro del módulo (arregla de raíz el bug de la marca en el hilo principal en cuanto la Task 5 lo conecte). Si falla la marca se revela sin marca; si falla el decode se conserva la cruda como `image/jpeg` con la orientación en EXIF (D12). **Todavía no se conecta**: `CapturaViewModel`, `VistaCamara`, `CapturarMedio`, `GrabarMarcaDeAguaEnFoto` y el DI no cambian.
+
+**Cambios:**
+- `data/foto/CodecFoto.kt` (nuevo): costura que esconde `Bitmap` detrás de bytes (`dimensionesFinales`, `revelar`, `miniatura`, `conOrientacionExif`) y `LADO_MAX_PX = 1600` (D8) en un solo lugar.
+- `data/foto/BitmapCodecFoto.kt` (nuevo): adaptador Android. `inSampleSize` (mayor potencia de 2 que no submuestrea de más), un único bitmap destino `ARGB_8888` dibujado con `Canvas` + `Matrix` (rotación + escala), reciclado del decodificado en cuanto se dibuja y del destino en `finally`; EXIF con `android.media.ExifInterface` sobre un temporal. Solo admite 0/90/180/270.
+- `data/foto/RevelarFoto.kt` (nuevo): `miniaturaRapida` y `revelar(medioId, conMapa)` idempotente, con `ResultadoRevelado` (`OK`, `SIN_MARCA`, `FALLO_DECODE`, `YA_REVELADA`, `NO_APLICA`) y `Revelado` con los datos de la telemetría D11 (sin emitir eventos todavía). Atrapa `Throwable` (OOM) y relanza `CancellationException`.
+- `data/local/media/DibujanteMarcaDeAgua.kt`: el dibujo se extrae a `dibujarEn(lienzo, marca, mapa)`, sin copiar ni codificar; `estampar` queda como `copy` + `dibujarEn` + WebP para el llamador viejo. El aspecto de la marca no cambia.
+- `MedioRepository.guardarRevelado` + `MedioDao.marcarRevelada` + implementaciones en `RoomMedioRepository` y `FakeMedioRepository`: reescriben el original y fijan `sizeBytes`, `contentType` y `revelada = 1`, solo si el medio sigue `PENDIENTE`. `reescribirOriginal` se conserva hasta la Task 5.
+- Pruebas: `RevelarFotoTest` (JVM, 12 casos con codec falso, incluido que el codec no corre en el hilo del llamador), 2 casos nuevos de `guardarRevelado` en `ContratoRepositoriosTest` (corren contra Room y el fake) y `BitmapCodecFotoTest` (instrumentada, 7 casos sobre el fixture y un JPEG de 2592×1944).
+
+**Verificación:** `testDebugUnitTest` 276/276 (260 previas + 12 de `RevelarFotoTest` + 2×2 del contrato), `assembleDebug` y `assembleDebugAndroidTest` verdes. En el emulador local (Pixel 9a, API 37): `BitmapCodecFotoTest` OK (7) y `DibujanteMarcaDeAguaTest` OK (3). Prueba de mutación: sin el cambio a `despachador` en `revelar`, falla `el_codec_no_corre_en_el_hilo_del_llamador`; restaurado, vuelve a pasar.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/foto/CodecFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/BitmapCodecFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/RevelarFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRepositoriosTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/BitmapCodecFotoTest.kt`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Feature: estado de revelado en la base local (Task 2 de PLAN_REVELAR_FOTO)
 
 **Resumen:** la base de Room pasa a la versión 6 con dos columnas nuevas en `medios`: `revelada` (si la foto ya es la final o todavía es la cruda del HAL) y `rotacionGrados` (la rotación que CameraX no aplica). Todavía nadie las lee ni las escribe con otro valor que el default: las usan las Tasks 3–6. Todo medio existente nace revelado y sin rotación pendiente, para que una foto del 1.0.3 pendiente de subir no se marque dos veces (D5).

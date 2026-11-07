@@ -43,9 +43,18 @@ object DibujanteMarcaDeAgua {
         calidadWebp: Int = Miniaturas.CALIDAD_ORIGINAL,
     ): ByteArray {
         val lienzoBitmap = original.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(lienzoBitmap)
-        val ancho = lienzoBitmap.width
-        val alto = lienzoBitmap.height
+        dibujarEn(lienzoBitmap, marca, mapa)
+        return Miniaturas.webp(lienzoBitmap, calidadWebp)
+    }
+
+    /**
+     * Dibuja la marca directamente sobre [lienzo], que debe ser mutable. No copia ni codifica:
+     * así `RevelarFoto` marca el mismo bitmap que acaba de rotar y lo codifica una sola vez.
+     */
+    fun dibujarEn(lienzo: Bitmap, marca: MarcaDeAgua, mapa: Bitmap?) {
+        val canvas = Canvas(lienzo)
+        val ancho = lienzo.width
+        val alto = lienzo.height
 
         val margen = DisposicionMarcaDeAgua.margenPx(ancho, alto)
         val tamanoTexto = DisposicionMarcaDeAgua.tamanoTextoPx(ancho, alto)
@@ -100,8 +109,6 @@ object DibujanteMarcaDeAgua {
             }
             canvas.drawRect(destino, pincelBorde)
         }
-
-        return Miniaturas.webp(lienzoBitmap, calidadWebp)
     }
 
     /**

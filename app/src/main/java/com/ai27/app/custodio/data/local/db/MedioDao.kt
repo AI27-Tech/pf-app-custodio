@@ -82,6 +82,11 @@ interface MedioDao {
     @Query("UPDATE medios SET sizeBytes = :sizeBytes WHERE id = :id AND estadoSubida = 'PENDIENTE'")
     suspend fun actualizarTamano(id: String, sizeBytes: Long): Int
 
+    // Revelado: el contentType cambia (cruda JPEG -> revelada WebP) junto con el tamaño, y
+    // con la misma guarda de PENDIENTE que actualizarTamano.
+    @Query("UPDATE medios SET sizeBytes = :sizeBytes, contentType = :contentType, revelada = 1 WHERE id = :id AND estadoSubida = 'PENDIENTE'")
+    suspend fun marcarRevelada(id: String, sizeBytes: Long, contentType: String): Int
+
     @Query("UPDATE medios SET estadoSubida = :estado WHERE id = :id")
     suspend fun actualizarEstadoSubida(id: String, estado: String): Int
 
