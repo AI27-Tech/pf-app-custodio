@@ -55,6 +55,7 @@ class ResultadoLoginTest {
         DominioError.CuentaDeshabilitada,
         DominioError.PermisoDenegado,
         DominioError.ArchivoLocalAusente,
+        DominioError.FotoSinRevelar,
     )
 
     @Test
@@ -105,7 +106,7 @@ class ResultadoLoginTest {
 
     /** Dimensiones que emitió el login por SMS (`docs/PLAN_ANALYTICS_LOGIN.md`). */
     private companion object {
-        const val TOTAL_VARIANTES_DOMINIO_ERROR = 26
+        const val TOTAL_VARIANTES_DOMINIO_ERROR = 27
         val VALORES_DE_SMS = setOf(
             "numero_invalido",
             "sin_respuesta_sms",

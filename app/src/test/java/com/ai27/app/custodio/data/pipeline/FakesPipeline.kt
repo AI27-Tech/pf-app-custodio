@@ -75,6 +75,10 @@ class FakeMedioRemoto(
     /** El medio tal como llegó a cada llamada: permite afirmar qué se intentó publicar. */
     val mediosSubidos: MutableList<Medio> = mutableListOf(),
     val mediosDeDocumento: MutableList<Medio> = mutableListOf(),
+    /** Bytes del original y de la miniatura en cada subida, y las rutas de cada documento. */
+    val contenidos: MutableList<ByteArray> = mutableListOf(),
+    val miniaturas: MutableList<ByteArray?> = mutableListOf(),
+    val rutasDeDocumento: MutableList<RutasRemotas> = mutableListOf(),
 ) : MedioRemoto {
     var debeFallarSubida = false
     var debeFallarDocumento = false
@@ -89,7 +93,9 @@ class FakeMedioRemoto(
     } else {
         subidos.add(medio.id)
         mediosSubidos.add(medio)
-        Result.Success(RutasStorage.de(medio))
+        contenidos.add(contenido)
+        miniaturas.add(miniatura)
+        Result.Success(RutasStorage.de(medio, miniatura))
     }
 
     override suspend fun crearDocumentoSiNoExiste(
@@ -98,6 +104,7 @@ class FakeMedioRemoto(
         rutas: RutasRemotas,
     ): Result<Unit> {
         mediosDeDocumento.add(medio)
+        rutasDeDocumento.add(rutas)
         return if (debeFallarDocumento) {
             Result.Failure(DominioError.SinConexion)
         } else {

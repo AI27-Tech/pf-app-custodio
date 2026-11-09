@@ -174,4 +174,5 @@ fun DominioError.aResultadoLogin(): ResultadoLogin = when (this) {
     DominioError.CuentaDeshabilitada -> ResultadoLogin.INESPERADO
     DominioError.PermisoDenegado -> ResultadoLogin.INESPERADO
     DominioError.ArchivoLocalAusente -> ResultadoLogin.INESPERADO
+    DominioError.FotoSinRevelar -> ResultadoLogin.INESPERADO
 }
