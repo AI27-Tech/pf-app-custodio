@@ -59,6 +59,11 @@ class ErroresRemotoTest {
     }
 
     @Test
+    fun `una foto que el revelado no pudo escribir se reintenta`() {
+        assertTrue(esReintentable(DominioError.FotoSinRevelar))
+    }
+
+    @Test
     fun `los datos object del dominio permanente tampoco se reintentan`() {
         assertFalse(esReintentable(DominioError.ArchivoLocalAusente))
         assertFalse(esReintentable(DominioError.PermisoDenegado))

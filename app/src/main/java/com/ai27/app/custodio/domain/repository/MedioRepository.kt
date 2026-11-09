@@ -31,13 +31,14 @@ interface MedioRepository {
     suspend fun actualizarGps(medioId: String, gps: Gps): Result<Medio>
 
     /**
-     * Marca de agua: sobrescribe el archivo original del medio con [bytes] (el JPEG ya
-     * estampado) y refresca `sizeBytes`. Solo surte efecto mientras el medio sigue
-     * `PENDIENTE` —igual que [actualizarGps]—: una vez en subida, el documento remoto ya se
-     * creó y no debe mutar. Devuelve `MedioNoEncontrado` si el medio se borró, ya salió, o
-     * no tiene ruta local.
+     * Revelado (`docs/PLAN_REVELAR_FOTO.md`): sobrescribe el archivo original con la foto
+     * revelada [bytes], fija `sizeBytes` y [contentType] (`image/webp`, o `image/jpeg` si se
+     * conservó la cruda porque no se pudo decodificar) y deja el medio `revelada = true`.
+     * Solo surte efecto mientras el medio sigue `PENDIENTE` —igual que [actualizarGps]: una vez
+     * en subida, el documento remoto ya se creó y no debe mutar— y tiene ruta local; si no,
+     * `MedioNoEncontrado` y no cambia nada.
      */
-    suspend fun reescribirOriginal(medioId: String, bytes: ByteArray): Result<Medio>
+    suspend fun guardarRevelado(medioId: String, bytes: ByteArray, contentType: String): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
     suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>
 

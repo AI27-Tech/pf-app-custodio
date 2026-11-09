@@ -1,33 +1,44 @@
 package com.ai27.app.custodio.data.local.media
 
 import android.graphics.Bitmap
+import android.os.Build
 import java.io.ByteArrayOutputStream
 
 object Miniaturas {
     const val DIMENSION_MAX_PX = 320
-    const val CALIDAD_ORIGINAL = 88
-    const val CALIDAD_MINIATURA = 75
 
-    fun fotoOriginalYJpeg(bitmap: Bitmap): Pair<ByteArray, ByteArray> {
-        val jpegOriginal = jpeg(bitmap, CALIDAD_ORIGINAL)
-        val miniatura = jpeg(escalar(bitmap, DIMENSION_MAX_PX), CALIDAD_MINIATURA)
-        return jpegOriginal to miniatura
-    }
+    // WebP-80 ≈ JPEG-88 en percepción con ~30% menos bytes; la miniatura baja a 70 porque
+    // se ve a 320 px y el peso importa más que el detalle.
+    const val CALIDAD_ORIGINAL = 80
+    const val CALIDAD_MINIATURA = 70
 
-    fun escalar(bitmap: Bitmap, dimensionMax: Int): Bitmap {
-        val escala = dimensionMax.toFloat() / maxOf(bitmap.width, bitmap.height)
-        if (escala >= 1f) {
-            return bitmap
+    /**
+     * Comprime [bitmap] a WebP lossy. `WEBP_LOSSY` existe desde API 30; en API 26–29 se usa
+     * el `WEBP` deprecado, que con calidad < 100 también es lossy.
+     */
+    fun webp(bitmap: Bitmap, calidad: Int): ByteArray {
+        val formato = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Bitmap.CompressFormat.WEBP_LOSSY
+        } else {
+            @Suppress("DEPRECATION")
+            Bitmap.CompressFormat.WEBP
         }
-        val w = (bitmap.width * escala).toInt().coerceAtLeast(1)
-        val h = (bitmap.height * escala).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(bitmap, w, h, true)
-    }
-
-    private fun jpeg(bitmap: Bitmap, calidad: Int): ByteArray {
         val salida = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, calidad, salida)
+        bitmap.compress(formato, calidad, salida)
         salida.flush()
         return salida.toByteArray()
     }
+
+    /**
+     * Detecta el formato de un buffer de imagen por sus magic bytes, sin decodificar. Función
+     * pura para poder probar la codificación WebP en unit tests JVM (donde `Bitmap.compress`
+     * no corre sin Robolectric).
+     */
+    fun esWebp(bytes: ByteArray): Boolean =
+        bytes.size >= 12 &&
+            bytes.copyOfRange(0, 4).toString(Charsets.US_ASCII) == "RIFF" &&
+            bytes.copyOfRange(8, 12).toString(Charsets.US_ASCII) == "WEBP"
+
+    fun esJpeg(bytes: ByteArray): Boolean =
+        bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()
 }

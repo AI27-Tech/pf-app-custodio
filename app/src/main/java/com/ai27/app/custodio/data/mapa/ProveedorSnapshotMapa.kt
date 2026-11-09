@@ -13,7 +13,7 @@ import com.ai27.app.custodio.domain.model.Gps
  * el tile. Por eso el contrato es `ImagenMapa?` y no `Result`.
  *
  * El tipo de retorno es [ImagenMapa] (envoltorio opaco) y no `Bitmap` para que
- * [com.ai27.app.custodio.data.marcaDeAgua.ComponerMarcaDeAgua] se pruebe en JVM sin gráficos.
+ * [com.ai27.app.custodio.data.foto.RevelarFoto] se pruebe en JVM sin gráficos.
  */
 interface ProveedorSnapshotMapa {
     /**

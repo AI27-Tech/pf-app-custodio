@@ -6,7 +6,15 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
+import com.ai27.app.custodio.data.diagnostico.EventoFotoRevelada
+import com.ai27.app.custodio.data.diagnostico.MetodoAuth
+import com.ai27.app.custodio.data.diagnostico.RegistroDeEventos
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
+import com.ai27.app.custodio.data.diagnostico.ResultadoLogin
+import com.ai27.app.custodio.data.foto.BitmapCodecFoto
+import com.ai27.app.custodio.data.foto.RevelarFoto
+import com.ai27.app.custodio.data.mapa.ProveedorSnapshotMapa
+import com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
 import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.pipeline.ReporteSyncProceso
@@ -21,6 +29,7 @@ import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
 import com.ai27.app.custodio.domain.model.Reporte
@@ -140,7 +149,7 @@ class WorkerSubidaMedioTest {
             medio: Medio,
             contenido: ByteArray,
             miniatura: ByteArray?,
-        ): Result<RutasRemotas> = Result.Success(RutasStorage.de(medio))
+        ): Result<RutasRemotas> = Result.Success(RutasStorage.de(medio, miniatura))
 
         override suspend fun crearDocumentoSiNoExiste(
             reporte: Reporte,
@@ -179,7 +188,20 @@ class WorkerSubidaMedioTest {
         reporteRemoto = reporteRemoto,
         medioRemoto = medioRemoto,
         almacenArchivos = FilesDirAlmacenArchivos(directorioMedios),
+        // Los medios de esta clase nacen revelados: el revelado no se ejercita aquí, solo se cablea.
+        revelarFoto = RevelarFoto(medios, BitmapCodecFoto(context.cacheDir), SinMapa, registroDeFallos),
+        registroDeEventos = SinEventos,
+        registroDeFallos = registroDeFallos,
     )
+
+    private object SinMapa : ProveedorSnapshotMapa {
+        override suspend fun snapshot(gps: Gps, ladoPx: Int): ImagenMapa? = null
+    }
+
+    private object SinEventos : RegistroDeEventos {
+        override fun registroLogin(metodo: MetodoAuth, resultado: ResultadoLogin) = Unit
+        override fun fotoRevelada(evento: EventoFotoRevelada) = Unit
+    }
 
     private fun worker(proceso: SubidaMedioProceso, reporteId: String, medioId: String, intento: Int) =
         TestListenableWorkerBuilder<WorkerSubidaMedio>(

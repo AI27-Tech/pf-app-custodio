@@ -113,22 +113,26 @@ class RoomMedioRepository(
         return Result.Success(actualizado.aDominio())
     }
 
-    override suspend fun reescribirOriginal(medioId: String, bytes: ByteArray): Result<Medio> {
+    // El AlmacenArchivos trabaja con nombres relativos (guardar(nombre) devuelve la ruta
+    // absoluta); el nombre del original es el id del medio, igual que en guardar().
+    private fun nombreDesdeRuta(ruta: String): String = ruta.substringAfterLast('/')
+
+    override suspend fun guardarRevelado(medioId: String, bytes: ByteArray, contentType: String): Result<Medio> {
         val medio = dao.obtenerPorId(medioId)
             ?: return Result.Failure(DominioError.MedioNoEncontrado)
-        // Si ya salió de PENDIENTE, el documento remoto se creó: no se reescribe el archivo.
+        // Si ya salió de PENDIENTE, la subida tomó el archivo: no se reescribe.
         if (medio.estadoSubida != EstadoSubida.PENDIENTE.name) {
             return Result.Failure(DominioError.MedioNoEncontrado)
         }
         val ruta = medio.localPath
             ?: return Result.Failure(DominioError.MedioNoEncontrado)
         // guardar() usa writeBytes, que trunca/sobrescribe: la ruta local no cambia, solo su
-        // contenido (el JPEG ya estampado). Si falla la escritura (disco lleno), se propaga.
+        // contenido. Si falla la escritura (disco lleno), se propaga.
         when (val r = almacenArchivos.guardar(nombreDesdeRuta(ruta), bytes)) {
             is Result.Success -> Unit
             is Result.Failure -> return r
         }
-        val filas = dao.actualizarTamano(medioId, bytes.size.toLong())
+        val filas = dao.marcarRevelada(medioId, bytes.size.toLong(), contentType)
         val actualizado = dao.obtenerPorId(medioId)
             ?: return Result.Failure(DominioError.MedioNoEncontrado)
         return if (filas == 1) {
@@ -137,10 +141,6 @@ class RoomMedioRepository(
             Result.Failure(DominioError.MedioNoEncontrado)
         }
     }
-
-    // El AlmacenArchivos trabaja con nombres relativos (guardar(nombre) devuelve la ruta
-    // absoluta); el nombre del original es el id del medio, igual que en guardar().
-    private fun nombreDesdeRuta(ruta: String): String = ruta.substringAfterLast('/')
 
 
     override suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio> {

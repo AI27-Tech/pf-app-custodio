@@ -14,6 +14,7 @@ import com.ai27.app.custodio.domain.usecase.CrearReporte
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -37,7 +38,7 @@ class CapturarMedioTest {
     private fun caso() = CapturarMedio(repoReportes, repoMedios, ahora = { fijo })
 
     @Test
-    fun `guarda foto pendiente con ruta local y gps`() = runBlocking {
+    fun `guarda foto cruda pendiente con ruta local, rotacion y gps`() = runBlocking {
         val resultado = caso()(
             custodioUid = "c-1",
             reporteId = reporteActivo.id,
@@ -45,12 +46,17 @@ class CapturarMedioTest {
             origen = OrigenMedio.CAMARA,
             contenido = ByteArray(2048),
             gps = Gps(19.43, -99.13, accuracyM = 5.0, ageMs = 300),
+            rotacionGrados = 90,
         )
 
         assertTrue(resultado is Result.Success)
         val medio = (resultado as Result.Success).value
         assertEquals(TipoMedio.FOTO, medio.tipo)
+        // Task 4 de PLAN_REVELAR_FOTO: la foto se persiste cruda (JPEG del HAL) y sin revelar;
+        // RevelarFoto la convierte después en WebP.
         assertEquals("image/jpeg", medio.contentType)
+        assertFalse(medio.revelada)
+        assertEquals(90, medio.rotacionGrados)
         assertEquals(1, repoMedios.medios.size)
         assertEquals(2048L, medio.sizeBytes)
         assertTrue(medio.localPath!!.startsWith("fisico/"))
@@ -155,6 +161,8 @@ class CapturarMedioTest {
         assertEquals(TipoMedio.AUDIO, medio.tipo)
         assertEquals("audio/mp4", medio.contentType)
         assertEquals(90_000L, medio.durationMs)
+        assertTrue("el audio nace revelado", medio.revelada)
+        assertEquals(0, medio.rotacionGrados)
     }
 
     @Test
