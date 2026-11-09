@@ -33,9 +33,14 @@ internal fun codigoFirestoreAError(codigo: String): DominioError? = when (codigo
     else -> null
 }
 
-/** Lo que el worker puede reintentar solo: fallo de red o indisponibilidad temporal. */
+/**
+ * Lo que el worker puede reintentar solo: fallo de red, indisponibilidad temporal, o una foto
+ * que el revelado no pudo escribir todavía (Task 6 de PLAN_REVELAR_FOTO).
+ */
 internal fun esReintentable(error: DominioError): Boolean =
-    error is DominioError.SinConexion || error is DominioError.ServidorIndisponible
+    error is DominioError.SinConexion ||
+        error is DominioError.ServidorIndisponible ||
+        error is DominioError.FotoSinRevelar
 
 /** Texto corto persistible de un error (para `medios.ultimoError`). Sin datos personales. */
 internal fun DominioError.aTextoPersistible(): String = when (this) {

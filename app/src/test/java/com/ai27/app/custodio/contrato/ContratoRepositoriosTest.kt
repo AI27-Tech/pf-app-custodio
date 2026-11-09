@@ -333,6 +333,38 @@ abstract class ContratoRepositoriosTest {
     }
 
     @Test
+    fun `guardarRevelado reescribe el original y deja el medio revelado mientras sigue PENDIENTE`() = runBlocking {
+        val reporte = reporteGuardado()
+        val crudo = nuevoMedio(reporte.id).copy(revelada = false)
+        assertTrue(medios.guardar(crudo, ByteArray(64), ByteArray(16)) is Result.Success)
+        val revelada = byteArrayOf(0x52, 0x49, 0x46, 0x46, 1, 2, 3)
+
+        val resultado = medios.guardarRevelado(crudo.id, revelada, "image/webp")
+
+        assertTrue(resultado is Result.Success)
+        val guardado = medios.obtenerPorId(crudo.id)!!
+        assertTrue(guardado.revelada)
+        assertEquals("image/webp", guardado.contentType)
+        assertEquals(7L, guardado.sizeBytes)
+        assertTrue(medios.leerOriginal(crudo.id)!!.contentEquals(revelada))
+    }
+
+    @Test
+    fun `guardarRevelado no toca un medio que ya dejo de estar PENDIENTE`() = runBlocking {
+        val reporte = reporteGuardado()
+        val crudo = nuevoMedio(reporte.id).copy(revelada = false)
+        assertTrue(medios.guardar(crudo, ByteArray(64), ByteArray(16)) is Result.Success)
+        medios.actualizarEstadoSubida(crudo.id, EstadoSubida.EN_PROGRESO)
+        val antes = medios.obtenerPorId(crudo.id)!!
+
+        val resultado = medios.guardarRevelado(crudo.id, ByteArray(7), "image/webp")
+
+        assertEquals(DominioError.MedioNoEncontrado, (resultado as Result.Failure).error)
+        assertEquals(antes, medios.obtenerPorId(crudo.id))
+        assertTrue(medios.leerOriginal(crudo.id)!!.contentEquals(ByteArray(64)))
+    }
+
+    @Test
     fun `etiquetar fija las etiquetas y conserva la ubicacion previa si no se pasa otra`() = runBlocking {
         val reporte = reporteGuardado()
         val medio = medioGuardado(reporte.id)

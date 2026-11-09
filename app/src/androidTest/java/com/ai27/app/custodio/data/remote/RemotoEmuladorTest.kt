@@ -300,7 +300,7 @@ class RemotoEmuladorTest {
         assertTrue(reporteRemoto.crear(reporte) is Result.Success)
 
         val medio = medioDePrueba(reporte.id)
-        val rutas = RutasStorage.de(medio)
+        val rutas = RutasStorage.de(medio, null)
 
         assertTrue(medioRemoto.subirArchivo(reporte, medio, ByteArray(64), null) is Result.Success)
         assertTrue(medioRemoto.crearDocumentoSiNoExiste(reporte, medio, rutas) is Result.Success)
@@ -322,7 +322,7 @@ class RemotoEmuladorTest {
 
         val medio = medioDePrueba(reporte.id).copy(sha256 = "hash-de-prueba-c2")
 
-        val rutas = RutasStorage.de(medio)
+        val rutas = RutasStorage.de(medio, null)
         assertTrue(medioRemoto.subirArchivo(reporte, medio, ByteArray(64), null) is Result.Success)
         assertTrue(medioRemoto.crearDocumentoSiNoExiste(reporte, medio, rutas) is Result.Success)
 

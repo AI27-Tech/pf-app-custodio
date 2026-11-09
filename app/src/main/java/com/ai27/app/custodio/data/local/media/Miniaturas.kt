@@ -12,22 +12,6 @@ object Miniaturas {
     const val CALIDAD_ORIGINAL = 80
     const val CALIDAD_MINIATURA = 70
 
-    fun fotoOriginalYMiniatura(bitmap: Bitmap): Pair<ByteArray, ByteArray> {
-        val original = webp(bitmap, CALIDAD_ORIGINAL)
-        val miniatura = webp(escalar(bitmap, DIMENSION_MAX_PX), CALIDAD_MINIATURA)
-        return original to miniatura
-    }
-
-    fun escalar(bitmap: Bitmap, dimensionMax: Int): Bitmap {
-        val escala = dimensionMax.toFloat() / maxOf(bitmap.width, bitmap.height)
-        if (escala >= 1f) {
-            return bitmap
-        }
-        val w = (bitmap.width * escala).toInt().coerceAtLeast(1)
-        val h = (bitmap.height * escala).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(bitmap, w, h, true)
-    }
-
     /**
      * Comprime [bitmap] a WebP lossy. `WEBP_LOSSY` existe desde API 30; en API 26–29 se usa
      * el `WEBP` deprecado, que con calidad < 100 también es lossy.

@@ -13,7 +13,7 @@ import com.ai27.app.custodio.data.repository.ETIQUETAS_SITUACION_IDS
 
 @Database(
     entities = [ReporteEntity::class, MedioEntity::class],
-    version = 5,
+    version = 6,
 )
 @ColumnTypeConverters(EtiquetasConverter::class)
 abstract class EchoDatabase : RoomDatabase() {
@@ -144,6 +144,21 @@ abstract class EchoDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Sexta migración (`docs/PLAN_REVELAR_FOTO.md`, Task 2): estado de revelado de la foto.
+         * `revelada` distingue la foto cruda (bytes del HAL sin rotar ni marcar) de la foto final;
+         * `rotacionGrados` guarda la rotación que CameraX no aplica. Toda fila anterior ya pasó por
+         * el flujo viejo (o es audio), así que nace revelada y sin rotación pendiente: sin eso, una
+         * foto del 1.0.3 pendiente de subir se volvería a marcar.
+         */
+        val MIGRACION_5_6 = object : Migration(5, 6) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(DROP_INDICE_UNICO_ACTIVO)
+                connection.execSQL("ALTER TABLE medios ADD COLUMN revelada INTEGER NOT NULL DEFAULT 1")
+                connection.execSQL("ALTER TABLE medios ADD COLUMN rotacionGrados INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun crearBaseDatos(context: Context): EchoDatabase =
             crearBaseDatos(ruta = context.getDatabasePath(NOMBRE).absolutePath)
 
@@ -152,7 +167,7 @@ abstract class EchoDatabase : RoomDatabase() {
             Room.databaseBuilder(name = ruta) { EchoDatabase_Impl() }
                 .setDriver(BundledSQLiteDriver())
                 .addCallback(callback)
-                .addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5)
+                .addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6)
                 .build()
     }
 }
