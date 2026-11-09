@@ -8,8 +8,8 @@
 >
 > **Origen:** candidato 1 de `docs/REVISION_ARQUITECTURA_ZTE.html` (revisión del 2026-11-06).
 >
-> **Estado:** decisiones D1–D14 cerradas el 2026-11-06. Pendiente la confirmación final del humano
-> antes de empezar la Task 1.
+> **Estado:** Tasks 1–6 en `pf-appcus-d`. Task 7: pruebas manuales en CPH2769 aprobadas el
+> 2026-11-09; falta el release 1.0.4 (promoción a `-m`, APK y GitHub Release) y el paso de GA4.
 
 ---
 
@@ -190,7 +190,15 @@ No hay un ZTE A55/A54 disponible, y el único dispositivo de Test Lab con el mis
 - Prueba manual en CPH2769: ráfaga de fotos, sin red, sin GPS, matar el proceso entre captura y
   subida, y actualizar desde 1.0.3 con fotos pendientes (prueba la migración).
 - **Antes del APK:** desplegar `storage.rules` (`firebase deploy --only storage`, PR #6 de infra).
-- Subir a 1.0.4 (versionCode 5), APK firmado desde `-d`, GitHub Release, `AGENTS.md` y `CHANGELOG.md`.
+- **Hecho (2026-11-09):** `storage.rules` con `image/webp` desplegado a `custodio-906e7268` (verificado
+  leyendo las reglas en producción).
+- **Hecho (2026-11-09):** prueba manual en CPH2769 con el APK release de `-d` (`d8c3b1c`) instalado encima
+  del 1.0.3: actualización y migración, ráfaga, revelado con marca, sin GPS, sin red, proceso muerto,
+  cierre de reporte y audio, todos correctos según el humano. En producción: 6 fotos del día como
+  `image/webp` en `.webp`, miniatura `.webp`, con GPS, de 75 a 97 KB (promedio 86 KB), y su reporte
+  `CERRADO` con 6/6 medios y `completo = true`.
+- Subir a 1.0.4 (versionCode 5) en un PR a `-d`; promoción `-d → -q → -m` (PRs automáticos, merge
+  manual); APK firmado desde `-m`, tag `v1.0.4` y GitHub Release; `CHANGELOG.md`.
 - Tras el rollout: revisar `foto_revelada` en la consola, filtrado por modelo ZTE.
 - **Paso manual en la consola de GA4 (antes del rollout):** registrar `origen`, `resultado`,
   `con_gps` y `con_mapa` como dimensiones personalizadas de evento, y `ms_disparo`,
