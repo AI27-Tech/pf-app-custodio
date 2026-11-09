@@ -142,6 +142,29 @@ class RoomMedioRepository(
     // absoluta); el nombre del original es el id del medio, igual que en guardar().
     private fun nombreDesdeRuta(ruta: String): String = ruta.substringAfterLast('/')
 
+    override suspend fun guardarRevelado(medioId: String, bytes: ByteArray, contentType: String): Result<Medio> {
+        val medio = dao.obtenerPorId(medioId)
+            ?: return Result.Failure(DominioError.MedioNoEncontrado)
+        // Si ya salió de PENDIENTE, la subida tomó el archivo: no se reescribe.
+        if (medio.estadoSubida != EstadoSubida.PENDIENTE.name) {
+            return Result.Failure(DominioError.MedioNoEncontrado)
+        }
+        val ruta = medio.localPath
+            ?: return Result.Failure(DominioError.MedioNoEncontrado)
+        when (val r = almacenArchivos.guardar(nombreDesdeRuta(ruta), bytes)) {
+            is Result.Success -> Unit
+            is Result.Failure -> return r
+        }
+        val filas = dao.marcarRevelada(medioId, bytes.size.toLong(), contentType)
+        val actualizado = dao.obtenerPorId(medioId)
+            ?: return Result.Failure(DominioError.MedioNoEncontrado)
+        return if (filas == 1) {
+            Result.Success(actualizado.aDominio())
+        } else {
+            Result.Failure(DominioError.MedioNoEncontrado)
+        }
+    }
+
 
     override suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio> {
         return if (dao.actualizarEstadoSubida(medioId, estado.name) == 1) {

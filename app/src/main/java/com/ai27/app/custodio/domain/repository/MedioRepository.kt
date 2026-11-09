@@ -38,6 +38,15 @@ interface MedioRepository {
      * no tiene ruta local.
      */
     suspend fun reescribirOriginal(medioId: String, bytes: ByteArray): Result<Medio>
+
+    /**
+     * Revelado (`docs/PLAN_REVELAR_FOTO.md`): sobrescribe el archivo original con la foto
+     * revelada [bytes], fija `sizeBytes` y [contentType] (`image/webp`, o `image/jpeg` si se
+     * conservó la cruda porque no se pudo decodificar) y deja el medio `revelada = true`.
+     * Misma regla que [reescribirOriginal]: solo mientras el medio sigue `PENDIENTE` y tiene
+     * ruta local; si no, `MedioNoEncontrado` y no cambia nada.
+     */
+    suspend fun guardarRevelado(medioId: String, bytes: ByteArray, contentType: String): Result<Medio>
     suspend fun actualizarEstadoSubida(medioId: String, estado: EstadoSubida): Result<Medio>
     suspend fun marcarSubidaCompleta(medioId: String, storagePath: String, sha256: String): Result<Medio>
 
