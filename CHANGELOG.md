@@ -30,6 +30,8 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 **Archivos creados:**
 - `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/ImagenMapa.kt`
 
+**Pendiente manual:** registrar en GA4 los parámetros de `foto_revelada` como dimensiones y métricas personalizadas (anotado en la Task 7 del plan).
+
 **Archivos modificados:**
 - `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt`
 - `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventosAnalytics.kt`
@@ -50,6 +52,7 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 - `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
 - `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
 - `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `docs/PLAN_REVELAR_FOTO.md`
 - `CHANGELOG.md`
 
 ## 2026:11:06 — Feature: obturador sin decodificar y revelado conectado (Task 4 de PLAN_REVELAR_FOTO)
