@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Revisión de arquitectura · pf-app-custodio (Echo) en ZTE Blade A54/A55</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  .seam { border-style: dashed; }
+  .band { border-left-width: 6px; }
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+  .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+<main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+<header class="space-y-4">
+  <h1 class="font-serif text-4xl">Echo en ZTE Blade A54 / A55</h1>
+  <p class="text-slate-600">pf-app-custodio · rama <span class="font-mono">feat/evidencia-webp</span> · 2026-11-06</p>
+  <div class="grid md:grid-cols-2 gap-4 text-sm">
+    <div class="rounded-lg border border-slate-200 bg-white p-4">
+      <div class="lbl text-slate-500 mb-2">El dispositivo (fuente: GSMArena, fichas públicas)</div>
+      <ul class="space-y-1">
+        <li>Unisoc SC9863A · 8× Cortex-A55 · 28 nm</li>
+        <li>GPU IMG GE8322 · pantalla 720×1600</li>
+        <li>4 GB RAM (hay variantes menores)</li>
+        <li>A55: Android 14 <b>Go</b> · A54: Android 13</li>
+      </ul>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-4">
+      <div class="lbl text-slate-500 mb-2">Leyenda</div>
+      <ul class="space-y-1">
+        <li><span class="inline-block w-4 h-3 border border-slate-500 align-middle"></span> módulo</li>
+        <li><span class="inline-block w-4 h-3 border border-dashed border-slate-500 align-middle"></span> <i>seam</i></li>
+        <li><span class="inline-block w-4 h-3 bg-red-200 border border-red-500 align-middle"></span> costo o fuga</li>
+        <li><span class="inline-block w-4 h-3 deep align-middle"></span> módulo profundo</li>
+      </ul>
+    </div>
+  </div>
+  <div class="rounded-lg border border-red-300 bg-red-50 p-4 text-sm">
+    <b>Hallazgo urgente, aparte de la arquitectura:</b> la marca de agua (decode + copia ARGB_8888 + encode WebP) corre en el <b>hilo principal</b>.
+    <span class="font-mono">CapturaViewModel.kt:557</span> lanza en <span class="font-mono">viewModelScope</span> y ningún módulo de la cadena
+    <span class="font-mono">GrabarMarcaDeAguaEnFoto → ComponerMarcaDeAgua → BitmapEstampadorFoto → DibujanteMarcaDeAgua</span> cambia de dispatcher (verificado con grep).
+    En un SC9863A eso congela la vista previa y el obturador, con riesgo de ANR.
+  </div>
+</header>
+
+<section id="candidates" class="space-y-14">
+
+<!-- ============ CANDIDATO 1 ============ -->
+<article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <h2 class="font-serif text-2xl">1 · Un módulo profundo para revelar la foto</h2>
+  <div class="flex gap-2 text-xs">
+    <span class="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-semibold">Strong</span>
+    <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">in-process</span>
+    <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">local-substitutable (archivos)</span>
+  </div>
+  <div class="font-mono text-sm text-slate-600 leading-6">
+    ui/captura/VistaCamara.kt · data/local/media/Miniaturas.kt · data/local/media/DibujanteMarcaDeAgua.kt<br>
+    data/marcaDeAgua/{BitmapEstampadorFoto, ComponerMarcaDeAgua, GrabarMarcaDeAguaEnFoto}.kt<br>
+    ui/viaje/CapturaEvidenciaScreen.kt · data/remote/RutasStorage.kt · domain/usecase/CapturarMedio.kt
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <div>
+      <div class="lbl text-slate-500 mb-2">Antes · 7 módulos superficiales, 2 vueltas completas</div>
+      <div class="space-y-1 text-xs">
+        <div class="lbl text-slate-400">al disparar (Default)</div>
+        <div class="band border-red-500 bg-red-50 px-3 py-1">decode JPEG del HAL → bitmap #1</div>
+        <div class="band border-red-500 bg-red-50 px-3 py-1">rotar → bitmap #2 (sin reciclar #1)</div>
+        <div class="band border-amber-500 bg-amber-50 px-3 py-1">encode WebP q80 #1 · miniatura q70</div>
+        <div class="band border-slate-400 bg-slate-50 px-3 py-1">guardar archivo</div>
+        <div class="lbl text-slate-400 pt-2">0–14 s después (hilo principal)</div>
+        <div class="band border-slate-400 bg-slate-50 px-3 py-1">leer archivo completo</div>
+        <div class="band border-red-500 bg-red-50 px-3 py-1">decode WebP → bitmap #3</div>
+        <div class="band border-red-500 bg-red-50 px-3 py-1">copy ARGB_8888 → bitmap #4</div>
+        <div class="band border-amber-500 bg-amber-50 px-3 py-1">encode WebP q80 #2 (pérdida sobre pérdida)</div>
+        <div class="band border-slate-400 bg-slate-50 px-3 py-1">reescribir archivo</div>
+      </div>
+    </div>
+    <div>
+      <div class="lbl text-slate-500 mb-2">Después · una interfaz, una vuelta</div>
+      <div class="space-y-1 text-xs">
+        <div class="lbl text-slate-400">al disparar</div>
+        <div class="band border-emerald-500 bg-emerald-50 px-3 py-1">guardar los bytes JPEG del HAL tal cual</div>
+        <div class="band border-emerald-500 bg-emerald-50 px-3 py-1">miniatura barata (decode con inSampleSize)</div>
+        <div class="lbl text-slate-400 pt-2">en segundo plano, cuando hay GPS o vence el timeout</div>
+        <div class="deep rounded-lg p-4 space-y-1">
+          <div class="lbl text-slate-300">RevelarFoto · interfaz: revelar(medio, contexto?)</div>
+          <div class="text-slate-400">decode una vez al tamaño objetivo</div>
+          <div class="text-slate-400">rotar en el mismo bitmap · estampar marca</div>
+          <div class="text-slate-400">encode WebP una sola vez · reciclar</div>
+          <div class="text-slate-400">política: formato, calidad, tamaño, ruta, contentType</div>
+          <div class="text-slate-400">siempre en Dispatchers.Default</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p><b>Problema.</b> El tratamiento de una foto está repartido en siete módulos, dos de ellos en <span class="font-mono">ui/</span>; se decodifica dos veces, se codifica con pérdida tres veces, hay hasta 4 bitmaps completos vivos y el hilo depende de quién llame.</p>
+  <p><b>Solución.</b> Un módulo profundo que al disparar solo guarda el JPEG del HAL y una miniatura, y que en segundo plano hace una única vuelta decode → rotar → estampar → WebP, dueño de toda la política de imagen.</p>
+  <ul class="grid md:grid-cols-2 gap-x-6 text-sm list-disc pl-5">
+    <li>Obturador instantáneo: sin decode al disparar</li>
+    <li>Una pérdida WebP, no dos</li>
+    <li>Pico de memoria: 1–2 bitmaps, no 4</li>
+    <li><i>locality</i>: política de imagen en un módulo</li>
+    <li>Hilo fijado dentro de la interfaz</li>
+    <li>Se arregla <span class="font-mono">.jpg</span> con contenido WebP</li>
+    <li>Tests cruzan una interfaz: bytes entran, WebP sale</li>
+  </ul>
+  <div class="rounded border border-amber-300 bg-amber-50 p-3 text-sm">PLAN_MARCA_DE_AGUA fija que el obturador no espera al GPS y que la miniatura queda limpia. Este candidato respeta ambas decisiones; solo cambia qué se guarda al disparar y cuántas veces se codifica.</div>
+</article>
+
+<!-- ============ CANDIDATO 2 ============ -->
+<article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <h2 class="font-serif text-2xl">2 · Contexto geográfico de captura con caché</h2>
+  <div class="flex gap-2 text-xs">
+    <span class="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-semibold">Strong</span>
+    <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">ports &amp; adapters</span>
+  </div>
+  <div class="font-mono text-sm text-slate-600 leading-6">
+    data/ubicacion/ProveedorUbicacion.kt · data/mapa/MapsSnapshotMapa.kt · data/mapa/ProveedorSnapshotMapa.kt<br>
+    di/MapaModule.kt · ui/captura/CapturaViewModel.kt (obtenerGpsLinear, timeouts)
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <div>
+      <div class="lbl text-slate-500 mb-2">Antes · ráfaga de 5 fotos en el mismo punto</div>
+      <div class="grid grid-cols-5 gap-2 text-[10px] text-center">
+        <div class="space-y-1"><div class="bg-red-100 border border-red-400 rounded p-1">GNSS 8 s</div><div class="bg-red-100 border border-red-400 rounded p-1">MapView 6 s</div></div>
+        <div class="space-y-1"><div class="bg-red-100 border border-red-400 rounded p-1">GNSS 8 s</div><div class="bg-red-100 border border-red-400 rounded p-1">MapView 6 s</div></div>
+        <div class="space-y-1"><div class="bg-red-100 border border-red-400 rounded p-1">GNSS 8 s</div><div class="bg-red-100 border border-red-400 rounded p-1">MapView 6 s</div></div>
+        <div class="space-y-1"><div class="bg-red-100 border border-red-400 rounded p-1">GNSS 8 s</div><div class="bg-red-100 border border-red-400 rounded p-1">MapView 6 s</div></div>
+        <div class="space-y-1"><div class="bg-red-100 border border-red-400 rounded p-1">GNSS 8 s</div><div class="bg-red-100 border border-red-400 rounded p-1">MapView 6 s</div></div>
+      </div>
+      <p class="text-xs text-slate-500 mt-3">Un fix HIGH_ACCURACY y un MapView nuevo en el hilo principal por foto. Timeout de 8 s declarado dos veces. Sin red, cada foto gasta los 6 s del mapa.</p>
+    </div>
+    <div>
+      <div class="lbl text-slate-500 mb-2">Después</div>
+      <div class="deep rounded-lg p-4 space-y-2 text-xs">
+        <div class="lbl text-slate-300">ContextoDeCaptura · interfaz: en(instante): Contexto?</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="border border-dashed border-slate-500 rounded p-2 text-slate-300">adaptador GPS<br><span class="text-slate-500">reusa el fix si &lt; N s y &lt; M m</span></div>
+          <div class="border border-dashed border-slate-500 rounded p-2 text-slate-300">adaptador mapa<br><span class="text-slate-500">caché por celda · un MapView</span></div>
+        </div>
+        <div class="text-slate-400">timeouts y prioridad en un solo lugar</div>
+      </div>
+      <div class="grid grid-cols-5 gap-2 text-[10px] text-center mt-3">
+        <div class="bg-emerald-100 border border-emerald-400 rounded p-1">fix + mapa</div>
+        <div class="bg-slate-100 border border-slate-300 rounded p-1">caché</div>
+        <div class="bg-slate-100 border border-slate-300 rounded p-1">caché</div>
+        <div class="bg-slate-100 border border-slate-300 rounded p-1">caché</div>
+        <div class="bg-slate-100 border border-slate-300 rounded p-1">caché</div>
+      </div>
+    </div>
+  </div>
+
+  <p><b>Problema.</b> GPS y snapshot del mapa son dos módulos superficiales que el ViewModel encadena por foto; el costo más alto en un dispositivo Go (renderer de Maps en el proceso, GNSS encendido) se paga cada vez.</p>
+  <p><b>Solución.</b> Un módulo que entrega el contexto geográfico de un instante, con fix y snapshot reutilizables para fotos cercanas en tiempo y espacio.</p>
+  <ul class="grid md:grid-cols-2 gap-x-6 text-sm list-disc pl-5">
+    <li>Ráfagas: un fix, un mapa</li>
+    <li>Menos memoria nativa de Maps</li>
+    <li>Batería: GNSS encendido una vez</li>
+    <li>Dos adaptadores reales: Fused y fake</li>
+    <li><i>leverage</i>: el ViewModel pide un dato</li>
+  </ul>
+  <div class="rounded border border-amber-300 bg-amber-50 p-3 text-sm">PLAN_MARCA_DE_AGUA decide el snapshot con Google Maps SDK en el dispositivo y deja fuera tiles offline. Este candidato no cambia esa decisión: solo cachea y reutiliza.</div>
+</article>
+
+<!-- ============ CANDIDATO 3 ============ -->
+<article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <h2 class="font-serif text-2xl">3 · Preparar la evidencia dentro del pipeline durable</h2>
+  <div class="flex gap-2 text-xs">
+    <span class="px-2 py-1 rounded bg-amber-100 text-amber-800 font-semibold">Worth exploring</span>
+    <span class="px-2 py-1 rounded bg-slate-100 text-slate-700">local-substitutable</span>
+  </div>
+  <div class="font-mono text-sm text-slate-600 leading-6">
+    ui/captura/CapturaViewModel.kt (trabajosGps, encolarCuandoListo) · data/worker/WorkManagerSubidaScheduler.kt<br>
+    data/pipeline/SubidaMedioProceso.kt · data/remote/FirebaseMedioRemoto.kt
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-1">Antes</div>
+      <pre class="mermaid">
+flowchart TB
+  VM[CapturaViewModel<br/>Map de Jobs en memoria] -->|join| M[marca de agua]
+  M --> E[encolar subida]
+  K((proceso muerto<br/>por lowmemorykiller)) -.-> VM
+  R[reconciliar] -->|sube sin marca| S[SubidaMedioProceso]
+  classDef leak stroke:#dc2626,stroke-width:2px,fill:#fee2e2;
+  class K,R leak
+      </pre>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-1">Después</div>
+      <pre class="mermaid">
+flowchart TB
+  VM[CapturaViewModel] -->|encolar| W[Worker de medio]
+  subgraph P[Pipeline de medio · profundo]
+    A[contexto de captura] --> B[revelar foto]
+    B --> C[subir con putFile]
+  end
+  W --> P
+  classDef deep fill:#0f172a,color:#f8fafc;
+  class P deep
+      </pre>
+    </div>
+  </div>
+
+  <p><b>Problema.</b> El orden "GPS → marca → subir" vive en un <span class="font-mono">mutableMapOf&lt;String, Job&gt;</span> del ViewModel; si Android Go mata el proceso, la reconciliación sube la foto sin marca (inferido de la lectura del código, no reproducido).</p>
+  <p><b>Solución.</b> El pipeline de subida, que ya sobrevive a la muerte del proceso, se vuelve dueño de preparar la evidencia antes de subirla, y sube por archivo en vez de cargar todo a un <span class="font-mono">ByteArray</span>.</p>
+  <ul class="grid md:grid-cols-2 gap-x-6 text-sm list-disc pl-5">
+    <li>Evidencia marcada aunque el proceso muera</li>
+    <li>ViewModel sin estado de pipeline</li>
+    <li><i>locality</i>: el orden en un módulo</li>
+    <li>putFile: sin archivo entero en heap</li>
+  </ul>
+</article>
+
+<!-- ============ AJUSTES DE BUILD ============ -->
+<article class="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+  <h2 class="font-serif text-2xl">Fuera de la arquitectura · ajustes de build y CameraX</h2>
+  <div class="flex gap-2 text-xs"><span class="px-2 py-1 rounded bg-slate-200 text-slate-700 font-semibold">cambios pequeños</span></div>
+  <ul class="text-sm space-y-2 list-disc pl-5">
+    <li><b>R8 apagado en release</b> (<span class="font-mono">build.gradle.kts:83-84</span>, <span class="font-mono">optimization { enable = false }</span>). El APK trae ~69 MB de dex sin podar. Encenderlo reduce instalación, arranque y RAM. Requiere reglas keep para Room, Hilt, Firebase y probarlo.</li>
+    <li><b>4 ABIs empaquetadas</b>, incluidas x86/x86_64 que ningún ZTE usa. Hay que comprobar en un A55 real si Go corre userspace de 32 bits (<span class="font-mono">getprop ro.product.cpu.abilist</span>) antes de filtrar.</li>
+    <li><b>material-icons-extended</b> se usa para un solo ícono. Sin R8, arrastra miles de clases.</li>
+    <li><b>Sin baseline profile propio</b>. Un perfil del flujo login → captura reduce el jank del primer uso en un Cortex-A55.</li>
+    <li><b>CameraX</b>: <span class="font-mono">LifecycleCameraController</span> sin <span class="font-mono">setEnabledUseCases(IMAGE_CAPTURE)</span> puede abrir también ImageAnalysis (sin verificar en dispositivo).</li>
+  </ul>
+</article>
+
+</section>
+
+<section id="top-recommendation" class="rounded-xl deep p-8 space-y-3">
+  <div class="lbl text-slate-300">Top recommendation</div>
+  <h2 class="font-serif text-3xl"><a href="#c1" class="underline decoration-emerald-400">1 · Un módulo profundo para revelar la foto</a></h2>
+  <p class="text-slate-300">Ataca el costo que todo custodio paga en cada foto: quita el decode del disparo, saca la marca del hilo principal, deja una sola codificación WebP y concentra la política de imagen que hoy está en siete módulos. El candidato 2 se enchufa detrás de su interfaz como el contexto que recibe.</p>
+  <p class="text-slate-400 text-sm">Nada de esto está medido en un ZTE. CPH2769 no es representativo del SC9863A: antes de decidir valores, medir en un A55 real el tiempo del obturador, el del encode WebP y el pico de memoria.</p>
+</section>
+
+</main>
+</body>
+</html>

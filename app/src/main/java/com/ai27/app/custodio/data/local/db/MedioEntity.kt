@@ -30,4 +30,8 @@ data class MedioEntity(
     @ColumnInfo(name = "sha256") val sha256: String?,
     @ColumnInfo(name = "ultimoError") val ultimoError: String?,
     @ColumnInfo(name = "intentosSubida") val intentosSubida: Int,
+    // Mismos DEFAULT que añade MIGRACION_5_6, para que el esquema de una instalación nueva y el de
+    // una migrada coincidan.
+    @ColumnInfo(name = "revelada", defaultValue = "1") val revelada: Boolean,
+    @ColumnInfo(name = "rotacionGrados", defaultValue = "0") val rotacionGrados: Int,
 )

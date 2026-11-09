@@ -1,10 +1,16 @@
 package com.ai27.app.custodio.data.pipeline
 
 import com.ai27.app.custodio.FakeEtiquetaRepository
+import com.ai27.app.custodio.FakeProveedorSnapshotMapa
+import com.ai27.app.custodio.FakeRegistroDeEventos
+import com.ai27.app.custodio.FakeRegistroDeFallos
+import com.ai27.app.custodio.data.foto.CodecFotoFalso
+import com.ai27.app.custodio.data.foto.RevelarFoto
 import com.ai27.app.custodio.data.local.archivo.FilesDirAlmacenArchivos
 import com.ai27.app.custodio.data.local.db.EchoDatabase
 import com.ai27.app.custodio.data.repository.RoomMedioRepository
 import com.ai27.app.custodio.data.repository.RoomReporteRepository
+import com.ai27.app.custodio.data.util.Sha256
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
@@ -58,6 +64,10 @@ class SubidaMedioProcesoRoomTest {
             reporteRemoto,
             medioRemoto,
             FilesDirAlmacenArchivos(directorioMedios),
+            RevelarFoto(repoMedios, CodecFotoFalso(), FakeProveedorSnapshotMapa(), FakeRegistroDeFallos()),
+            FakeRegistroDeEventos(),
+            FakeRegistroDeFallos(),
+            ahora = { fijo.plusSeconds(60) },
         )
     }
 
@@ -158,5 +168,39 @@ class SubidaMedioProcesoRoomTest {
         // subida=COMPLETA y esperados=null: la query de pendientes no lo devuelve
         // (pendiente exige subida!=COMPLETA o esperados!=null con completo=0).
         assertFalse(repoReportes.obtenerPendientesSubida("c-1", "2026-01-01").any { it.id == reporteId })
+    }
+
+    @Test
+    fun `una foto cruda vieja se revela contra Room real antes de subir`() = runBlocking {
+        // Task 6: guardarRevelado del DAO real solo escribe en PENDIENTE; el proceso revela antes
+        // de marcar EN_PROGRESO, así que la escritura entra y se sube el WebP.
+        val reporteId = "r-c0-cruda"
+        crearReporteEnRoom(reporteId, mediosEsperados = null)
+        reporteRemoto.ciclos[reporteId] = Ciclo.ACTIVO
+        val cruda = (repoMedios.guardar(
+            Medio(
+                id = "m-cruda",
+                reporteId = reporteId,
+                tipo = TipoMedio.FOTO,
+                origen = OrigenMedio.CAMARA,
+                createdAtDevice = fijo,
+                contentType = "image/jpeg",
+                estadoSubida = EstadoSubida.PENDIENTE,
+                revelada = false,
+                rotacionGrados = 90,
+            ),
+            contenido = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3),
+            miniatura = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()),
+        ) as Result.Success).value
+
+        assertTrue(proceso.ejecutar(reporteId, cruda.id) is Result.Success)
+
+        val subido = repoMedios.obtenerPorId(cruda.id)!!
+        assertEquals(EstadoSubida.COMPLETA, subido.estadoSubida)
+        assertTrue(subido.revelada)
+        assertEquals("image/webp", subido.contentType)
+        assertEquals("medios/$reporteId/m-cruda.webp", subido.storagePath)
+        assertEquals(Sha256.digestHex(CodecFotoFalso.REVELADA), subido.sha256)
+        assertEquals("medios/$reporteId/m-cruda-min.jpg", medioRemoto.rutasDeDocumento.single().miniatura)
     }
 }

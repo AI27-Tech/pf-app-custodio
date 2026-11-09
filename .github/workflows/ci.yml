@@ -1,0 +1,79 @@
+# CI de la app Echo (pf-app-custodio).
+#
+# Corre las pruebas unitarias y compila la app y las pruebas instrumentadas en cada PR y en
+# cada push a las tres ramas del flujo (d/q/m), al estilo de los demás repos de la plataforma.
+# Antes no había CI: las 300+ pruebas solo corrían en la máquina de quien abría el PR, y los
+# PRs de promoción (promotion-pr-dq/qm) no tenían un "verde" que esperar.
+#
+# Qué NO corre aquí:
+# - Las pruebas instrumentadas (`connectedDebugAndroidTest`): necesitan un emulador o un
+#   dispositivo. Sí se COMPILAN (`assembleDebugAndroidTest`), porque D8 ya rompió ese APK una
+#   vez sin que nadie se enterara (nombres de método con espacios y minSdk 26).
+# - El APK de release: la firma vive en `keystore.properties`, que no está en el repo.
+#
+# Notas del entorno:
+# - JDK 25: es el `toolchainVersion` de `gradle/gradle-daemon-jvm.properties`. Instalarlo con
+#   setup-java evita que el daemon lo descargue de foojay en cada corrida.
+# - `google-services.json` está versionado a propósito (ver .gitignore), así que el plugin de
+#   Google Services resuelve sin secretos.
+# - Sin `local.properties` la API key de Maps queda vacía; la app compila igual y el snapshot
+#   del mapa simplemente no se genera (requisito 3 de PLAN_MARCA_DE_AGUA).
+# - El SDK de Android viene preinstalado en ubuntu-latest; AGP descarga la plataforma de
+#   compileSdk si falta.
+name: ci
+
+on:
+  push:
+    branches: [pf-appcus-d, pf-appcus-q, pf-appcus-m]
+  pull_request:
+    branches: [pf-appcus-d, pf-appcus-q, pf-appcus-m]
+
+permissions:
+  contents: read
+
+# Un push nuevo al mismo PR cancela la corrida anterior: la vieja ya no dice nada útil.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Las pruebas de Room usan BundledSQLiteDriver, que en las pruebas unitarias carga
+      # `libsqliteJni` del java.library.path. AGP agrega `app/src/test/jniLibs`, donde el repo
+      # solo trae la dylib de macOS arm64 (para correr en las Mac del equipo). En el runner Linux
+      # se baja la .so del artefacto oficial, en la misma versión que libs.versions.toml, en vez
+      # de versionar otro binario de 1.9 MB.
+      - name: Nativa de SQLite para Linux (pruebas de Room)
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sqlite = "\(.*\)"$/\1/p' gradle/libs.versions.toml)
+          test -n "$version"
+          curl -fsSL -o /tmp/sqlite-bundled-jvm.jar \
+            "https://dl.google.com/android/maven2/androidx/sqlite/sqlite-bundled-jvm/${version}/sqlite-bundled-jvm-${version}.jar"
+          unzip -j -o /tmp/sqlite-bundled-jvm.jar natives/linux_x64/libsqliteJni.so -d app/src/test/jniLibs/
+          echo "sqlite-bundled-jvm ${version}: $(sha256sum app/src/test/jniLibs/libsqliteJni.so)"
+
+      - name: Pruebas unitarias y compilación
+        run: ./gradlew --stacktrace :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Reportes de pruebas
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reportes-pruebas
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          retention-days: 7

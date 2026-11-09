@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.work.WorkManager
 import com.ai27.app.custodio.data.pipeline.ReporteSyncProceso
 import com.ai27.app.custodio.data.pipeline.SubidaMedioProceso
+import com.ai27.app.custodio.data.diagnostico.RegistroDeEventos
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
+import com.ai27.app.custodio.data.foto.RevelarFoto
 import com.ai27.app.custodio.data.remote.FirestoreAllowlistRepositorio
 import com.ai27.app.custodio.data.remote.FirebaseMedioRemoto
 import com.ai27.app.custodio.data.remote.FirebaseReporteRemoto
@@ -81,6 +83,9 @@ object PipelineModule {
         reporteRemoto: ReporteRemoto,
         medioRemoto: MedioRemoto,
         almacenArchivos: com.ai27.app.custodio.data.local.archivo.AlmacenArchivos,
+        revelarFoto: RevelarFoto,
+        registroDeEventos: RegistroDeEventos,
+        registroDeFallos: RegistroDeFallos,
     ): SubidaMedioProceso =
         SubidaMedioProceso(
             reporteRepository,
@@ -89,6 +94,10 @@ object PipelineModule {
             reporteRemoto,
             medioRemoto,
             almacenArchivos,
+            // Hilt entrega el @Singleton de FotoModule: el mismo que la cámara.
+            revelarFoto,
+            registroDeEventos,
+            registroDeFallos,
         )
 
     @Provides

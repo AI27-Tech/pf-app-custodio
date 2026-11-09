@@ -76,11 +76,11 @@ interface MedioDao {
     )
     suspend fun actualizarGps(id: String, lat: Double, lng: Double, accuracyM: Double, ageMs: Long?): Int
 
-    // Marca de agua: tras reescribir el JPEG original estampado, el tamaño en bytes cambia.
-    // Igual que actualizarGps, solo mientras el medio sigue PENDIENTE: una vez EN_PROGRESO
-    // la subida ya tomó el archivo y no debe mutar.
-    @Query("UPDATE medios SET sizeBytes = :sizeBytes WHERE id = :id AND estadoSubida = 'PENDIENTE'")
-    suspend fun actualizarTamano(id: String, sizeBytes: Long): Int
+    // Revelado: el contentType cambia (cruda JPEG -> revelada WebP) junto con el tamaño. Igual
+    // que actualizarGps, solo mientras el medio sigue PENDIENTE: una vez EN_PROGRESO la subida
+    // ya tomó el archivo y no debe mutar.
+    @Query("UPDATE medios SET sizeBytes = :sizeBytes, contentType = :contentType, revelada = 1 WHERE id = :id AND estadoSubida = 'PENDIENTE'")
+    suspend fun marcarRevelada(id: String, sizeBytes: Long, contentType: String): Int
 
     @Query("UPDATE medios SET estadoSubida = :estado WHERE id = :id")
     suspend fun actualizarEstadoSubida(id: String, estado: String): Int

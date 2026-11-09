@@ -9,10 +9,9 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import com.ai27.app.custodio.domain.marcaDeAgua.DisposicionMarcaDeAgua
 import com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua
-import java.io.ByteArrayOutputStream
 
 /**
- * Graba la marca de agua sobre el pixel de una foto y la recomprime a JPEG. Es la capa
+ * Graba la marca de agua sobre el pixel de una foto. Es la capa
  * Android de la marca: el QUÉ (textos) y la geometría ya vienen resueltos
  * ([MarcaDeAgua] y [DisposicionMarcaDeAgua]); aquí solo se dibuja.
  *
@@ -31,22 +30,13 @@ object DibujanteMarcaDeAgua {
     private const val GROSOR_BORDE_MAPA_PX = 2f
 
     /**
-     * Devuelve un JPEG nuevo con la marca grabada. [calidadJpeg] es la misma del original
-     * (`Miniaturas.CALIDAD_ORIGINAL`) para no degradar la evidencia más de lo necesario.
-     *
-     * No muta [original]: dibuja sobre una copia mutable, así quien tenga el bitmap de
-     * entrada (p. ej. una vista previa) no ve aparecer la marca encima.
+     * Dibuja la marca directamente sobre [lienzo], que debe ser mutable. No copia ni codifica:
+     * así `RevelarFoto` marca el mismo bitmap que acaba de rotar y lo codifica una sola vez.
      */
-    fun estampar(
-        original: Bitmap,
-        marca: MarcaDeAgua,
-        mapa: Bitmap?,
-        calidadJpeg: Int = Miniaturas.CALIDAD_ORIGINAL,
-    ): ByteArray {
-        val lienzoBitmap = original.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(lienzoBitmap)
-        val ancho = lienzoBitmap.width
-        val alto = lienzoBitmap.height
+    fun dibujarEn(lienzo: Bitmap, marca: MarcaDeAgua, mapa: Bitmap?) {
+        val canvas = Canvas(lienzo)
+        val ancho = lienzo.width
+        val alto = lienzo.height
 
         val margen = DisposicionMarcaDeAgua.margenPx(ancho, alto)
         val tamanoTexto = DisposicionMarcaDeAgua.tamanoTextoPx(ancho, alto)
@@ -101,11 +91,6 @@ object DibujanteMarcaDeAgua {
             }
             canvas.drawRect(destino, pincelBorde)
         }
-
-        val salida = ByteArrayOutputStream()
-        lienzoBitmap.compress(Bitmap.CompressFormat.JPEG, calidadJpeg, salida)
-        salida.flush()
-        return salida.toByteArray()
     }
 
     /**
