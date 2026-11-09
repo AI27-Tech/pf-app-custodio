@@ -1,19 +1,25 @@
 package com.ai27.app.custodio.ui.captura
 
-import com.ai27.app.custodio.FakeEstampadorFoto
 import com.ai27.app.custodio.FakeEtiquetaRepository
 import com.ai27.app.custodio.FakeGrabadora
 import com.ai27.app.custodio.FakeMedioRepository
 import com.ai27.app.custodio.FakeProveedorSnapshotMapa
 import com.ai27.app.custodio.FakeProveedorUbicacion
+import com.ai27.app.custodio.FakeRegistroDeEventos
 import com.ai27.app.custodio.FakeRegistroDeFallos
 import com.ai27.app.custodio.FakeReporteRepository
 import com.ai27.app.custodio.FakeSesionRepositorio
 import com.ai27.app.custodio.FakeSubidaScheduler
 import com.ai27.app.custodio.MainDispatcherRule
 import com.ai27.app.custodio.R
-import com.ai27.app.custodio.data.marcaDeAgua.ComponerMarcaDeAgua
-import com.ai27.app.custodio.data.marcaDeAgua.GrabarMarcaDeAguaEnFoto
+import com.ai27.app.custodio.data.diagnostico.EventoFotoRevelada
+import com.ai27.app.custodio.data.diagnostico.OrigenRevelado
+import com.ai27.app.custodio.data.diagnostico.ResultadoFotoRevelada
+import com.ai27.app.custodio.data.foto.CodecFoto
+import com.ai27.app.custodio.data.foto.Dimensiones
+import com.ai27.app.custodio.data.foto.RevelarFoto
+import com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa
+import com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.model.Custodio
 import com.ai27.app.custodio.domain.model.Gps
@@ -28,8 +34,10 @@ import com.ai27.app.custodio.domain.usecase.ObtenerEtiquetas
 import com.ai27.app.custodio.domain.usecase.ReintentarSubida
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -52,7 +60,8 @@ class CapturaViewModelTest {
     private lateinit var grabadora: FakeGrabadora
     private lateinit var scheduler: FakeSubidaScheduler
     private lateinit var registroDeFallos: FakeRegistroDeFallos
-    private lateinit var estampador: FakeEstampadorFoto
+    private lateinit var registroDeEventos: FakeRegistroDeEventos
+    private lateinit var codec: CodecFotoFalso
     private lateinit var proveedorMapa: FakeProveedorSnapshotMapa
 
     @Before
@@ -64,14 +73,25 @@ class CapturaViewModelTest {
         grabadora = FakeGrabadora()
         scheduler = FakeSubidaScheduler()
         registroDeFallos = FakeRegistroDeFallos()
-        estampador = FakeEstampadorFoto()
+        registroDeEventos = FakeRegistroDeEventos()
+        codec = CodecFotoFalso()
         proveedorMapa = FakeProveedorSnapshotMapa()
     }
 
     private fun crearViewModel(): CapturaViewModel {
         val etiquetas = FakeEtiquetaRepository()
-        val componer = ComponerMarcaDeAgua(estampador, proveedorMapa, java.time.ZoneOffset.UTC)
-        val grabarMarca = GrabarMarcaDeAguaEnFoto(repoMedios, componer, registroDeFallos)
+        // El despachador de la prueba en vez de Dispatchers.Default: así runCurrent() deja
+        // el revelado terminado y el orden revelado → encolado es determinista.
+        val revelarFoto = RevelarFoto(
+            medioRepository = repoMedios,
+            codec = codec,
+            proveedorSnapshotMapa = proveedorMapa,
+            registroDeFallos = registroDeFallos,
+            zona = java.time.ZoneOffset.UTC,
+            despachador = mainDispatcherRule.dispatcher,
+            // Reloj fijo: cada revelado mide 7 ms, para afirmar ms_revelado con un literal.
+            reloj = relojRevelado(),
+        )
         return CapturaViewModel(
             reporteRepository = repoReportes,
             medioRepository = repoMedios,
@@ -84,10 +104,11 @@ class CapturaViewModelTest {
             obtenerEtiquetas = ObtenerEtiquetas(etiquetas),
             reintentarSubida = ReintentarSubida(repoMedios),
             proveedorUbicacion = ubicacion,
-            grabarMarcaDeAguaEnFoto = grabarMarca,
+            revelarFoto = revelarFoto,
             grabadora = grabadora,
             programadorSubidas = scheduler,
             registroDeFallos = registroDeFallos,
+            registroDeEventos = registroDeEventos,
             deviceId = "dev-test",
         )
     }
@@ -105,7 +126,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent() // el GPS sigue sin resolverse (puerta abierta)
 
             val estado = vm.uiState.value
@@ -129,7 +150,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent() // persistido; el encolado espera al GPS
             val medioId = repoMedios.medios.single().id
 
@@ -150,63 +171,140 @@ class CapturaViewModelTest {
         }
 
     @Test
-    fun `con GPS la foto se estampa con fecha y coords y se reescribe el original`() =
+    fun `capturar una foto persiste la cruda con su rotacion y la miniatura del codec`() =
         runTest(mainDispatcherRule.dispatcher) {
-            // Marca de agua: tras resolver el GPS, la foto se compone y el original se
-            // reescribe (bytes "MARCA" del estampador falso) ANTES de encolar la subida.
+            // Task 4 de PLAN_REVELAR_FOTO: el obturador ya no decodifica; se guarda el JPEG
+            // del HAL tal cual, sin revelar, con los grados que CameraX no aplica.
             seedReporteActivo()
             val vm = crearViewModel()
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
+            val crudo = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3)
 
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            vm.capturarFoto(crudo, 90, msDisparo = 0)
+            runCurrent() // el GPS sigue pendiente: todavía no se revela
+
+            val medio = repoMedios.medios.single()
+            assertEquals("image/jpeg", medio.contentType)
+            assertFalse(medio.revelada)
+            assertEquals(90, medio.rotacionGrados)
+            assertArrayEquals(crudo, repoMedios.archivosGuardados[medio.localPath])
+            assertArrayEquals(CodecFotoFalso.MINIATURA, repoMedios.archivosGuardados[medio.thumbnailPath])
+            assertEquals("la miniatura se pide con la rotación de la foto", listOf(90), codec.rotacionesMiniatura)
+            assertTrue(scheduler.encolados.isEmpty())
+        }
+
+    @Test
+    fun `si la miniatura falla la foto se guarda igual sin miniatura y se registra el fallo`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // La evidencia no se pierde por la vista previa.
+            seedReporteActivo()
+            codec.fallarMiniatura = true
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
+            runCurrent()
+
+            val medio = repoMedios.medios.single()
+            assertNull(medio.thumbnailPath)
+            assertEquals("image/jpeg", medio.contentType)
+            assertEquals(listOf("captura_miniatura"), registroDeFallos.registrados.map { it.first })
+            assertNull("no es un error para el custodio", vm.uiState.value.error)
+            assertEquals(1, vm.uiState.value.avisoEncolado)
+        }
+
+    @Test
+    fun `con GPS la foto se revela con fecha y coords antes de encolar la subida`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Tras resolver el GPS, RevelarFoto revela la cruda (marca + WebP) y solo después
+            // se encola la subida: nunca se sube una cruda desde la cámara.
+            seedReporteActivo()
+            val vm = crearViewModel()
+            val reveladaAlEncolar = mutableListOf<Boolean>()
+            scheduler.alEncolar = { _, id -> reveladaAlEncolar.add(repoMedios.medios.single { it.id == id }.revelada) }
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 90, msDisparo = 0)
             runCurrent()
             ubicacion.completar(Gps(lat = 19.432608, lng = -99.133209, accuracyM = 5.0, ageMs = 100L))
             runCurrent()
 
-            // Se estampó exactamente una vez, con fecha y coordenadas.
-            assertEquals(1, estampador.llamadas.size)
-            val marca = estampador.llamadas.single().first
-            assertEquals("19.432608, -99.133209", marca.coordenadas)
-            assertTrue("la fecha nunca falta", marca.fechaHora.isNotBlank())
-            // Snapshot null (fake sin red) => sin mapa al dibujante (requisito 3).
-            assertNull(estampador.llamadas.single().second)
+            val llamada = codec.revelados.single()
+            assertEquals("19.432608, -99.133209", llamada.marca?.coordenadas)
+            assertTrue("la fecha nunca falta", llamada.marca!!.fechaHora.isNotBlank())
+            assertEquals(90, llamada.rotacion)
+            // Snapshot null (fake sin red) => sin mapa al codec (requisito 3).
+            assertNull(llamada.mapa)
             assertEquals("se pidió el snapshot al haber GPS", 1, proveedorMapa.veces)
-            // El original se reescribió con los bytes estampados.
             val medio = repoMedios.medios.single()
-            assertTrue(
-                "el archivo original debe quedar reescrito con la marca",
-                repoMedios.archivosGuardados[medio.localPath]!!.contentEquals(byteArrayOf(0x4D, 0x41, 0x52, 0x43, 0x41)),
-            )
+            assertTrue(medio.revelada)
+            assertEquals("image/webp", medio.contentType)
+            assertArrayEquals(CodecFotoFalso.REVELADA, repoMedios.archivosGuardados[medio.localPath])
+            assertEquals("se encoló una vez, ya revelada", listOf(true), reveladaAlEncolar)
         }
 
     @Test
-    fun `sin fix de GPS la foto se estampa solo con fecha y sin pedir mapa`() =
+    fun `sin fix de GPS la foto se revela solo con fecha y sin pedir mapa antes de encolar`() =
         runTest(mainDispatcherRule.dispatcher) {
             // Requisito 1: sin GPS la foto se graba igual, con el timestamp; sin coords ni mapa.
             seedReporteActivo()
             val vm = crearViewModel()
+            val reveladaAlEncolar = mutableListOf<Boolean>()
+            scheduler.alEncolar = { _, id -> reveladaAlEncolar.add(repoMedios.medios.single { it.id == id }.revelada) }
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent()
             ubicacion.completarSinFix()
             runCurrent()
 
-            assertEquals(1, estampador.llamadas.size)
-            val marca = estampador.llamadas.single().first
-            assertTrue("la fecha va aunque no haya GPS", marca.fechaHora.isNotBlank())
-            assertNull("sin GPS no hay coords", marca.coordenadas)
-            assertNull("sin GPS no se pasa mapa", estampador.llamadas.single().second)
+            val llamada = codec.revelados.single()
+            assertTrue("la fecha va aunque no haya GPS", llamada.marca!!.fechaHora.isNotBlank())
+            assertNull("sin GPS no hay coords", llamada.marca.coordenadas)
+            assertNull("sin GPS no se pasa mapa", llamada.mapa)
             assertEquals("sin GPS no se pide snapshot", 0, proveedorMapa.veces)
+            assertEquals("image/webp", repoMedios.medios.single().contentType)
+            assertEquals(listOf(true), reveladaAlEncolar)
         }
 
     @Test
-    fun `la nota de voz no se estampa con marca de agua`() =
+    fun `si el GPS vence su timeout la foto se revela y luego se encola`() =
         runTest(mainDispatcherRule.dispatcher) {
-            // Alcance: solo fotos. El audio no pasa por el estampado.
-            seedReporteActivo()
+            // El proveedor nunca responde: a los 8 s se revela sin coordenadas y se encola.
+            val reporte = seedReporteActivo()
+            val vm = crearViewModel()
+            val reveladaAlEncolar = mutableListOf<Boolean>()
+            scheduler.alEncolar = { _, id -> reveladaAlEncolar.add(repoMedios.medios.single { it.id == id }.revelada) }
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
+            runCurrent()
+            advanceTimeBy(7_999)
+            runCurrent()
+            assertTrue("antes del timeout no se revela", codec.revelados.isEmpty())
+            assertTrue(scheduler.encolados.isEmpty())
+
+            advanceTimeBy(2)
+            runCurrent()
+
+            val medio = repoMedios.medios.single()
+            assertNull(codec.revelados.single().marca!!.coordenadas)
+            assertTrue(medio.revelada)
+            assertEquals("image/webp", medio.contentType)
+            assertEquals(listOf(reporte.id to medio.id), scheduler.encolados)
+            assertEquals(listOf(true), reveladaAlEncolar)
+        }
+
+    @Test
+    fun `la nota de voz no se revela ni cambia`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            // Alcance: solo fotos. El audio no pasa por el codec ni pide mapa.
+            val reporte = seedReporteActivo()
             val vm = crearViewModel()
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
@@ -218,9 +316,14 @@ class CapturaViewModelTest {
             ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
             runCurrent()
 
-            assertEquals(TipoMedio.AUDIO, repoMedios.medios.single().tipo)
-            assertTrue("el audio no se estampa", estampador.llamadas.isEmpty())
+            val medio = repoMedios.medios.single()
+            assertEquals(TipoMedio.AUDIO, medio.tipo)
+            assertEquals("audio/mp4", medio.contentType)
+            assertTrue(medio.revelada)
+            assertEquals(0, medio.rotacionGrados)
+            assertEquals("el audio no toca el codec", 0, codec.llamadas)
             assertEquals("ni se le pide mapa", 0, proveedorMapa.veces)
+            assertEquals(listOf(reporte.id to medio.id), scheduler.encolados)
         }
 
     @Test
@@ -551,7 +654,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), ByteArray(8))
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent()
 
             // Aún SIN completar el GPS, el aviso ya se disparó: ese es el arreglo de UX.
@@ -568,4 +671,160 @@ class CapturaViewModelTest {
         }
 
     // endregion
+
+    // region telemetría foto_revelada (D11)
+
+    @Test
+    fun `al revelar una foto capturada se emite un solo foto_revelada con origen captura`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 90, msDisparo = 123)
+            runCurrent()
+            assertTrue("antes del revelado no se emite", registroDeEventos.fotosReveladas.isEmpty())
+            ubicacion.completar(Gps(lat = 19.432608, lng = -99.133209, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            // Snapshot null (fake sin red) => con_mapa false; REVELADA pesa 2048 bytes => 2 KB.
+            assertEquals(
+                listOf(
+                    EventoFotoRevelada(
+                        origen = OrigenRevelado.CAPTURA,
+                        resultado = ResultadoFotoRevelada.OK,
+                        msDisparo = 123,
+                        msRevelado = 7,
+                        conGps = true,
+                        conMapa = false,
+                        kbFinal = 2,
+                    ),
+                ),
+                registroDeEventos.fotosReveladas,
+            )
+        }
+
+    @Test
+    fun `sin fix de GPS el evento lleva con_gps false`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 123)
+            runCurrent()
+            ubicacion.completarSinFix()
+            runCurrent()
+
+            val evento = registroDeEventos.fotosReveladas.single()
+            assertFalse(evento.conGps)
+            assertFalse(evento.conMapa)
+            assertEquals(123L, evento.msDisparo)
+        }
+
+    @Test
+    fun `si la foto ya estaba revelada no se emite foto_revelada`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 123)
+            runCurrent()
+            // Otro revelador (p. ej. el worker) ganó la carrera: RevelarFoto da YA_REVELADA.
+            repoMedios.guardarRevelado(repoMedios.medios.single().id, ByteArray(8), "image/webp")
+            ubicacion.completarSinFix()
+            runCurrent()
+
+            assertTrue(codec.revelados.isEmpty())
+            assertTrue(registroDeEventos.fotosReveladas.isEmpty())
+        }
+
+    @Test
+    fun `si el revelado no aplica no se emite foto_revelada`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 123)
+            runCurrent()
+            // El custodio borró la foto antes de que llegara el GPS: RevelarFoto da NO_APLICA.
+            repoMedios.borrarPendiente(repoMedios.medios.single().id)
+            runCurrent()
+            ubicacion.completarSinFix()
+            runCurrent()
+
+            assertTrue(repoMedios.medios.isEmpty())
+            assertTrue(registroDeEventos.fotosReveladas.isEmpty())
+        }
+
+    @Test
+    fun `la nota de voz no emite foto_revelada`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.iniciarGrabacionDeAudio()
+            runCurrent()
+            vm.detenerGrabacionDeAudio()
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            assertEquals(1, scheduler.encolados.size)
+            assertTrue(registroDeEventos.fotosReveladas.isEmpty())
+        }
+
+    // endregion
+
+    /** Reloj de RevelarFoto que avanza 7 ms en cada lectura: inicio y fin difieren en 7 ms. */
+    private fun relojRevelado(): () -> Long {
+        var nanos = 0L
+        return { nanos.also { nanos += 7_000_000L } }
+    }
+
+    /** Codec sin Bitmap (imposible en JVM): devuelve bytes marcadores y registra lo que recibe. */
+    private class CodecFotoFalso : CodecFoto {
+        data class LlamadaRevelar(val rotacion: Int, val marca: MarcaDeAgua?, val mapa: ImagenMapa?)
+
+        val revelados = mutableListOf<LlamadaRevelar>()
+        val rotacionesMiniatura = mutableListOf<Int>()
+        var fallarMiniatura = false
+        var llamadas = 0
+
+        override fun dimensionesFinales(crudo: ByteArray, rotacionGrados: Int): Dimensiones? {
+            llamadas++
+            return Dimensiones(960, 1280)
+        }
+
+        override fun revelar(crudo: ByteArray, rotacionGrados: Int, marca: MarcaDeAgua?, mapa: ImagenMapa?): ByteArray {
+            llamadas++
+            revelados.add(LlamadaRevelar(rotacionGrados, marca, mapa))
+            return REVELADA
+        }
+
+        override fun miniatura(crudo: ByteArray, rotacionGrados: Int): ByteArray {
+            llamadas++
+            rotacionesMiniatura.add(rotacionGrados)
+            if (fallarMiniatura) throw OutOfMemoryError("miniatura")
+            return MINIATURA
+        }
+
+        override fun conOrientacionExif(crudo: ByteArray, rotacionGrados: Int): ByteArray {
+            llamadas++
+            return crudo
+        }
+
+        companion object {
+            val REVELADA = ByteArray(2048) { 7 }
+            val MINIATURA = byteArrayOf(9, 9)
+        }
+    }
 }

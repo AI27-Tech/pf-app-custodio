@@ -42,5 +42,10 @@ sealed interface DominioError {
     data object PermisoDenegado : DominioError
     /** El archivo local del medio ya no existe: no hay nada que subir. */
     data object ArchivoLocalAusente : DominioError
+    /**
+     * La foto sigue cruda porque el revelado no pudo escribirla (p. ej. disco lleno). No se
+     * sube sin revelar; es transitorio porque el siguiente intento puede revelarla.
+     */
+    data object FotoSinRevelar : DominioError
     data class Inesperado(val causa: Throwable) : DominioError
 }

@@ -15,7 +15,12 @@ import org.junit.runner.RunWith
  * Prueba de humo del dibujo real sobre `Bitmap`/`Canvas` (no corre en JVM). Verifica que la
  * marca se graba en las esquinas correctas: se parte de un bitmap de un solo color y se
  * comprueba que esas esquinas cambiaron, mientras el centro queda intacto.
- */@RunWith(AndroidJUnit4::class)
+ *
+ * Se dibuja con [DibujanteMarcaDeAgua.dibujarEn] sobre un bitmap mutable y se pasa por
+ * [Miniaturas.webp] ida y vuelta, como hace `BitmapCodecFoto`: así se afirma sobre lo que de
+ * verdad se guarda, con la pérdida del WebP incluida.
+ */
+@RunWith(AndroidJUnit4::class)
 class DibujanteMarcaDeAguaTest {
 
     private val anchoPrueba = 1200
@@ -26,23 +31,27 @@ class DibujanteMarcaDeAguaTest {
             eraseColor(Color.RED)
         }
 
-    private fun decodificar(webp: ByteArray): Bitmap =
-        BitmapFactory.decodeByteArray(webp, 0, webp.size)
+    private fun estampar(marca: MarcaDeAgua, mapa: Bitmap?): Bitmap {
+        val lienzo = lienzoRojo()
+        DibujanteMarcaDeAgua.dibujarEn(lienzo, marca, mapa)
+        val webp = Miniaturas.webp(lienzo, Miniaturas.CALIDAD_ORIGINAL)
+        lienzo.recycle()
+        return BitmapFactory.decodeByteArray(webp, 0, webp.size)
             ?: error("El WebP estampado no se pudo decodificar")
+    }
 
     private fun esRojizo(color: Int): Boolean =
         Color.red(color) > 180 && Color.green(color) < 70 && Color.blue(color) < 70
 
     @Test
-    fun `estampa fecha arriba-izquierda y coordenadas abajo-derecha`() {
+    fun `estampa_fecha_arriba-izquierda_y_coordenadas_abajo-derecha`() {
         val marca = MarcaDeAgua(
             fechaHora = "2026/01/05 09:03:07",
             coordenadas = "19.432608, -99.133209",
             llevaMapa = false,
         )
 
-        val webp = DibujanteMarcaDeAgua.estampar(lienzoRojo(), marca, mapa = null)
-        val resultado = decodificar(webp)
+        val resultado = estampar(marca, mapa = null)
 
         assertNotNull(resultado)
         // La fecha ocupa la zona superior izquierda: ahí debe haber tinta no roja.
@@ -67,10 +76,10 @@ class DibujanteMarcaDeAguaTest {
     }
 
     @Test
-    fun `sin coordenadas no marca la esquina inferior derecha`() {
+    fun `sin_coordenadas_no_marca_la_esquina_inferior_derecha`() {
         val marca = MarcaDeAgua(fechaHora = "2026/01/05 09:03:07", coordenadas = null, llevaMapa = false)
 
-        val resultado = decodificar(DibujanteMarcaDeAgua.estampar(lienzoRojo(), marca, mapa = null))
+        val resultado = estampar(marca, mapa = null)
 
         // La esquina inferior derecha queda roja: no se dibujaron coordenadas.
         assertFalse(
@@ -84,7 +93,7 @@ class DibujanteMarcaDeAguaTest {
     }
 
     @Test
-    fun `con mapa dibuja el tile abajo-izquierda`() {
+    fun `con_mapa_dibuja_el_tile_abajo-izquierda`() {
         val marca = MarcaDeAgua(
             fechaHora = "2026/01/05 09:03:07",
             coordenadas = "19.432608, -99.133209",
@@ -92,7 +101,7 @@ class DibujanteMarcaDeAguaTest {
         )
         val mapa = Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.BLUE) }
 
-        val resultado = decodificar(DibujanteMarcaDeAgua.estampar(lienzoRojo(), marca, mapa = mapa))
+        val resultado = estampar(marca, mapa = mapa)
 
         // Abajo-izquierda ahora hay azul del tile del mapa.
         var hayAzul = false

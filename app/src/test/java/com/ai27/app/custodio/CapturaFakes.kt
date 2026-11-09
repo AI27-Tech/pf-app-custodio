@@ -1,6 +1,7 @@
 package com.ai27.app.custodio
 
 import com.ai27.app.custodio.data.diagnostico.MetodoAuth
+import com.ai27.app.custodio.data.diagnostico.EventoFotoRevelada
 import com.ai27.app.custodio.data.diagnostico.RegistroDeEventos
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.diagnostico.ResultadoLogin
@@ -159,7 +160,11 @@ class FakeSubidaScheduler : SubidaScheduler {
     val sincronizados = mutableListOf<String>()
     val reconciliadoPara = mutableListOf<String>()
     var cancelaciones = 0
+
+    /** Se invoca al encolar, para afirmar el estado del medio en ese instante (orden revelado → subida). */
+    var alEncolar: (reporteId: String, medioId: String) -> Unit = { _, _ -> }
     override fun encolarSubidaMedio(reporteId: String, medioId: String) {
+        alEncolar(reporteId, medioId)
         encolados.add(reporteId to medioId)
     }
     override fun sincronizarReporte(reporteId: String) {
@@ -186,32 +191,18 @@ class FakeRegistroDeFallos : RegistroDeFallos {
 }
 
 /**
- * Registro de eventos falso. Solo acumula, para que las pruebas del login puedan afirmar
- * qué desenlace se registró sin tocar Firebase Analytics (que no tiene emulador).
+ * Registro de eventos falso. Solo acumula, para que las pruebas del login y de la captura
+ * puedan afirmar qué se registró sin tocar Firebase Analytics (que no tiene emulador).
  */
 class FakeRegistroDeEventos : RegistroDeEventos {
     val registrados = mutableListOf<Pair<MetodoAuth, ResultadoLogin>>()
+    val fotosReveladas = mutableListOf<EventoFotoRevelada>()
     override fun registroLogin(metodo: MetodoAuth, resultado: ResultadoLogin) {
         registrados.add(metodo to resultado)
     }
-}
-
-/**
- * Estampador falso: no decodifica bitmaps (imposible en JVM). Registra qué marca y qué mapa
- * recibió y devuelve bytes marcadores, para afirmar en JVM que la composición de la marca de
- * agua se invocó con los datos esperados.
- */
-class FakeEstampadorFoto : com.ai27.app.custodio.data.marcaDeAgua.EstampadorFoto {
-    val llamadas = mutableListOf<Pair<com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua, com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa?>>()
-    override fun estampar(
-        jpegLimpio: ByteArray,
-        marca: com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua,
-        mapa: com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa?,
-    ): ByteArray {
-        llamadas.add(marca to mapa)
-        return byteArrayOf(0x4D, 0x41, 0x52, 0x43, 0x41) // "MARCA"
+    override fun fotoRevelada(evento: EventoFotoRevelada) {
+        fotosReveladas.add(evento)
     }
-    override fun ladoMapaPx(jpegLimpio: ByteArray): Int = 240
 }
 
 /** Proveedor de snapshot falso: devuelve [resultado] (por defecto null, como sin red). */
