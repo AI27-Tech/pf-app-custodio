@@ -1,6 +1,9 @@
 package com.ai27.app.custodio.data.foto
 
+import com.ai27.app.custodio.data.diagnostico.EventoFotoRevelada
+import com.ai27.app.custodio.data.diagnostico.OrigenRevelado
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
+import com.ai27.app.custodio.data.diagnostico.ResultadoFotoRevelada
 import com.ai27.app.custodio.data.mapa.ProveedorSnapshotMapa
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.marcaDeAgua.DisposicionMarcaDeAgua
@@ -20,8 +23,8 @@ import kotlinx.coroutines.withContext
 enum class ResultadoRevelado { OK, SIN_MARCA, FALLO_DECODE, YA_REVELADA, NO_APLICA }
 
 /**
- * Lo que pasó al revelar. Los campos numéricos alimentan el evento `foto_revelada` (D11) que
- * conecta la Task 5; aquí solo se calculan.
+ * Lo que pasó al revelar. Los campos numéricos alimentan el evento `foto_revelada` (D11, ver
+ * [aEvento]); aquí solo se calculan y el llamador decide emitirlo.
  */
 data class Revelado(
     val resultado: ResultadoRevelado,
@@ -30,6 +33,21 @@ data class Revelado(
     val conMapa: Boolean = false,
     val kbFinal: Int = 0,
 )
+
+/**
+ * Traduce un [Revelado] al evento `foto_revelada` (D11). `null` para `YA_REVELADA` y
+ * `NO_APLICA`: no tocaron la foto, y emitirlos contaría revelados que no ocurrieron. La usan la
+ * cámara (`CAPTURA`) y el worker (`SUBIDA`, Task 6), así los dos mapean igual.
+ */
+fun Revelado.aEvento(origen: OrigenRevelado, msDisparo: Long?): EventoFotoRevelada? {
+    val enviado = when (resultado) {
+        ResultadoRevelado.OK -> ResultadoFotoRevelada.OK
+        ResultadoRevelado.SIN_MARCA -> ResultadoFotoRevelada.SIN_MARCA
+        ResultadoRevelado.FALLO_DECODE -> ResultadoFotoRevelada.FALLO_DECODE
+        ResultadoRevelado.YA_REVELADA, ResultadoRevelado.NO_APLICA -> return null
+    }
+    return EventoFotoRevelada(origen, enviado, msDisparo, msRevelado, conGps, conMapa, kbFinal)
+}
 
 /**
  * Único módulo que trata la imagen de una foto de evidencia (`docs/PLAN_REVELAR_FOTO.md`).

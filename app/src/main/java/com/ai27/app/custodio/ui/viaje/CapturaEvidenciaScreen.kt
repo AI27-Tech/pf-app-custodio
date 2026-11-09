@@ -2,6 +2,7 @@ package com.ai27.app.custodio.ui.viaje
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.LifecycleCameraController
@@ -84,7 +85,7 @@ fun CapturaEvidenciaScreen(
     estado: CapturaUiState,
     conectado: Boolean?,
     onAtras: () -> Unit,
-    onTomarFoto: (crudo: ByteArray, rotacionGrados: Int) -> Unit,
+    onTomarFoto: (crudo: ByteArray, rotacionGrados: Int, msDisparo: Long) -> Unit,
     onFallaDeCaptura: (causa: Throwable) -> Unit,
     // RETIRO_ETIQUETADO (Task 4): los callbacks del etiquetado se retiran de la firma.
     // Se dejan comentados —no borrados— para reactivarlos junto con HojaEtiqueta.
@@ -238,6 +239,8 @@ fun CapturaEvidenciaScreen(
                     // segundo toque (hallazgo E1). Se libera en los dos callbacks de
                     // tomarFoto, que son excluyentes, en cuanto llega la cruda.
                     disparoEnCurso = true
+                    // ms_disparo de foto_revelada (D11): reloj monotónico, inmune a cambios de hora.
+                    val tocadoEn = SystemClock.elapsedRealtime()
                     // U3: la confirmación háptica+sonido va EN el toque, como el flash, no en
                     // el callback de éxito (que llega cuando la cámara entrega la foto).
                     retroalimentacion.disparo()
@@ -253,7 +256,7 @@ fun CapturaEvidenciaScreen(
                         ejecutor = ejecutorImagen,
                         alTenerFoto = { crudo, rotacionGrados ->
                             disparoEnCurso = false
-                            onTomarFoto(crudo, rotacionGrados)
+                            onTomarFoto(crudo, rotacionGrados, SystemClock.elapsedRealtime() - tocadoEn)
                         },
                         alFallar = { causa ->
                             disparoEnCurso = false
@@ -340,7 +343,7 @@ private fun CapturaEvidenciaVistaClaro() {
             ),
             conectado = true,
             onAtras = {},
-            onTomarFoto = { _, _ -> },
+            onTomarFoto = { _, _, _ -> },
             onFallaDeCaptura = {},
             onConsumirError = {},
         )
@@ -359,7 +362,7 @@ private fun CapturaEvidenciaVistaOscuro() {
             ),
             conectado = true,
             onAtras = {},
-            onTomarFoto = { _, _ -> },
+            onTomarFoto = { _, _, _ -> },
             onFallaDeCaptura = {},
             onConsumirError = {},
         )

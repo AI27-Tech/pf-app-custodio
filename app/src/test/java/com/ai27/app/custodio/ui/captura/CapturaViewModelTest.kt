@@ -5,12 +5,16 @@ import com.ai27.app.custodio.FakeGrabadora
 import com.ai27.app.custodio.FakeMedioRepository
 import com.ai27.app.custodio.FakeProveedorSnapshotMapa
 import com.ai27.app.custodio.FakeProveedorUbicacion
+import com.ai27.app.custodio.FakeRegistroDeEventos
 import com.ai27.app.custodio.FakeRegistroDeFallos
 import com.ai27.app.custodio.FakeReporteRepository
 import com.ai27.app.custodio.FakeSesionRepositorio
 import com.ai27.app.custodio.FakeSubidaScheduler
 import com.ai27.app.custodio.MainDispatcherRule
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.data.diagnostico.EventoFotoRevelada
+import com.ai27.app.custodio.data.diagnostico.OrigenRevelado
+import com.ai27.app.custodio.data.diagnostico.ResultadoFotoRevelada
 import com.ai27.app.custodio.data.foto.CodecFoto
 import com.ai27.app.custodio.data.foto.Dimensiones
 import com.ai27.app.custodio.data.foto.RevelarFoto
@@ -56,6 +60,7 @@ class CapturaViewModelTest {
     private lateinit var grabadora: FakeGrabadora
     private lateinit var scheduler: FakeSubidaScheduler
     private lateinit var registroDeFallos: FakeRegistroDeFallos
+    private lateinit var registroDeEventos: FakeRegistroDeEventos
     private lateinit var codec: CodecFotoFalso
     private lateinit var proveedorMapa: FakeProveedorSnapshotMapa
 
@@ -68,6 +73,7 @@ class CapturaViewModelTest {
         grabadora = FakeGrabadora()
         scheduler = FakeSubidaScheduler()
         registroDeFallos = FakeRegistroDeFallos()
+        registroDeEventos = FakeRegistroDeEventos()
         codec = CodecFotoFalso()
         proveedorMapa = FakeProveedorSnapshotMapa()
     }
@@ -83,6 +89,8 @@ class CapturaViewModelTest {
             registroDeFallos = registroDeFallos,
             zona = java.time.ZoneOffset.UTC,
             despachador = mainDispatcherRule.dispatcher,
+            // Reloj fijo: cada revelado mide 7 ms, para afirmar ms_revelado con un literal.
+            reloj = relojRevelado(),
         )
         return CapturaViewModel(
             reporteRepository = repoReportes,
@@ -100,6 +108,7 @@ class CapturaViewModelTest {
             grabadora = grabadora,
             programadorSubidas = scheduler,
             registroDeFallos = registroDeFallos,
+            registroDeEventos = registroDeEventos,
             deviceId = "dev-test",
         )
     }
@@ -117,7 +126,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), 0)
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent() // el GPS sigue sin resolverse (puerta abierta)
 
             val estado = vm.uiState.value
@@ -141,7 +150,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), 0)
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent() // persistido; el encolado espera al GPS
             val medioId = repoMedios.medios.single().id
 
@@ -172,7 +181,7 @@ class CapturaViewModelTest {
             runCurrent()
             val crudo = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3)
 
-            vm.capturarFoto(crudo, 90)
+            vm.capturarFoto(crudo, 90, msDisparo = 0)
             runCurrent() // el GPS sigue pendiente: todavía no se revela
 
             val medio = repoMedios.medios.single()
@@ -195,7 +204,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), 0)
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent()
 
             val medio = repoMedios.medios.single()
@@ -218,7 +227,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), 90)
+            vm.capturarFoto(ByteArray(32), 90, msDisparo = 0)
             runCurrent()
             ubicacion.completar(Gps(lat = 19.432608, lng = -99.133209, accuracyM = 5.0, ageMs = 100L))
             runCurrent()
@@ -248,7 +257,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), 0)
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent()
             ubicacion.completarSinFix()
             runCurrent()
@@ -273,7 +282,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), 0)
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent()
             advanceTimeBy(7_999)
             runCurrent()
@@ -645,7 +654,7 @@ class CapturaViewModelTest {
             backgroundScope.launch { vm.uiState.collect {} }
             runCurrent()
 
-            vm.capturarFoto(ByteArray(32), 0)
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 0)
             runCurrent()
 
             // Aún SIN completar el GPS, el aviso ya se disparó: ese es el arreglo de UX.
@@ -662,6 +671,124 @@ class CapturaViewModelTest {
         }
 
     // endregion
+
+    // region telemetría foto_revelada (D11)
+
+    @Test
+    fun `al revelar una foto capturada se emite un solo foto_revelada con origen captura`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 90, msDisparo = 123)
+            runCurrent()
+            assertTrue("antes del revelado no se emite", registroDeEventos.fotosReveladas.isEmpty())
+            ubicacion.completar(Gps(lat = 19.432608, lng = -99.133209, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            // Snapshot null (fake sin red) => con_mapa false; REVELADA pesa 2048 bytes => 2 KB.
+            assertEquals(
+                listOf(
+                    EventoFotoRevelada(
+                        origen = OrigenRevelado.CAPTURA,
+                        resultado = ResultadoFotoRevelada.OK,
+                        msDisparo = 123,
+                        msRevelado = 7,
+                        conGps = true,
+                        conMapa = false,
+                        kbFinal = 2,
+                    ),
+                ),
+                registroDeEventos.fotosReveladas,
+            )
+        }
+
+    @Test
+    fun `sin fix de GPS el evento lleva con_gps false`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 123)
+            runCurrent()
+            ubicacion.completarSinFix()
+            runCurrent()
+
+            val evento = registroDeEventos.fotosReveladas.single()
+            assertFalse(evento.conGps)
+            assertFalse(evento.conMapa)
+            assertEquals(123L, evento.msDisparo)
+        }
+
+    @Test
+    fun `si la foto ya estaba revelada no se emite foto_revelada`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 123)
+            runCurrent()
+            // Otro revelador (p. ej. el worker) ganó la carrera: RevelarFoto da YA_REVELADA.
+            repoMedios.guardarRevelado(repoMedios.medios.single().id, ByteArray(8), "image/webp")
+            ubicacion.completarSinFix()
+            runCurrent()
+
+            assertTrue(codec.revelados.isEmpty())
+            assertTrue(registroDeEventos.fotosReveladas.isEmpty())
+        }
+
+    @Test
+    fun `si el revelado no aplica no se emite foto_revelada`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.capturarFoto(ByteArray(32), 0, msDisparo = 123)
+            runCurrent()
+            // El custodio borró la foto antes de que llegara el GPS: RevelarFoto da NO_APLICA.
+            repoMedios.borrarPendiente(repoMedios.medios.single().id)
+            runCurrent()
+            ubicacion.completarSinFix()
+            runCurrent()
+
+            assertTrue(repoMedios.medios.isEmpty())
+            assertTrue(registroDeEventos.fotosReveladas.isEmpty())
+        }
+
+    @Test
+    fun `la nota de voz no emite foto_revelada`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedReporteActivo()
+            val vm = crearViewModel()
+            backgroundScope.launch { vm.uiState.collect {} }
+            runCurrent()
+
+            vm.iniciarGrabacionDeAudio()
+            runCurrent()
+            vm.detenerGrabacionDeAudio()
+            runCurrent()
+            ubicacion.completar(Gps(lat = 10.0, lng = 20.0, accuracyM = 5.0, ageMs = 100L))
+            runCurrent()
+
+            assertEquals(1, scheduler.encolados.size)
+            assertTrue(registroDeEventos.fotosReveladas.isEmpty())
+        }
+
+    // endregion
+
+    /** Reloj de RevelarFoto que avanza 7 ms en cada lectura: inicio y fin difieren en 7 ms. */
+    private fun relojRevelado(): () -> Long {
+        var nanos = 0L
+        return { nanos.also { nanos += 7_000_000L } }
+    }
 
     /** Codec sin Bitmap (imposible en JVM): devuelve bytes marcadores y registra lo que recibe. */
     private class CodecFotoFalso : CodecFoto {

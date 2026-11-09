@@ -36,7 +36,31 @@ class RegistroDeEventosAnalytics(
         analytics.logEvent(FirebaseAnalytics.Event.LOGIN, bundle)
     }
 
+    // GA4 no tiene parámetros booleanos: las banderas van como "true"/"false", que sí sirven
+    // de dimensión para filtrar. ms_disparo se omite (no se manda 0) cuando no hubo obturador,
+    // para no bajar la mediana con un tiempo que no existió.
+    override fun fotoRevelada(evento: EventoFotoRevelada) {
+        val bundle = Bundle()
+        bundle.putString(CLAVE_ORIGEN, evento.origen.valor)
+        bundle.putString(CLAVE_RESULTADO_FOTO, evento.resultado.valor)
+        evento.msDisparo?.let { bundle.putLong(CLAVE_MS_DISPARO, it) }
+        bundle.putLong(CLAVE_MS_REVELADO, evento.msRevelado)
+        bundle.putString(CLAVE_CON_GPS, evento.conGps.toString())
+        bundle.putString(CLAVE_CON_MAPA, evento.conMapa.toString())
+        bundle.putLong(CLAVE_KB_FINAL, evento.kbFinal.toLong())
+        analytics.logEvent(EVENTO_FOTO_REVELADA, bundle)
+    }
+
     private companion object {
         const val CLAVE_RESULTADO = "login_result"
+
+        const val EVENTO_FOTO_REVELADA = "foto_revelada"
+        const val CLAVE_ORIGEN = "origen"
+        const val CLAVE_RESULTADO_FOTO = "resultado"
+        const val CLAVE_MS_DISPARO = "ms_disparo"
+        const val CLAVE_MS_REVELADO = "ms_revelado"
+        const val CLAVE_CON_GPS = "con_gps"
+        const val CLAVE_CON_MAPA = "con_mapa"
+        const val CLAVE_KB_FINAL = "kb_final"
     }
 }

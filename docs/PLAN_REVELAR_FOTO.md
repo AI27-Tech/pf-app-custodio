@@ -178,6 +178,10 @@ No hay un ZTE A55/A54 disponible, y el único dispositivo de Test Lab con el mis
 - **Antes del APK:** desplegar `storage.rules` (`firebase deploy --only storage`, PR #6 de infra).
 - Subir a 1.0.4 (versionCode 5), APK firmado desde `-d`, GitHub Release, `AGENTS.md` y `CHANGELOG.md`.
 - Tras el rollout: revisar `foto_revelada` en la consola, filtrado por modelo ZTE.
+- **Paso manual en la consola de GA4 (antes del rollout):** registrar `origen`, `resultado`,
+  `con_gps` y `con_mapa` como dimensiones personalizadas de evento, y `ms_disparo`,
+  `ms_revelado` y `kb_final` como métricas personalizadas. Sin eso los parámetros llegan pero no
+  aparecen en los informes. Verificar antes en DebugView que el evento y sus nombres llegan.
 
 ## Decisiones
 

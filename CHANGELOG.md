@@ -2,6 +2,59 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:09 — Feature: telemetría `foto_revelada` y borrado del pipeline viejo de marca (Task 5 de PLAN_REVELAR_FOTO)
+
+**Resumen:** cada foto que la cámara revela emite el evento `foto_revelada` (D11) por `RegistroDeEventos`, sin PII: `origen`, `resultado`, `ms_disparo`, `ms_revelado`, `con_gps`, `con_mapa` y `kb_final`. Solo emiten `OK`, `SIN_MARCA` y `FALLO_DECODE`. `YA_REVELADA` y `NO_APLICA` no emiten porque no revelaron nada. Además se borra el pipeline viejo de marca de agua, que quedó sin llamadores desde la Task 4, y `LineaBaseReveladoTest` pasa a medir `BitmapCodecFoto`.
+
+**Cambios:**
+- `data/diagnostico/RegistroDeEventos.kt`: `fotoRevelada(EventoFotoRevelada)`, con los enums cerrados `OrigenRevelado` (`captura`/`subida`) y `ResultadoFotoRevelada` (`ok`/`sin_marca`/`fallo_decode`).
+- `data/diagnostico/RegistroDeEventosAnalytics.kt`: evento `foto_revelada`. Las banderas van como string `"true"`/`"false"`, porque GA4 no tiene booleanos. `ms_disparo` se omite cuando es `null` (origen `subida`).
+- `data/foto/RevelarFoto.kt`: función pura `Revelado.aEvento(origen, msDisparo)`, que la Task 6 reutilizará con `SUBIDA`.
+- `ui/viaje/CapturaEvidenciaScreen.kt`: mide `ms_disparo` con `SystemClock.elapsedRealtime()` desde el toque hasta la cruda en mano, y llama `onTomarFoto(crudo, rotacionGrados, msDisparo)`.
+- `ui/captura/CapturaViewModel.kt`: `capturarFoto(crudo, rotacionGrados, msDisparo)`. Inyecta `RegistroDeEventos` y emite con `origen = CAPTURA` al terminar `revelar` en `adjuntarGpsEnSegundoPlano`. `msDisparo` viaja en el trabajo del medio y no se persiste.
+- Borrados: `GrabarMarcaDeAguaEnFoto`, `ComponerMarcaDeAgua` (y `ComponerMarcaDeAguaTest`), `BitmapEstampadorFoto`, `EstampadorFoto`, `DibujanteMarcaDeAgua.estampar`, `Miniaturas.fotoOriginalYMiniatura` y `Miniaturas.escalar`, `reescribirOriginal` (interfaz, Room y fake) y `MedioDao.actualizarTamano`. También sus provisiones en `di/MapaModule.kt`. `VistaCamara.aBitmap` ya se había borrado en la Task 4.
+- `data/marcaDeAgua/ImagenMapa.kt` (nuevo): `ImagenMapa` pasa a su propio archivo, en el mismo paquete. Los KDoc de `ImagenMapa`, `BitmapImagenMapa` y `ProveedorSnapshotMapa` ya nombran a `RevelarFoto` y al codec.
+- `DibujanteMarcaDeAguaTest`: dibuja con `dibujarEn` sobre un bitmap mutable y pasa por `Miniaturas.webp` ida y vuelta; las aserciones no cambian.
+- `LineaBaseReveladoTest`: mide "disparo" (copia del crudo + `miniatura(crudo, 90)`) y "revelado" (`revelar(crudo, 90, marca, mapa)` con un mapa de `ladoMapaPx(dimensionesFinales)`). `pipeline = "revelar_foto"` y `marca_ms` se renombra a `revelado_ms`. `kb_original_limpio` ahora es el peso de la cruda. El pico nativo se muestrea con un hilo cada 1 ms, porque el codec recicla sus bitmaps antes de devolver.
+- Pruebas JVM: `RevelarFotoTest` suma el caso "GPS con snapshot null", que solo cubría `ComponerMarcaDeAguaTest`, la fecha en el caso sin GPS y 4 casos de `aEvento`. `CapturaViewModelTest` suma 5 casos: un evento exacto con `msDisparo = 123`, `con_gps` falso sin fix, y que no se emite con `YA_REVELADA`, con `NO_APLICA` ni para el audio. `FakeRegistroDeEventos.fotosReveladas`.
+
+**Verificación:** `testDebugUnitTest` 289/289 (282 − 3 de `ComponerMarcaDeAguaTest` + 5 de `RevelarFotoTest` + 5 de `CapturaViewModelTest`); `assembleDebug` y `assembleDebugAndroidTest` verdes. En el emulador local (Pixel 9a, API 37): `BitmapCodecFotoTest` OK (7), `DibujanteMarcaDeAguaTest` OK (3) y `LineaBaseReveladoTest` OK, dos corridas de 10 medidas. Medianas de la corrida 1 / corrida 2: disparo 38.7 / 32.6 ms, revelado 325.0 / 293.5 ms, total 407.3 / 318.6 ms y pico nativo 8.3 / 8.3 MB. Pesos: final 271 KB, miniatura 9 KB. **No verificado:** que el evento llegue a la consola (Analytics no tiene emulador y `Bundle` no corre en JVM, así que `RegistroDeEventosAnalytics` no tiene prueba automática), y una foto real en dispositivo.
+
+**Archivos borrados:**
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/GrabarMarcaDeAguaEnFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapEstampadorFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/EstampadorFoto.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAguaTest.kt`
+
+**Archivos creados:**
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/ImagenMapa.kt`
+
+**Pendiente manual:** registrar en GA4 los parámetros de `foto_revelada` como dimensiones y métricas personalizadas (anotado en la Task 7 del plan).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventosAnalytics.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/RevelarFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapImagenMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapa/ProveedorSnapshotMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/Miniaturas.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/MapaModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/LineaBaseReveladoTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `docs/PLAN_REVELAR_FOTO.md`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Feature: obturador sin decodificar y revelado conectado (Task 4 de PLAN_REVELAR_FOTO)
 
 **Resumen:** el obturador deja de decodificar: `tomarFoto` copia el búfer JPEG del HAL y entrega la **foto cruda** con sus grados de rotación. La foto se persiste cruda (`image/jpeg`, `revelada = false`, con su rotación), la miniatura sale de `RevelarFoto.miniaturaRapida`, y tras el GPS (o su timeout de 8 s) `adjuntarGpsEnSegundoPlano` llama a `RevelarFoto.revelar` en lugar de `GrabarMarcaDeAguaEnFoto`. Como `encolarCuandoListo` sigue esperando ese trabajo, la cámara nunca encola una cruda. Con esto el revelado (y la marca de agua) corre fuera del hilo principal. Telemetría y limpieza quedan para la Task 5.

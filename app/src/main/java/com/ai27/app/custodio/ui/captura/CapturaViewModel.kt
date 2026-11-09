@@ -3,10 +3,13 @@ package com.ai27.app.custodio.ui.captura
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai27.app.custodio.R
+import com.ai27.app.custodio.data.diagnostico.OrigenRevelado
+import com.ai27.app.custodio.data.diagnostico.RegistroDeEventos
 import com.ai27.app.custodio.data.diagnostico.RegistroDeFallos
 import com.ai27.app.custodio.data.local.media.EventoGrabacion
 import com.ai27.app.custodio.data.local.media.Grabadora
 import com.ai27.app.custodio.data.foto.RevelarFoto
+import com.ai27.app.custodio.data.foto.aEvento
 import com.ai27.app.custodio.data.ubicacion.ProveedorUbicacion
 import com.ai27.app.custodio.data.worker.SubidaScheduler
 import com.ai27.app.custodio.domain.Result
@@ -74,6 +77,7 @@ class CapturaViewModel @Inject constructor(
     private val grabadora: Grabadora,
     private val programadorSubidas: SubidaScheduler,
     private val registroDeFallos: RegistroDeFallos,
+    private val registroDeEventos: RegistroDeEventos,
     @Named("deviceId") private val deviceId: String,
 ) : ViewModel() {
 
@@ -194,8 +198,9 @@ class CapturaViewModel @Inject constructor(
      * Recibe la **foto cruda** del obturador (JPEG del HAL sin decodificar) y sus grados de
      * rotación. Genera la miniatura con [RevelarFoto.miniaturaRapida] (que cambia de hilo por
      * su cuenta) y persiste la cruda; el revelado ocurre después, en adjuntarGpsEnSegundoPlano.
+     * [msDisparo] (toque → cruda en mano) solo viaja al evento `foto_revelada`; no se persiste.
      */
-    fun capturarFoto(crudo: ByteArray, rotacionGrados: Int) {
+    fun capturarFoto(crudo: ByteArray, rotacionGrados: Int, msDisparo: Long) {
         val custodio = uiState.value.custodio
         val reporte = uiState.value.reporte
         if (custodio == null || reporte == null) return
@@ -244,7 +249,7 @@ class CapturaViewModel @Inject constructor(
                 }
             }
             if (resultado is Result.Success) {
-                adjuntarGpsEnSegundoPlano(resultado.value.id)
+                adjuntarGpsEnSegundoPlano(resultado.value.id, msDisparo)
                 encolarCuandoListo(reporte.id, resultado.value.id)
             }
         }
@@ -352,7 +357,7 @@ class CapturaViewModel @Inject constructor(
                 }
             }
             if (resultado is Result.Success) {
-                adjuntarGpsEnSegundoPlano(resultado.value.id)
+                adjuntarGpsEnSegundoPlano(resultado.value.id, msDisparo = null)
                 encolarCuandoListo(reporte.id, resultado.value.id)
             }
         }
@@ -570,13 +575,19 @@ class CapturaViewModel @Inject constructor(
     // GPS, que llega tarde; encolarCuandoListo hace join() de este trabajo, así que nunca se
     // sube una cruda desde la cámara. revelar es no-op para audio y corre fuera del hilo
     // principal por sí mismo.
-    private fun adjuntarGpsEnSegundoPlano(medioId: String) {
+    //
+    // Telemetría (D11): [msDisparo] queda asociado al medio en el cierre de este trabajo, igual
+    // que el trabajo en trabajosGps, y no en Room. Si el proceso muere antes de revelar, ese
+    // tiempo se pierde a propósito: el worker revelará con origen SUBIDA, sin obturador.
+    // Para el audio, revelar da NO_APLICA y aEvento devuelve null: no se emite nada.
+    private fun adjuntarGpsEnSegundoPlano(medioId: String, msDisparo: Long?) {
         trabajosGps[medioId] = viewModelScope.launch {
             val gps = obtenerGpsLinear()
             if (gps != null) {
                 medioRepository.actualizarGps(medioId, gps)
             }
-            revelarFoto.revelar(medioId)
+            revelarFoto.revelar(medioId).aEvento(OrigenRevelado.CAPTURA, msDisparo)
+                ?.let(registroDeEventos::fotoRevelada)
         }
     }
 

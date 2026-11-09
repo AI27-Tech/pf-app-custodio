@@ -11,7 +11,7 @@ import com.ai27.app.custodio.domain.marcaDeAgua.DisposicionMarcaDeAgua
 import com.ai27.app.custodio.domain.marcaDeAgua.MarcaDeAgua
 
 /**
- * Graba la marca de agua sobre el pixel de una foto y la recomprime a WebP. Es la capa
+ * Graba la marca de agua sobre el pixel de una foto. Es la capa
  * Android de la marca: el QUÉ (textos) y la geometría ya vienen resueltos
  * ([MarcaDeAgua] y [DisposicionMarcaDeAgua]); aquí solo se dibuja.
  *
@@ -28,24 +28,6 @@ object DibujanteMarcaDeAgua {
     private const val COLOR_TINTA = Color.WHITE
     private const val ALFA_FONDO = 150 // sobre 255: suficiente para leer el texto sin ocultar la foto
     private const val GROSOR_BORDE_MAPA_PX = 2f
-
-    /**
-     * Devuelve un WebP nuevo con la marca grabada. [calidadWebp] es la misma del original
-     * (`Miniaturas.CALIDAD_ORIGINAL`) para no degradar la evidencia más de lo necesario.
-     *
-     * No muta [original]: dibuja sobre una copia mutable, así quien tenga el bitmap de
-     * entrada (p. ej. una vista previa) no ve aparecer la marca encima.
-     */
-    fun estampar(
-        original: Bitmap,
-        marca: MarcaDeAgua,
-        mapa: Bitmap?,
-        calidadWebp: Int = Miniaturas.CALIDAD_ORIGINAL,
-    ): ByteArray {
-        val lienzoBitmap = original.copy(Bitmap.Config.ARGB_8888, true)
-        dibujarEn(lienzoBitmap, marca, mapa)
-        return Miniaturas.webp(lienzoBitmap, calidadWebp)
-    }
 
     /**
      * Dibuja la marca directamente sobre [lienzo], que debe ser mutable. No copia ni codifica:
