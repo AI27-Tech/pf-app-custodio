@@ -2,9 +2,17 @@ package com.ai27.app.custodio.data.pipeline
 
 import com.ai27.app.custodio.FakeEtiquetaRepository
 import com.ai27.app.custodio.FakeMedioRepository
+import com.ai27.app.custodio.FakeProveedorSnapshotMapa
+import com.ai27.app.custodio.FakeRegistroDeEventos
+import com.ai27.app.custodio.FakeRegistroDeFallos
 import com.ai27.app.custodio.FakeReporteRepository
-import com.ai27.app.custodio.data.remote.MedioRemoto
-import com.ai27.app.custodio.data.remote.ReporteRemoto
+import com.ai27.app.custodio.data.diagnostico.OrigenRevelado
+import com.ai27.app.custodio.data.diagnostico.ResultadoFotoRevelada
+import com.ai27.app.custodio.data.foto.CodecFotoFalso
+import com.ai27.app.custodio.data.foto.RevelarFoto
+import com.ai27.app.custodio.data.remote.esReintentable
+import com.ai27.app.custodio.data.util.Sha256
+import com.ai27.app.custodio.domain.repository.MedioRepository
 import com.ai27.app.custodio.domain.Result
 import com.ai27.app.custodio.domain.error.DominioError
 // RETIRO_ETIQUETADO (Task 2): CategoriaEtiqueta y Etiqueta solo los usaba el test del
@@ -12,6 +20,7 @@ import com.ai27.app.custodio.domain.error.DominioError
 // import com.ai27.app.custodio.domain.model.CategoriaEtiqueta
 import com.ai27.app.custodio.domain.model.Ciclo
 import com.ai27.app.custodio.domain.model.EstadoSubida
+import com.ai27.app.custodio.domain.model.Gps
 // import com.ai27.app.custodio.domain.model.Etiqueta
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
@@ -19,7 +28,9 @@ import com.ai27.app.custodio.domain.model.Reporte
 import com.ai27.app.custodio.domain.model.ResumenMedios
 import com.ai27.app.custodio.domain.model.TipoMedio
 import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -40,6 +51,26 @@ class SubidaMedioProcesoTest {
     private lateinit var proceso: SubidaMedioProceso
     private lateinit var reporte: Reporte
     private lateinit var medio: Medio
+    private val codec = CodecFotoFalso()
+    private val mapas = FakeProveedorSnapshotMapa()
+    private val fallos = FakeRegistroDeFallos()
+    private val eventos = FakeRegistroDeEventos()
+    /** Reloj del proceso; por defecto un minuto después de la captura (foto "vieja"). */
+    private var ahora: Instant = Instant.parse("2026-09-18T15:01:00Z")
+
+    // Construye el proceso con un RevelarFoto real sobre [repoDelRevelado] y el codec falso.
+    private fun proceso(repoDelRevelado: MedioRepository = repoMedios) = SubidaMedioProceso(
+        reporteRepository = repoReportes,
+        medioRepository = repoMedios,
+        etiquetaRepository = FakeEtiquetaRepository(),
+        reporteRemoto = reporteRemoto,
+        medioRemoto = medioRemoto,
+        almacenArchivos = archivos,
+        revelarFoto = RevelarFoto(repoDelRevelado, codec, mapas, fallos, zona = ZoneOffset.UTC),
+        registroDeEventos = eventos,
+        registroDeFallos = fallos,
+        ahora = { ahora },
+    )
 
     @Before
     fun setUp() = runBlocking {
@@ -49,14 +80,7 @@ class SubidaMedioProcesoTest {
         reporteRemoto = FakeReporteRemoto(mutableMapOf("r-1" to Ciclo.ACTIVO))
         medioRemoto = FakeMedioRemoto()
         archivos = FakeAlmacenArchivos(almacen)
-        proceso = SubidaMedioProceso(
-            reporteRepository = repoReportes,
-            medioRepository = repoMedios,
-            etiquetaRepository = FakeEtiquetaRepository(),
-            reporteRemoto = reporteRemoto,
-            medioRemoto = medioRemoto,
-            almacenArchivos = archivos,
-        )
+        proceso = proceso()
         reporte = Reporte(
             id = "r-1",
             placas = "ABC-123",
@@ -299,5 +323,201 @@ class SubidaMedioProcesoTest {
         assertEquals(1, medioRemoto.docsCreados.size)
         assertEquals(EstadoSubida.COMPLETA, repoMedios.obtenerPorId(medio.id)!!.estadoSubida)
         assertFalse(repoMedios.medios.any { it.estadoSubida == EstadoSubida.EN_PROGRESO })
+    }
+
+    // --- Red de seguridad del revelado (Task 6 de PLAN_REVELAR_FOTO) ---
+
+    private val gps = Gps(lat = 19.432608, lng = -99.133209, accuracyM = 5.0, ageMs = 0L)
+
+    private suspend fun sembrarCruda(miniatura: ByteArray? = MINIATURA_WEBP): Medio = (repoMedios.guardar(
+        Medio(
+            id = "m-cruda",
+            reporteId = "r-1",
+            tipo = TipoMedio.FOTO,
+            origen = OrigenMedio.CAMARA,
+            createdAtDevice = fijo,
+            contentType = "image/jpeg",
+            estadoSubida = EstadoSubida.PENDIENTE,
+            gps = gps,
+            revelada = false,
+            rotacionGrados = 90,
+        ),
+        contenido = CRUDO,
+        miniatura = miniatura,
+    ) as Result.Success).value
+
+    @Test
+    fun `una foto cruda vieja se revela sin mapa y sube el WebP revelado`() = runBlocking {
+        val cruda = sembrarCruda()
+
+        val resultado = proceso.ejecutar("r-1", cruda.id)
+
+        assertTrue(resultado is Result.Success)
+        assertEquals("un solo revelado", 1, codec.revelados.size)
+        assertNull("D6: el worker revela sin mapa", codec.revelados.single().mapa)
+        assertTrue("con GPS lleva marca", codec.revelados.single().marca != null)
+        assertEquals("el proveedor de mapa no se llama", 0, mapas.veces)
+        val subido = medioRemoto.mediosSubidos.single()
+        assertEquals("image/webp", subido.contentType)
+        assertArrayEquals("se suben los bytes revelados", CodecFotoFalso.REVELADA, medioRemoto.contenidos.single())
+        assertEquals("medios/r-1/m-cruda.webp", medioRemoto.rutasDeDocumento.single().media)
+        assertEquals("medios/r-1/m-cruda-min.webp", medioRemoto.rutasDeDocumento.single().miniatura)
+        val final = repoMedios.obtenerPorId(cruda.id)!!
+        assertEquals(EstadoSubida.COMPLETA, final.estadoSubida)
+        assertEquals("medios/r-1/m-cruda.webp", final.storagePath)
+        assertEquals("el sha es del contenido revelado", Sha256.digestHex(CodecFotoFalso.REVELADA), final.sha256)
+        val evento = eventos.fotosReveladas.single()
+        assertEquals(OrigenRevelado.SUBIDA, evento.origen)
+        assertEquals(ResultadoFotoRevelada.OK, evento.resultado)
+        assertNull("sin obturador no hay ms_disparo", evento.msDisparo)
+        assertTrue(evento.conGps)
+        assertFalse(evento.conMapa)
+        assertEquals(CodecFotoFalso.REVELADA.size / 1024, evento.kbFinal)
+    }
+
+    @Test
+    fun `una foto cruda joven se reintenta sin tocarla porque la camara la esta revelando`() = runBlocking {
+        val cruda = sembrarCruda()
+        ahora = fijo.plusSeconds(5)
+
+        val resultado = proceso.ejecutar("r-1", cruda.id)
+
+        // Reintentable: si la cámara se canceló con su pantalla, el backoff es lo único que vuelve
+        // a traer esta foto; un Success la dejaría hasta la siguiente reconciliación.
+        assertEquals(DominioError.FotoSinRevelar, (resultado as Result.Failure).error)
+        assertTrue(esReintentable(resultado.error))
+        assertEquals(0, codec.llamadas)
+        assertEquals(0, medioRemoto.subidos.size)
+        assertEquals(0, reporteRemoto.creaciones)
+        assertTrue(eventos.fotosReveladas.isEmpty())
+        val igual = repoMedios.obtenerPorId(cruda.id)!!
+        assertEquals(EstadoSubida.PENDIENTE, igual.estadoSubida)
+        assertFalse(igual.revelada)
+        assertArrayEquals(CRUDO, repoMedios.leerOriginal(cruda.id))
+    }
+
+    @Test
+    fun `al cumplir la ventana de 20 s la foto ya se revela`() = runBlocking {
+        val cruda = sembrarCruda()
+        ahora = fijo.plus(SubidaMedioProceso.VENTANA_REVELADO_CAMARA)
+
+        assertTrue(proceso.ejecutar("r-1", cruda.id) is Result.Success)
+
+        assertEquals(EstadoSubida.COMPLETA, repoMedios.obtenerPorId(cruda.id)!!.estadoSubida)
+    }
+
+    @Test
+    fun `nunca sube una foto que sigue cruda tras revelar`() = runBlocking {
+        // El revelado no puede escribir (disco lleno): RevelarFoto devuelve NO_APLICA y la cruda queda.
+        val sinDisco = object : MedioRepository by repoMedios {
+            override suspend fun guardarRevelado(medioId: String, bytes: ByteArray, contentType: String): Result<Medio> =
+                Result.Failure(DominioError.SinEspacioEnDispositivo)
+        }
+        val cruda = sembrarCruda()
+
+        val resultado = proceso(repoDelRevelado = sinDisco).ejecutar("r-1", cruda.id)
+
+        assertEquals(Result.Failure(DominioError.FotoSinRevelar), resultado)
+        assertTrue("el worker debe reintentar", esReintentable((resultado as Result.Failure).error))
+        assertEquals(0, medioRemoto.subidos.size)
+        assertEquals(0, reporteRemoto.creaciones)
+        val igual = repoMedios.obtenerPorId(cruda.id)!!
+        assertEquals("ni EN_PROGRESO ni FALLIDA", EstadoSubida.PENDIENTE, igual.estadoSubida)
+        assertFalse(igual.revelada)
+        assertTrue(fallos.registrados.any { it.first == "subida_foto_sin_revelar" })
+        assertTrue("NO_APLICA no emite", eventos.fotosReveladas.isEmpty())
+    }
+
+    @Test
+    fun `una foto cruda sin archivo falla permanente como cualquier medio sin archivo`() = runBlocking {
+        val cruda = sembrarCruda()
+        archivos.archivos.remove("fisico/${cruda.id}")
+
+        val resultado = proceso.ejecutar("r-1", cruda.id)
+
+        assertEquals(Result.Failure(DominioError.ArchivoLocalAusente), resultado)
+        assertEquals(EstadoSubida.FALLIDA, repoMedios.obtenerPorId(cruda.id)!!.estadoSubida)
+        assertEquals(0, medioRemoto.subidos.size)
+    }
+
+    @Test
+    fun `una foto ya revelada no pasa por el codec ni emite evento`() = runBlocking {
+        val revelada = (repoMedios.guardar(
+            Medio(
+                id = "m-webp",
+                reporteId = "r-1",
+                tipo = TipoMedio.FOTO,
+                origen = OrigenMedio.CAMARA,
+                createdAtDevice = fijo,
+                contentType = "image/webp",
+                estadoSubida = EstadoSubida.PENDIENTE,
+                revelada = true,
+            ),
+            contenido = CodecFotoFalso.REVELADA,
+            miniatura = MINIATURA_WEBP,
+        ) as Result.Success).value
+
+        assertTrue(proceso.ejecutar("r-1", revelada.id) is Result.Success)
+
+        assertEquals(0, codec.llamadas)
+        assertTrue(eventos.fotosReveladas.isEmpty())
+        assertEquals("medios/r-1/m-webp.webp", repoMedios.obtenerPorId(revelada.id)!!.storagePath)
+        assertEquals(EstadoSubida.COMPLETA, repoMedios.obtenerPorId(revelada.id)!!.estadoSubida)
+    }
+
+    @Test
+    fun `una foto que no se pudo decodificar sube cruda como JPEG`() = runBlocking {
+        codec.dimensiones = null
+        val cruda = sembrarCruda(miniatura = MINIATURA_JPEG)
+
+        assertTrue(proceso.ejecutar("r-1", cruda.id) is Result.Success)
+
+        assertEquals("image/jpeg", medioRemoto.mediosSubidos.single().contentType)
+        assertArrayEquals(CodecFotoFalso.CON_EXIF, medioRemoto.contenidos.single())
+        assertEquals("medios/r-1/m-cruda.jpg", medioRemoto.rutasDeDocumento.single().media)
+        assertEquals("medios/r-1/m-cruda-min.jpg", medioRemoto.rutasDeDocumento.single().miniatura)
+        val evento = eventos.fotosReveladas.single()
+        assertEquals(OrigenRevelado.SUBIDA, evento.origen)
+        assertEquals(ResultadoFotoRevelada.FALLO_DECODE, evento.resultado)
+    }
+
+    @Test
+    fun `el audio sube como antes sin revelado ni evento`() = runBlocking {
+        val audio = (repoMedios.guardar(
+            Medio(
+                id = "m-audio",
+                reporteId = "r-1",
+                tipo = TipoMedio.AUDIO,
+                origen = OrigenMedio.GRABADORA,
+                createdAtDevice = fijo,
+                contentType = "audio/mp4",
+                estadoSubida = EstadoSubida.PENDIENTE,
+            ),
+            contenido = ByteArray(32),
+        ) as Result.Success).value
+
+        assertTrue(proceso.ejecutar("r-1", audio.id) is Result.Success)
+
+        assertEquals(0, codec.llamadas)
+        assertTrue(eventos.fotosReveladas.isEmpty())
+        assertEquals("medios/r-1/m-audio.m4a", medioRemoto.rutasDeDocumento.single().media)
+        assertNull(medioRemoto.rutasDeDocumento.single().miniatura)
+    }
+
+    @Test
+    fun `una miniatura que no es WebP ni JPEG no se sube pero el original si`() = runBlocking {
+        // El medio de setUp trae una miniatura de cuatro ceros: no es una imagen reconocible.
+        assertTrue(proceso.ejecutar("r-1", medio.id) is Result.Success)
+
+        assertEquals(EstadoSubida.COMPLETA, repoMedios.obtenerPorId(medio.id)!!.estadoSubida)
+        assertNull(medioRemoto.miniaturas.single())
+        assertNull("thumbnailPath = null, que las reglas aceptan", medioRemoto.rutasDeDocumento.single().miniatura)
+        assertTrue(fallos.registrados.any { it.first == "subida_miniatura_formato" })
+    }
+
+    private companion object {
+        val CRUDO = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2, 3)
+        val MINIATURA_WEBP = "RIFF\u0000\u0000\u0000\u0000WEBPVP8 ".toByteArray(Charsets.US_ASCII)
+        val MINIATURA_JPEG = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte())
     }
 }

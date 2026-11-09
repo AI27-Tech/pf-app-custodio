@@ -38,6 +38,8 @@ fun MedioEntity.aDominio(): Medio = Medio(
     sha256 = sha256,
     ultimoError = ultimoError,
     intentosSubida = intentosSubida,
+    revelada = revelada,
+    rotacionGrados = rotacionGrados,
 )
 
 fun Medio.aEntidad(): MedioEntity = MedioEntity(
@@ -64,4 +66,6 @@ fun Medio.aEntidad(): MedioEntity = MedioEntity(
     sha256 = sha256,
     ultimoError = ultimoError,
     intentosSubida = intentosSubida,
+    revelada = revelada,
+    rotacionGrados = rotacionGrados,
 )

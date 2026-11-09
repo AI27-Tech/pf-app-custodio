@@ -14,6 +14,216 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 - `.github/workflows/ci.yml`
 - `CHANGELOG.md`
 
+## 2026:11:09 — Chore: PRs de promoción automáticos `-d → -q` y `-q → -m`
+
+**Resumen:** se agregan los dos workflows de promoción que ya usan los demás repos de la plataforma, copiados byte por byte. En cada push a `pf-appcus-d` se mantiene abierto un PR `pf-appcus-d → pf-appcus-q` con la lista de PRs pendientes de promover, y en cada push a `pf-appcus-q` lo mismo hacia `pf-appcus-m`. **Ninguno mergea:** los dos saltos se mergean a mano (decisión del Lead del 2026-10-08, `.scratch/flujo-promocion-automerge/` en el workspace). Se crea la rama `pf-appcus-q` desde `pf-appcus-m`; antes la app promovía directo `-d → -m` (PRs #7 y #9).
+
+**Cambios:**
+- `.github/workflows/promotion-pr-dq.yml` (nuevo): idéntico al de los otros 13 repos.
+- `.github/workflows/promotion-pr-qm.yml` (nuevo): idéntico al de los otros 13 repos.
+- Rama `pf-appcus-q` creada en el remoto desde `pf-appcus-m` (`d555e2a`).
+
+**Cómo queda el release:** feature → `-d` (PR revisado) → PR automático `-d → -q` (merge manual) → PR automático `-q → -m` (merge manual) → APK firmado, tag y GitHub Release desde `-m`.
+
+**Verificación:** los dos archivos tienen el mismo md5 que en `pf-web-frontend-client`. El repo permite a Actions crear PRs (`default_workflow_permissions = write`). El primer disparo real ocurre con el push a `-d` que meta este PR.
+
+**Archivos modificados:**
+- `.github/workflows/promotion-pr-dq.yml`
+- `.github/workflows/promotion-pr-qm.yml`
+- `CHANGELOG.md`
+
+## 2026:11:09 — Feature: el worker revela antes de subir y Storage toma el tipo del contenido (Task 6 de PLAN_REVELAR_FOTO)
+
+**Resumen:** `SubidaMedioProceso` nunca sube una foto cruda. Si encuentra una con más de 20 s desde su captura, la revela sin mapa (D6), emite `foto_revelada` con `origen = subida` y sube el WebP revelado. Si es más joven no la toca, porque la cámara la está revelando, pero devuelve `FotoSinRevelar` para que WorkManager reintente: si el custodio cerró la pantalla, el revelado de la cámara se canceló y el reintento es lo único que la vuelve a traer. Las rutas de Storage salen del contenido real: el original toma su extensión del `contentType` y la miniatura toma tipo y extensión de sus propios bytes.
+
+**Cambios:**
+- `data/pipeline/SubidaMedioProceso.kt`: revela antes de `asegurarReporte` y de `marcarEnProgreso` (`guardarRevelado` solo escribe en `PENDIENTE`). `VENTANA_REVELADO_CAMARA` = 20 s (GPS 8 s + mapa 6 s + margen), con reloj inyectable `ahora`. Si tras revelar la foto sigue cruda, no se sube: registra `subida_foto_sin_revelar` y devuelve `FotoSinRevelar` (transitorio), sin marcarla. Si el archivo no existe, devuelve `ArchivoLocalAusente` (permanente, `FALLIDA`), igual que antes. Una miniatura que no es WebP ni JPEG no se sube y se registra `subida_miniatura_formato`. El proceso recibe `RevelarFoto` (el `@Singleton` de `FotoModule`), `RegistroDeEventos` y `RegistroDeFallos`.
+- `data/remote/RutasStorage.kt`: `de(medio, miniatura)`. Extensiones `webp`/`jpg`/`m4a` por `contentType`, y un tipo desconocido lanza `IllegalArgumentException`. `contentTypeMiniatura(bytes)` usa `Miniaturas.esWebp`/`esJpeg`. Las rutas siguen siendo deterministas.
+- `data/remote/FirebaseMedioRemoto.kt`: la miniatura sube con su propio `StorageMetadata`.
+- `domain/error/DominioError.kt`: `FotoSinRevelar`, reintentable en `esReintentable`. Se mapea a `error_inesperado` y a `ResultadoLogin.INESPERADO` en los `when` exhaustivos.
+- `di/PipelineModule.kt`: cablea las tres dependencias nuevas.
+- Pruebas: `CodecFotoFalso` sale de `RevelarFotoTest` a su propio archivo y se comparte. `SubidaMedioProcesoTest` suma 9 casos: cruda vieja, cruda joven, el límite de 20 s, cruda que sigue cruda, cruda sin archivo, ya revelada, `FALLO_DECODE`, audio y miniatura desconocida. `SubidaMedioProcesoRoomTest` suma la cruda vieja contra Room real. `RutasStorageTest` es nuevo, con 5 casos, y `ErroresRemotoTest` suma 1. `FakeMedioRemoto` registra contenidos, miniaturas y rutas. En androidTest se ajustan las firmas de `WorkerSubidaMedioTest` y `RemotoEmuladorTest`.
+
+**Verificación:** `testDebugUnitTest` 305/305 (289 + 9 + 1 + 5 + 1); `assembleDebug` y `assembleDebugAndroidTest` verdes. En el emulador local (Pixel 9a): `WorkerSubidaMedioTest` OK (6) y `BitmapCodecFotoTest` OK (7). `ReconciliacionColaTest` 8/10: las 2 fallas ya existían y dependen de la fecha (el reporte de la prueba tiene `fechaLocal = 2026-09-21`, fuera de la ventana de 30 días de `reconciliar`), y no las toca este cambio. Mutación: al quitar la guarda "nunca se sube sin revelar", falla `nunca sube una foto que sigue cruda tras revelar` (1 de 23). **No verificado:** `RemotoEmuladorTest` (necesita el Emulator Suite de Firebase), una subida real a Storage con la miniatura en su propio tipo, y una foto real en dispositivo.
+
+**Archivos creados:**
+- `app/src/test/java/com/ai27/app/custodio/data/foto/CodecFotoFalso.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/remote/RutasStorageTest.kt`
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProceso.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/RutasStorage.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirebaseMedioRemoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/ErroresRemoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioError.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/error/DominioErrorRecurso.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/PipelineModule.kt`
+- `docs/PLAN_REVELAR_FOTO.md`
+- Pruebas: `SubidaMedioProcesoTest`, `SubidaMedioProcesoRoomTest`, `FakesPipeline`, `RevelarFotoTest`, `ErroresRemotoTest`, `ResultadoLoginTest`, `WorkerSubidaMedioTest`, `RemotoEmuladorTest`
+
+## 2026:11:09 — Feature: telemetría `foto_revelada` y borrado del pipeline viejo de marca (Task 5 de PLAN_REVELAR_FOTO)
+
+**Resumen:** cada foto que la cámara revela emite el evento `foto_revelada` (D11) por `RegistroDeEventos`, sin PII: `origen`, `resultado`, `ms_disparo`, `ms_revelado`, `con_gps`, `con_mapa` y `kb_final`. Solo emiten `OK`, `SIN_MARCA` y `FALLO_DECODE`. `YA_REVELADA` y `NO_APLICA` no emiten porque no revelaron nada. Además se borra el pipeline viejo de marca de agua, que quedó sin llamadores desde la Task 4, y `LineaBaseReveladoTest` pasa a medir `BitmapCodecFoto`.
+
+**Cambios:**
+- `data/diagnostico/RegistroDeEventos.kt`: `fotoRevelada(EventoFotoRevelada)`, con los enums cerrados `OrigenRevelado` (`captura`/`subida`) y `ResultadoFotoRevelada` (`ok`/`sin_marca`/`fallo_decode`).
+- `data/diagnostico/RegistroDeEventosAnalytics.kt`: evento `foto_revelada`. Las banderas van como string `"true"`/`"false"`, porque GA4 no tiene booleanos. `ms_disparo` se omite cuando es `null` (origen `subida`).
+- `data/foto/RevelarFoto.kt`: función pura `Revelado.aEvento(origen, msDisparo)`, que la Task 6 reutilizará con `SUBIDA`.
+- `ui/viaje/CapturaEvidenciaScreen.kt`: mide `ms_disparo` con `SystemClock.elapsedRealtime()` desde el toque hasta la cruda en mano, y llama `onTomarFoto(crudo, rotacionGrados, msDisparo)`.
+- `ui/captura/CapturaViewModel.kt`: `capturarFoto(crudo, rotacionGrados, msDisparo)`. Inyecta `RegistroDeEventos` y emite con `origen = CAPTURA` al terminar `revelar` en `adjuntarGpsEnSegundoPlano`. `msDisparo` viaja en el trabajo del medio y no se persiste.
+- Borrados: `GrabarMarcaDeAguaEnFoto`, `ComponerMarcaDeAgua` (y `ComponerMarcaDeAguaTest`), `BitmapEstampadorFoto`, `EstampadorFoto`, `DibujanteMarcaDeAgua.estampar`, `Miniaturas.fotoOriginalYMiniatura` y `Miniaturas.escalar`, `reescribirOriginal` (interfaz, Room y fake) y `MedioDao.actualizarTamano`. También sus provisiones en `di/MapaModule.kt`. `VistaCamara.aBitmap` ya se había borrado en la Task 4.
+- `data/marcaDeAgua/ImagenMapa.kt` (nuevo): `ImagenMapa` pasa a su propio archivo, en el mismo paquete. Los KDoc de `ImagenMapa`, `BitmapImagenMapa` y `ProveedorSnapshotMapa` ya nombran a `RevelarFoto` y al codec.
+- `DibujanteMarcaDeAguaTest`: dibuja con `dibujarEn` sobre un bitmap mutable y pasa por `Miniaturas.webp` ida y vuelta; las aserciones no cambian.
+- `LineaBaseReveladoTest`: mide "disparo" (copia del crudo + `miniatura(crudo, 90)`) y "revelado" (`revelar(crudo, 90, marca, mapa)` con un mapa de `ladoMapaPx(dimensionesFinales)`). `pipeline = "revelar_foto"` y `marca_ms` se renombra a `revelado_ms`. `kb_original_limpio` ahora es el peso de la cruda. El pico nativo se muestrea con un hilo cada 1 ms, porque el codec recicla sus bitmaps antes de devolver.
+- Pruebas JVM: `RevelarFotoTest` suma el caso "GPS con snapshot null", que solo cubría `ComponerMarcaDeAguaTest`, la fecha en el caso sin GPS y 4 casos de `aEvento`. `CapturaViewModelTest` suma 5 casos: un evento exacto con `msDisparo = 123`, `con_gps` falso sin fix, y que no se emite con `YA_REVELADA`, con `NO_APLICA` ni para el audio. `FakeRegistroDeEventos.fotosReveladas`.
+
+**Verificación:** `testDebugUnitTest` 289/289 (282 − 3 de `ComponerMarcaDeAguaTest` + 5 de `RevelarFotoTest` + 5 de `CapturaViewModelTest`); `assembleDebug` y `assembleDebugAndroidTest` verdes. En el emulador local (Pixel 9a, API 37): `BitmapCodecFotoTest` OK (7), `DibujanteMarcaDeAguaTest` OK (3) y `LineaBaseReveladoTest` OK, dos corridas de 10 medidas. Medianas de la corrida 1 / corrida 2: disparo 38.7 / 32.6 ms, revelado 325.0 / 293.5 ms, total 407.3 / 318.6 ms y pico nativo 8.3 / 8.3 MB. Pesos: final 271 KB, miniatura 9 KB. **No verificado:** que el evento llegue a la consola (Analytics no tiene emulador y `Bundle` no corre en JVM, así que `RegistroDeEventosAnalytics` no tiene prueba automática), y una foto real en dispositivo.
+
+**Archivos borrados:**
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/GrabarMarcaDeAguaEnFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapEstampadorFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/EstampadorFoto.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/marcaDeAgua/ComponerMarcaDeAguaTest.kt`
+
+**Archivos creados:**
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/ImagenMapa.kt`
+
+**Pendiente manual:** registrar en GA4 los parámetros de `foto_revelada` como dimensiones y métricas personalizadas (anotado en la Task 7 del plan).
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventosAnalytics.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/RevelarFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/marcaDeAgua/BitmapImagenMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapa/ProveedorSnapshotMapa.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/Miniaturas.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/MapaModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/LineaBaseReveladoTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAguaTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `docs/PLAN_REVELAR_FOTO.md`
+- `CHANGELOG.md`
+
+## 2026:11:06 — Feature: obturador sin decodificar y revelado conectado (Task 4 de PLAN_REVELAR_FOTO)
+
+**Resumen:** el obturador deja de decodificar: `tomarFoto` copia el búfer JPEG del HAL y entrega la **foto cruda** con sus grados de rotación. La foto se persiste cruda (`image/jpeg`, `revelada = false`, con su rotación), la miniatura sale de `RevelarFoto.miniaturaRapida`, y tras el GPS (o su timeout de 8 s) `adjuntarGpsEnSegundoPlano` llama a `RevelarFoto.revelar` en lugar de `GrabarMarcaDeAguaEnFoto`. Como `encolarCuandoListo` sigue esperando ese trabajo, la cámara nunca encola una cruda. Con esto el revelado (y la marca de agua) corre fuera del hilo principal. Telemetría y limpieza quedan para la Task 5.
+
+**Cambios:**
+- `ui/captura/VistaCamara.kt`: `tomarFoto(controller, ejecutor, alTenerFoto: (crudo, rotacionGrados), alFallar)`. Si el formato no es `ImageFormat.JPEG`, llama `alFallar`. El `ImageProxy` se cierra en `finally` antes de entregar la copia, y `alTenerFoto` va fuera del `try`, así que un fallo del receptor ya no dispara también `alFallar`. El target de captura sale de `CodecFoto.LADO_MAX_PX` (1280×960). Se borra `aBitmap`, que quedó sin llamadores.
+- `domain/usecase/CapturarMedio.kt`: parámetro `rotacionGrados`. La FOTO se guarda con `image/jpeg`, `revelada = false` y su rotación; el AUDIO no cambia (`revelada = true`, rotación 0).
+- `ui/captura/CapturaViewModel.kt`: `capturarFoto(crudo, rotacionGrados)` genera la miniatura con `miniaturaRapida`. Si la miniatura falla, la foto se guarda sin miniatura y el fallo se registra como `captura_miniatura`. Inyecta `RevelarFoto` en vez de `GrabarMarcaDeAguaEnFoto`.
+- `ui/viaje/CapturaEvidenciaScreen.kt`: `onTomarFoto(crudo, rotacionGrados)`. El cerrojo del obturador se libera al llegar la cruda; vibración, sonido y flash no cambian.
+- `di/FotoModule.kt` (nuevo): `CodecFoto` (`BitmapCodecFoto(context.cacheDir)`) y `RevelarFoto` como `@Singleton`. Una sola instancia hace falta para que su candado evite el doble revelado entre cámara y worker.
+- Pruebas: `CapturaViewModelTest` usa un `RevelarFoto` real con `FakeMedioRepository` y un codec falso. Hay casos nuevos para la cruda con rotación 90 y su miniatura, para la miniatura que falla, para el revelado antes de encolar (con GPS, sin fix y con timeout) y para el audio sin cambios. `CapturarMedioTest` ahora afirma la cruda `image/jpeg` no revelada con su rotación, y que el audio queda revelado. `FakeSubidaScheduler.alEncolar` permite observar el orden. Se borra `FakeEstampadorFoto`, que quedó sin uso.
+- `data/foto/RevelarFoto.kt` (revisión): `revelar` ya no lanza salvo por cancelación. Un error al leer o escribir el archivo se registra y devuelve `NO_APLICA` con la cruda intacta, y un fallo del snapshot del mapa deja la foto marcada sin tile. Antes, una `IOException` dentro de `adjuntarGpsEnSegundoPlano` (corrutina de `viewModelScope`, sin manejador) habría cerrado la app. Dos casos nuevos en `RevelarFotoTest`.
+
+**Verificación:** `testDebugUnitTest` 282/282 (277 previas + 3 de la captura + 2 de `RevelarFoto`), `assembleDebug` y `assembleDebugAndroidTest` verdes; Hilt compiló el grafo con `FotoModule`. En el emulador local (Pixel 9a, API 37): `BitmapCodecFotoTest` OK (7) y `DibujanteMarcaDeAguaTest` OK (3). **No verificado:** una foto real en dispositivo (en el emulador la app se queda en el login, porque el debug apunta al emulador de Firebase). Si el proceso muere antes de revelar, la reconciliación todavía sube la cruda; lo cierra la Task 6.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/VistaCamara.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/captura/CapturaViewModel.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/viaje/CapturaEvidenciaScreen.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/usecase/CapturarMedio.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/FotoModule.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/RevelarFoto.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/ui/captura/CapturaViewModelTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturarMedioTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/CapturaFakes.kt`
+- `CHANGELOG.md`
+
+## 2026:11:06 — Cambio: la foto revelada baja a 1280 px de lado largo (D8)
+
+**Resumen:** por decisión de producto, `CodecFoto.LADO_MAX_PX` baja de 1600 a 1280: la foto revelada queda en 1280×960 (≈1.2 MP), con menos bytes y la mitad de píxeles que procesar en el SC9863A. La marca de agua escala con el lado menor, así que sigue legible (texto ≈25 px, mapa de 211 px). Además, el plan mueve la conexión del revelado a la Task 4 para que cada PR deje la app funcionando.
+
+**Cambios:**
+- `data/foto/CodecFoto.kt`: `LADO_MAX_PX = 1280`.
+- `BitmapCodecFotoTest` y `RevelarFotoTest`: valores esperados a 960×1280 / 1280×960 y lado de mapa 211.
+- `docs/PLAN_REVELAR_FOTO.md`: D8 actualizado; Task 4 = obturador barato **y** revelado conectado; Task 5 = telemetría y limpieza.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/foto/CodecFoto.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/BitmapCodecFotoTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
+- `docs/PLAN_REVELAR_FOTO.md`
+- `CHANGELOG.md`
+
+## 2026:11:06 — Feature: núcleo de RevelarFoto (Task 3 de PLAN_REVELAR_FOTO)
+
+**Resumen:** se construye y se prueba `RevelarFoto`, el único módulo que tratará la imagen de una foto: **una** decodificación al tamaño justo, rotación y escala en una sola pasada, marca de agua sobre ese mismo bitmap y **un** WebP q80, siempre en `Dispatchers.Default` fijado dentro del módulo (arregla de raíz el bug de la marca en el hilo principal en cuanto la Task 5 lo conecte). Si falla la marca se revela sin marca; si falla el decode se conserva la cruda como `image/jpeg` con la orientación en EXIF (D12). **Todavía no se conecta**: `CapturaViewModel`, `VistaCamara`, `CapturarMedio`, `GrabarMarcaDeAguaEnFoto` y el DI no cambian.
+
+**Cambios:**
+- `data/foto/CodecFoto.kt` (nuevo): costura que esconde `Bitmap` detrás de bytes (`dimensionesFinales`, `revelar`, `miniatura`, `conOrientacionExif`) y `LADO_MAX_PX = 1600` (D8) en un solo lugar.
+- `data/foto/BitmapCodecFoto.kt` (nuevo): adaptador Android. `inSampleSize` (mayor potencia de 2 que no submuestrea de más), un único bitmap destino `ARGB_8888` dibujado con `Canvas` + `Matrix` (rotación + escala), reciclado del decodificado en cuanto se dibuja y del destino en `finally`; EXIF con `android.media.ExifInterface` sobre un temporal. Solo admite 0/90/180/270.
+- `data/foto/RevelarFoto.kt` (nuevo): `miniaturaRapida` y `revelar(medioId, conMapa)` idempotente, con `ResultadoRevelado` (`OK`, `SIN_MARCA`, `FALLO_DECODE`, `YA_REVELADA`, `NO_APLICA`) y `Revelado` con los datos de la telemetría D11 (sin emitir eventos todavía). Atrapa `Throwable` (OOM) y relanza `CancellationException`. Un `Mutex` envuelve la parte de CPU y escritura y revalida `revelada` adentro: si la cámara y el worker revelan la misma foto a la vez, solo uno la marca (si no, uno podía leer el WebP recién escrito como si fuera la cruda y rotarlo y marcarlo otra vez), y nunca hay dos revelados completos en memoria. El snapshot del mapa se pide fuera del candado y `msRevelado` mide solo decode → archivo escrito (D11). **Requisito para la Task 5:** una sola instancia (`@Singleton`) compartida por la cámara y el worker.
+- `data/local/media/DibujanteMarcaDeAgua.kt`: el dibujo se extrae a `dibujarEn(lienzo, marca, mapa)`, sin copiar ni codificar; `estampar` queda como `copy` + `dibujarEn` + WebP para el llamador viejo. El aspecto de la marca no cambia.
+- `MedioRepository.guardarRevelado` + `MedioDao.marcarRevelada` + implementaciones en `RoomMedioRepository` y `FakeMedioRepository`: reescriben el original y fijan `sizeBytes`, `contentType` y `revelada = 1`, solo si el medio sigue `PENDIENTE`. `reescribirOriginal` se conserva hasta la Task 5.
+- Pruebas: `RevelarFotoTest` (JVM, 13 casos con codec falso, incluidos que el codec no corre en el hilo del llamador y que dos revelados simultáneos de la misma foto marcan una sola vez), 2 casos nuevos de `guardarRevelado` en `ContratoRepositoriosTest` (corren contra Room y el fake) y `BitmapCodecFotoTest` (instrumentada, 7 casos sobre el fixture y un JPEG de 2592×1944).
+
+**Verificación:** `testDebugUnitTest` 277/277 (260 previas + 13 de `RevelarFotoTest` + 2×2 del contrato), `assembleDebug` y `assembleDebugAndroidTest` verdes. En el emulador local (Pixel 9a, API 37): `BitmapCodecFotoTest` OK (7) y `DibujanteMarcaDeAguaTest` OK (3). Pruebas de mutación: sin el cambio a `despachador` en `revelar`, falla `el_codec_no_corre_en_el_hilo_del_llamador`; sin el candado, falla `dos_revelados_simultaneos_de_la_misma_foto_marcan_una_sola_vez`; restaurados, vuelven a pasar.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/foto/CodecFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/BitmapCodecFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/foto/RevelarFoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAgua.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/repository/MedioRepository.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioDao.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/repository/RoomMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/FakeMedioRepository.kt`
+- `app/src/test/java/com/ai27/app/custodio/contrato/ContratoRepositoriosTest.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/foto/RevelarFotoTest.kt`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/BitmapCodecFotoTest.kt`
+- `CHANGELOG.md`
+
+## 2026:11:06 — Feature: estado de revelado en la base local (Task 2 de PLAN_REVELAR_FOTO)
+
+**Resumen:** la base de Room pasa a la versión 6 con dos columnas nuevas en `medios`: `revelada` (si la foto ya es la final o todavía es la cruda del HAL) y `rotacionGrados` (la rotación que CameraX no aplica). Todavía nadie las lee ni las escribe con otro valor que el default: las usan las Tasks 3–6. Todo medio existente nace revelado y sin rotación pendiente, para que una foto del 1.0.3 pendiente de subir no se marque dos veces (D5).
+
+**Cambios:**
+- `data/local/db/EchoDatabase.kt`: `version = 6` y `MIGRACION_5_6` (`ALTER TABLE medios ADD COLUMN revelada INTEGER NOT NULL DEFAULT 1` y `rotacionGrados INTEGER NOT NULL DEFAULT 0`), registrada en `crearBaseDatos`.
+- `data/local/db/MedioEntity.kt`: columnas con el mismo `defaultValue` que la migración, para que una instalación nueva y una migrada tengan el mismo esquema.
+- `domain/model/Medio.kt`: `revelada = true` y `rotacionGrados = 0` por defecto; los llamadores existentes no cambian.
+- `data/mapper/MedioMappers.kt`: mapeo de los dos campos en ambos sentidos.
+- `test/.../data/local/db/MigracionReveladoTest.kt` (nuevo): siembra una base v5 con una foto pendiente y verifica que abre en v6 revelada, sin rotación y con los defaults de columna correctos.
+
+**Verificación:** `testDebugUnitTest` 260/260 (258 previas + 2 nuevas) y `assembleDebugAndroidTest` verdes. Prueba de mutación: con `DEFAULT 0` en `revelada`, las dos pruebas nuevas fallan.
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/EchoDatabase.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/local/db/MedioEntity.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/model/Medio.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/mapper/MedioMappers.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/local/db/MigracionReveladoTest.kt`
+- `CHANGELOG.md`
+
+## 2026:11:06 — Test: línea base del tratamiento de fotos (Task 1 de PLAN_REVELAR_FOTO)
+
+**Resumen:** prueba instrumentada que mide el pipeline ACTUAL de una foto (decode, rotación, WebP del original y la miniatura, marca de agua con mapa) para comparar antes y después del refactor `RevelarFoto`. Se intentó correr en el TECNO POP 7 de Firebase Test Lab (mismo chip que el ZTE Blade A55), pero las dos corridas fallaron por infraestructura de Test Lab; se decidió seguir sin la base del chip y usar el emulador local para el antes/después. No cambia código de producción.
+
+**Cambios:**
+- `app/src/androidTest/.../data/foto/LineaBaseReveladoTest.kt`: 2 iteraciones de calentamiento y 10 medidas; publica tiempos (mín, mediana, p90, máx), pico de memoria nativa y pesos en logcat (`LineaBaseRevelado`) y en `getExternalFilesDir()/linea-base-revelado.json`.
+- `app/src/androidTest/assets/fixtures/foto_prueba_1600x1200.jpg` + `LEEME.md`: foto CC0 de Wikimedia Commons (camino rural, sin placas ni personas), con fuente, licencia y transformación anotadas.
+- `app/src/androidTest/.../data/local/media/DibujanteMarcaDeAguaTest.kt`: los nombres de método con espacios pasan a guiones bajos. D8 no acepta espacios en nombres de método con `minSdk 26` (DEX < 040), así que el APK de pruebas instrumentadas no se podía construir para un dispositivo externo. Mismo comportamiento de las pruebas.
+
+**Verificación:** `assembleDebug` y `assembleDebugAndroidTest` verdes; la prueba pasó en el emulador local (Pixel 9a, API 37). Línea base registrada en `docs/PLAN_REVELAR_FOTO.md` (Task 1): total mediana 644 ms, pico de memoria nativa mediana 15.0 MB (p90 29.6 MB), final 481 KB. Los tiempos del emulador no representan al SC9863A.
+
+**Archivos modificados:**
+- `app/src/androidTest/java/com/ai27/app/custodio/data/foto/LineaBaseReveladoTest.kt`
+- `app/src/androidTest/assets/fixtures/foto_prueba_1600x1200.jpg`
+- `app/src/androidTest/assets/fixtures/LEEME.md`
+- `app/src/androidTest/java/com/ai27/app/custodio/data/local/media/DibujanteMarcaDeAguaTest.kt`
 ## 2026:11:06 — Docs: revisión de arquitectura para ZTE Blade A54/A55 y plan de RevelarFoto
 
 **Resumen:** se agregan la revisión de arquitectura del pipeline de fotos para los dispositivos que usan los custodios (ZTE Blade A55/A54, Unisoc SC9863A, Android Go) y el borrador del plan del candidato 1. Solo documentación; no cambia código.
