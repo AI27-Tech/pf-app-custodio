@@ -2,6 +2,24 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:09 — Chore: PRs de promoción automáticos `-d → -q` y `-q → -m`
+
+**Resumen:** se agregan los dos workflows de promoción que ya usan los demás repos de la plataforma, copiados byte por byte. En cada push a `pf-appcus-d` se mantiene abierto un PR `pf-appcus-d → pf-appcus-q` con la lista de PRs pendientes de promover, y en cada push a `pf-appcus-q` lo mismo hacia `pf-appcus-m`. **Ninguno mergea:** los dos saltos se mergean a mano (decisión del Lead del 2026-10-08, `.scratch/flujo-promocion-automerge/` en el workspace). Se crea la rama `pf-appcus-q` desde `pf-appcus-m`; antes la app promovía directo `-d → -m` (PRs #7 y #9).
+
+**Cambios:**
+- `.github/workflows/promotion-pr-dq.yml` (nuevo): idéntico al de los otros 13 repos.
+- `.github/workflows/promotion-pr-qm.yml` (nuevo): idéntico al de los otros 13 repos.
+- Rama `pf-appcus-q` creada en el remoto desde `pf-appcus-m` (`d555e2a`).
+
+**Cómo queda el release:** feature → `-d` (PR revisado) → PR automático `-d → -q` (merge manual) → PR automático `-q → -m` (merge manual) → APK firmado, tag y GitHub Release desde `-m`.
+
+**Verificación:** los dos archivos tienen el mismo md5 que en `pf-web-frontend-client`. El repo permite a Actions crear PRs (`default_workflow_permissions = write`). El primer disparo real ocurre con el push a `-d` que meta este PR.
+
+**Archivos modificados:**
+- `.github/workflows/promotion-pr-dq.yml`
+- `.github/workflows/promotion-pr-qm.yml`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Docs: revisión de arquitectura para ZTE Blade A54/A55 y plan de RevelarFoto
 
 **Resumen:** se agregan la revisión de arquitectura del pipeline de fotos para los dispositivos que usan los custodios (ZTE Blade A55/A54, Unisoc SC9863A, Android Go) y el borrador del plan del candidato 1. Solo documentación; no cambia código.
