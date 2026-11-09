@@ -122,3 +122,5 @@ mock-app-design-language/
 *.swp
 *~
 .vscode/
+# La nativa de SQLite para Linux la baja el CI (ver .github/workflows/ci.yml); no se versiona.
+app/src/test/jniLibs/libsqliteJni.so

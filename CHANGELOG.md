@@ -2,6 +2,19 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:09 — Chore: CI de pruebas en GitHub Actions
+
+**Resumen:** se agrega `.github/workflows/ci.yml`. En cada PR y en cada push a `pf-appcus-d`, `-q` y `-m` corre `testDebugUnitTest` y compila `assembleDebug` y `assembleDebugAndroidTest`. Antes no había CI: las pruebas solo corrían en la máquina de quien abría el PR, y los PRs de promoción no tenían un verde que esperar.
+
+**Cambios:**
+- `.github/workflows/ci.yml` (nuevo): un job `pruebas` en `ubuntu-latest` con JDK 25 (Temurin, el `toolchainVersion` del daemon de Gradle) y caché de `gradle/actions/setup-gradle`. Si falla, sube los reportes de pruebas como artefacto (7 días). Un push nuevo cancela la corrida anterior del mismo PR.
+- No corre las pruebas instrumentadas (necesitan emulador) pero sí las compila, porque D8 ya rompió ese APK una vez sin que nadie se enterara. No construye el release (la firma no está en el repo).
+- **Nativa de SQLite en Linux:** las pruebas de Room (`BundledSQLiteDriver`) cargan `libsqliteJni` desde `app/src/test/jniLibs`, donde el repo solo trae la dylib de macOS arm64 (idéntica a la del artefacto oficial). En el runner fallaban todas las pruebas que abren Room con `UnsatisfiedLinkError`. El CI baja `natives/linux_x64/libsqliteJni.so` de `sqlite-bundled-jvm` en la versión de `libs.versions.toml`, sin versionar otro binario. Las actions van en sus versiones vigentes (checkout v7, setup-java v6, setup-gradle v6, upload-artifact v7).
+
+**Archivos modificados:**
+- `.github/workflows/ci.yml`
+- `CHANGELOG.md`
+
 ## 2026:11:09 — Chore: PRs de promoción automáticos `-d → -q` y `-q → -m`
 
 **Resumen:** se agregan los dos workflows de promoción que ya usan los demás repos de la plataforma, copiados byte por byte. En cada push a `pf-appcus-d` se mantiene abierto un PR `pf-appcus-d → pf-appcus-q` con la lista de PRs pendientes de promover, y en cada push a `pf-appcus-q` lo mismo hacia `pf-appcus-m`. **Ninguno mergea:** los dos saltos se mergean a mano (decisión del Lead del 2026-10-08, `.scratch/flujo-promocion-automerge/` en el workspace). Se crea la rama `pf-appcus-q` desde `pf-appcus-m`; antes la app promovía directo `-d → -m` (PRs #7 y #9).
