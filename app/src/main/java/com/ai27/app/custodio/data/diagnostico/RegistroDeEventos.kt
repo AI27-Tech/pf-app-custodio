@@ -40,7 +40,48 @@ interface RegistroDeEventos {
      * @param resultado cómo terminó el intento; nunca nulo ni un valor desconocido.
      */
     fun registroLogin(metodo: MetodoAuth, resultado: ResultadoLogin)
+
+    /**
+     * Registra que una foto de evidencia se reveló (D11 de `docs/PLAN_REVELAR_FOTO.md`). Da los
+     * tiempos reales del pipeline en los ZTE de campo, que no se pudieron medir antes (D3, D10).
+     *
+     * **Sin PII**, con la misma regla que el login: ni el id del medio, ni el reporte, ni
+     * coordenadas, ni nada del custodio. Solo tiempos, tamaño, banderas y dos conjuntos
+     * cerrados ([OrigenRevelado], [ResultadoFotoRevelada]) que son enums por la misma razón
+     * que [ResultadoLogin]: el valor es la dimensión de la consola. El modelo del dispositivo
+     * no se manda: Analytics lo agrega solo a cada evento.
+     */
+    fun fotoRevelada(evento: EventoFotoRevelada)
 }
+
+/** Quién reveló la foto: la cámara al tener el GPS, o el worker antes de subirla (Task 6). */
+enum class OrigenRevelado(val valor: String) {
+    CAPTURA("captura"),
+    SUBIDA("subida"),
+}
+
+/**
+ * Cómo terminó el revelado (D12). Solo los tres desenlaces que sí revelan: "ya revelada" y
+ * "no aplica" no tocaron la foto y no se emiten.
+ */
+enum class ResultadoFotoRevelada(val valor: String) {
+    OK("ok"),
+    SIN_MARCA("sin_marca"),
+    FALLO_DECODE("fallo_decode"),
+}
+
+/** Parámetros del evento `foto_revelada`. Tiempos en milisegundos. */
+data class EventoFotoRevelada(
+    val origen: OrigenRevelado,
+    val resultado: ResultadoFotoRevelada,
+    /** Del toque del obturador a la foto cruda en mano; `null` si el origen es `SUBIDA` (no hubo obturador). */
+    val msDisparo: Long?,
+    /** De la decodificación al archivo revelado escrito. */
+    val msRevelado: Long,
+    val conGps: Boolean,
+    val conMapa: Boolean,
+    val kbFinal: Int,
+)
 
 /** Método de autenticación. Nace con un solo caso: hoy el login es solo por correo. */
 enum class MetodoAuth(val valor: String) {

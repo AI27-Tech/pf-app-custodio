@@ -2,6 +2,9 @@ package com.ai27.app.custodio.data.foto
 
 import com.ai27.app.custodio.FakeMedioRepository
 import com.ai27.app.custodio.FakeRegistroDeFallos
+import com.ai27.app.custodio.data.diagnostico.EventoFotoRevelada
+import com.ai27.app.custodio.data.diagnostico.OrigenRevelado
+import com.ai27.app.custodio.data.diagnostico.ResultadoFotoRevelada
 import com.ai27.app.custodio.data.mapa.ProveedorSnapshotMapa
 import com.ai27.app.custodio.data.marcaDeAgua.ImagenMapa
 import com.ai27.app.custodio.domain.marcaDeAgua.DisposicionMarcaDeAgua
@@ -186,8 +189,29 @@ class RevelarFotoTest {
         assertFalse(revelado.conGps)
         assertFalse(revelado.conMapa)
         assertEquals(emptyList<Int>(), proveedor.ladosPedidos)
+        assertEquals("2026/01/05 09:03:07", codec.revelados.single().marca?.fechaHora)
         assertNull(codec.revelados.single().marca?.coordenadas)
         assertNull(codec.revelados.single().mapa)
+    }
+
+    // Requisito 3 de PLAN_MARCA_DE_AGUA: sin red o sin API key el proveedor devuelve null y la
+    // foto se marca igual con fecha y coordenadas, sin el tile.
+    @Test
+    fun con_gps_y_snapshot_null_marca_coordenadas_sin_mapa() = runBlocking {
+        val revelar = RevelarFoto(
+            repo, codec, ProveedorFalso(resultado = null), fallos, ZoneOffset.UTC, Dispatchers.Default,
+            reloj = { tiempos.removeAt(0) },
+        )
+        sembrar(foto())
+
+        val revelado = revelar.revelar("foto-1")
+
+        assertEquals(ResultadoRevelado.OK, revelado.resultado)
+        assertTrue(revelado.conGps)
+        assertFalse(revelado.conMapa)
+        assertEquals("19.432608, -99.133209", codec.revelados.single().marca?.coordenadas)
+        assertNull(codec.revelados.single().mapa)
+        assertTrue(fallos.registrados.isEmpty())
     }
 
     @Test
@@ -339,4 +363,66 @@ class RevelarFotoTest {
         assertNull(codec.revelados.single().mapa)
         assertEquals("19.432608, -99.133209", codec.revelados.single().marca?.coordenadas)
     }
+
+    // region aEvento (D11)
+
+    private val revelado = Revelado(ResultadoRevelado.OK, msRevelado = 456, conGps = true, conMapa = true, kbFinal = 210)
+
+    @Test
+    fun aEvento_ok_lleva_todos_los_campos() {
+        assertEquals(
+            EventoFotoRevelada(
+                origen = OrigenRevelado.CAPTURA,
+                resultado = ResultadoFotoRevelada.OK,
+                msDisparo = 123,
+                msRevelado = 456,
+                conGps = true,
+                conMapa = true,
+                kbFinal = 210,
+            ),
+            revelado.aEvento(OrigenRevelado.CAPTURA, msDisparo = 123),
+        )
+    }
+
+    @Test
+    fun aEvento_sin_marca_desde_la_subida_va_sin_ms_disparo() {
+        assertEquals(
+            EventoFotoRevelada(
+                origen = OrigenRevelado.SUBIDA,
+                resultado = ResultadoFotoRevelada.SIN_MARCA,
+                msDisparo = null,
+                msRevelado = 456,
+                conGps = true,
+                conMapa = false,
+                kbFinal = 210,
+            ),
+            revelado.copy(resultado = ResultadoRevelado.SIN_MARCA, conMapa = false)
+                .aEvento(OrigenRevelado.SUBIDA, msDisparo = null),
+        )
+    }
+
+    @Test
+    fun aEvento_fallo_decode_lleva_todos_los_campos() {
+        assertEquals(
+            EventoFotoRevelada(
+                origen = OrigenRevelado.CAPTURA,
+                resultado = ResultadoFotoRevelada.FALLO_DECODE,
+                msDisparo = 123,
+                msRevelado = 456,
+                conGps = false,
+                conMapa = false,
+                kbFinal = 210,
+            ),
+            revelado.copy(resultado = ResultadoRevelado.FALLO_DECODE, conGps = false, conMapa = false)
+                .aEvento(OrigenRevelado.CAPTURA, msDisparo = 123),
+        )
+    }
+
+    @Test
+    fun aEvento_ya_revelada_y_no_aplica_no_emiten() {
+        assertNull(revelado.copy(resultado = ResultadoRevelado.YA_REVELADA).aEvento(OrigenRevelado.CAPTURA, 123))
+        assertNull(revelado.copy(resultado = ResultadoRevelado.NO_APLICA).aEvento(OrigenRevelado.SUBIDA, null))
+    }
+
+    // endregion
 }
