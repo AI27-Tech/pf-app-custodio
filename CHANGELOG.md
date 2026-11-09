@@ -2,6 +2,22 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:09 — Release: versión 1.0.4 (versionCode 5)
+
+**Resumen:** se sube la versión a **1.0.4 (versionCode 5)**, que reúne todo lo que está en `pf-appcus-d` desde el 1.0.3. **Evidencia en WebP a 1280 px**, con fotos de ~86 KB en la prueba contra ~480 KB antes. **`RevelarFoto`**: el obturador ya no decodifica y la foto se revela una sola vez fuera del hilo principal, lo que arregla el congelamiento de la cámara. **Red de seguridad en el worker**: nunca se sube una foto cruda. Además, telemetría `foto_revelada` y CI en GitHub Actions.
+
+**Verificación previa (Task 7 de `docs/PLAN_REVELAR_FOTO.md`):**
+- `storage.rules` con `image/webp` se desplegó en `custodio-906e7268` y se verificó leyendo las reglas en producción.
+- Prueba manual en CPH2769 con el APK release de `-d` instalado sobre el 1.0.3: actualización y migración 5→6, ráfaga de fotos, marca de agua, sin GPS, sin red, proceso muerto antes de revelar, cierre de reporte y audio. Todo correcto.
+- En producción: 6 fotos `image/webp` en `.webp`, con miniatura `.webp` y GPS, de 75 a 97 KB. El reporte quedó `CERRADO` 6/6 con `completo = true`.
+
+**Pendiente manual:** registrar en GA4 los parámetros de `foto_revelada` como dimensiones y métricas personalizadas.
+
+**Archivos modificados:**
+- `app/build.gradle.kts`
+- `docs/PLAN_REVELAR_FOTO.md`
+- `CHANGELOG.md`
+
 ## 2026:11:09 — Chore: CI de pruebas en GitHub Actions
 
 **Resumen:** se agrega `.github/workflows/ci.yml`. En cada PR y en cada push a `pf-appcus-d`, `-q` y `-m` corre `testDebugUnitTest` y compila `assembleDebug` y `assembleDebugAndroidTest`. Antes no había CI: las pruebas solo corrían en la máquina de quien abría el PR, y los PRs de promoción no tenían un verde que esperar.
