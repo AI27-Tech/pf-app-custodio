@@ -64,28 +64,39 @@ class RevelarFoto(
      * En segundo plano. Idempotente: una foto ya revelada no se toca. [conMapa] = `false` lo
      * usa el worker cuando el proceso murió antes de revelar (D6): fecha y coordenadas, sin mapa.
      *
+     * **No lanza** salvo por cancelación: un error de lectura o escritura del archivo se
+     * registra y devuelve `NO_APLICA`, con la cruda intacta. Lo llaman corrutinas sin
+     * manejador de excepciones (el ViewModel y el worker), donde una excepción tumbaría la app.
+     *
      * El snapshot del mapa se pide fuera de [candado] porque puede tardar segundos; la parte
      * de CPU y escritura va adentro y revalida `revelada`. Así dos llamadores de la misma foto
      * (la cámara y el worker) no la marcan dos veces, y en un SC9863A nunca hay dos revelados
      * de tamaño completo en memoria a la vez.
      */
     suspend fun revelar(medioId: String, conMapa: Boolean = true): Revelado = withContext(despachador) {
+        intentar("revelar_foto") { revelarSinProteger(medioId, conMapa) } ?: Revelado(ResultadoRevelado.NO_APLICA)
+    }
+
+    private suspend fun revelarSinProteger(medioId: String, conMapa: Boolean): Revelado {
         val medio = medioRepository.obtenerPorId(medioId)
-        if (medio == null || medio.tipo != TipoMedio.FOTO) return@withContext Revelado(ResultadoRevelado.NO_APLICA)
-        if (medio.revelada) return@withContext Revelado(ResultadoRevelado.YA_REVELADA)
-        val crudo = medioRepository.leerOriginal(medioId)
-            ?: return@withContext Revelado(ResultadoRevelado.NO_APLICA)
+        if (medio == null || medio.tipo != TipoMedio.FOTO) return Revelado(ResultadoRevelado.NO_APLICA)
+        if (medio.revelada) return Revelado(ResultadoRevelado.YA_REVELADA)
+        val crudo = intentar("revelar_foto_leer") { medioRepository.leerOriginal(medioId) }
+            ?: return Revelado(ResultadoRevelado.NO_APLICA)
         val rotacion = medio.rotacionGrados
 
         val dims = intentar("revelar_foto_dimensiones") { codec.dimensionesFinales(crudo, rotacion) }
         val gps = medio.gps
         val mapa = if (dims != null && conMapa && gps != null) {
-            proveedorSnapshotMapa.snapshot(gps, DisposicionMarcaDeAgua.ladoMapaPx(dims.ancho, dims.alto))
+            // Si el mapa falla, la foto se marca igual sin el tile (requisito 3 de PLAN_MARCA_DE_AGUA).
+            intentar("revelar_foto_mapa") {
+                proveedorSnapshotMapa.snapshot(gps, DisposicionMarcaDeAgua.ladoMapaPx(dims.ancho, dims.alto))
+            }
         } else {
             null
         }
 
-        candado.withLock {
+        return candado.withLock {
             // Otro revelado de esta foto pudo terminar mientras se esperaba el mapa o el candado.
             val vigente = medioRepository.obtenerPorId(medioId)
                 ?: return@withLock Revelado(ResultadoRevelado.NO_APLICA)
@@ -126,7 +137,8 @@ class RevelarFoto(
         inicio: Long,
         conMapa: Boolean,
     ): Revelado {
-        val guardado = medioRepository.guardarRevelado(medio.id, bytes, contentType)
+        val guardado = intentar("revelar_foto_guardar") { medioRepository.guardarRevelado(medio.id, bytes, contentType) }
+            ?: return Revelado(ResultadoRevelado.NO_APLICA)
         if (guardado is Result.Failure) {
             // Lo normal es que el medio saliera de PENDIENTE mientras se revelaba; la cruda
             // en disco no se tocó.

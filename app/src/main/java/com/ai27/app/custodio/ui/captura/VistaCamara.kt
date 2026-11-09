@@ -1,7 +1,6 @@
 package com.ai27.app.custodio.ui.captura
 
-import android.graphics.Bitmap
-import android.graphics.Matrix
+import android.graphics.ImageFormat
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -20,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
-import com.ai27.app.custodio.data.local.media.Miniaturas
+import com.ai27.app.custodio.data.foto.CodecFoto
 import java.util.concurrent.Executor
 
 @Composable
@@ -39,9 +38,12 @@ fun VistaCamara(
                 val nuevo = LifecycleCameraController(ctx).apply {
                     cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                     imageCaptureMode = ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
-                    // Evidencia: 1600×1200 conserva lectura de placas/daños con menos bytes que 1920×1080.
+                    // La política de tamaño vive en CodecFoto: el target es solo una pista
+                    // para CameraX (el HAL puede entregar otro) y el revelado fija el final.
                     setImageCaptureTargetSize(
-                        CameraController.OutputSize(android.util.Size(1600, 1200)),
+                        CameraController.OutputSize(
+                            android.util.Size(CodecFoto.LADO_MAX_PX, CodecFoto.LADO_MAX_PX * 3 / 4),
+                        ),
                     )
                 }
                 preview.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
@@ -62,8 +64,14 @@ fun VistaCamara(
 }
 
 /**
- * Dispara una foto. [alTenerFoto] recibe la foto (WebP) y su miniatura; [alFallar] recibe
- * cualquier fallo, incluidos los de CameraX y los del procesamiento de imagen.
+ * Dispara una foto. [alTenerFoto] recibe la **foto cruda** (los bytes JPEG del HAL, sin
+ * decodificar, rotar ni marcar) y los grados que hay que rotarla; [alFallar] recibe
+ * cualquier fallo, incluidos los de CameraX y un formato que no sea JPEG.
+ *
+ * No se decodifica aquí: en el SC9863A de los ZTE el decode completo era lo que hacía
+ * lento el obturador. La miniatura y el revelado los hace `RevelarFoto`
+ * (`docs/PLAN_REVELAR_FOTO.md`, D4). CameraX entrega el JPEG sin rotación aplicada, por
+ * eso los grados viajan aparte.
  *
  * Los dos callbacks son excluyentes y **siempre se invoca exactamente uno**: de eso
  * depende que el cerrojo del obturador se libere (hallazgos E1 y E2 de `docs/AUDIT.md`,
@@ -72,7 +80,7 @@ fun VistaCamara(
 fun tomarFoto(
     controller: LifecycleCameraController,
     ejecutor: Executor,
-    alTenerFoto: (foto: ByteArray, miniatura: ByteArray) -> Unit,
+    alTenerFoto: (crudo: ByteArray, rotacionGrados: Int) -> Unit,
     alFallar: (causa: Throwable) -> Unit,
 ) {
     try {
@@ -80,17 +88,26 @@ fun tomarFoto(
             ejecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
+                    val crudo: ByteArray
+                    val rotacionGrados: Int
                     try {
-                        val bitmap = image.aBitmap()
-                        val (foto, miniatura) = Miniaturas.fotoOriginalYMiniatura(bitmap)
-                        alTenerFoto(foto, miniatura)
+                        check(image.format == ImageFormat.JPEG) {
+                            "La cámara entregó el formato ${image.format}; se esperaba JPEG"
+                        }
+                        val buffer = image.planes[0].buffer
+                        crudo = ByteArray(buffer.remaining()).also { buffer.get(it) }
+                        rotacionGrados = image.imageInfo.rotationDegrees
                     } catch (causa: Throwable) {
-                        // Throwable y no Exception: aquí es donde revienta un
-                        // OutOfMemoryError al decodificar y recomprimir el bitmap.
+                        // Throwable y no Exception: copiar el búfer puede lanzar un
+                        // OutOfMemoryError en un equipo con poca memoria.
                         alFallar(causa)
+                        return
                     } finally {
                         image.close()
                     }
+                    // Fuera del try: un fallo de quien recibe la foto no debe disparar
+                    // también alFallar. La copia ya no depende del ImageProxy cerrado.
+                    alTenerFoto(crudo, rotacionGrados)
                 }
 
                 override fun onError(exception: ImageCaptureException) {
@@ -102,12 +119,4 @@ fun tomarFoto(
         // takePicture puede lanzar de forma sincrónica si la cámara no está lista.
         alFallar(causa)
     }
-}
-
-private fun ImageProxy.aBitmap(): Bitmap {
-    val bitmap = toBitmap()
-    val grados = imageInfo.rotationDegrees
-    if (grados == 0) return bitmap
-    val matriz = Matrix().apply { postRotate(grados.toFloat()) }
-    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matriz, true)
 }

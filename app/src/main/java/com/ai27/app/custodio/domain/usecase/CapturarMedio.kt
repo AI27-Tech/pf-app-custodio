@@ -14,6 +14,12 @@ import com.ai27.app.custodio.domain.repository.ReporteRepository
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * Persiste un medio recién capturado. La FOTO se guarda **cruda** (los bytes JPEG del HAL,
+ * `revelada = false`, con los [rotacionGrados] que CameraX no aplica); `RevelarFoto` la
+ * convierte después en el WebP marcado que se sube (`docs/PLAN_REVELAR_FOTO.md`, Task 4).
+ * El audio nace revelado y sin rotación.
+ */
 class CapturarMedio(
     private val reporteRepository: ReporteRepository,
     private val medioRepository: MedioRepository,
@@ -29,6 +35,7 @@ class CapturarMedio(
         durationMs: Long? = null,
         gps: Gps? = null,
         ubicacionTexto: String? = null,
+        rotacionGrados: Int = 0,
     ): Result<Medio> {
         if (contenido.isEmpty()) {
             return Result.Failure(DominioError.SinContenido)
@@ -60,7 +67,7 @@ class CapturarMedio(
             origen = origen,
             createdAtDevice = ahora(),
             contentType = when (tipo) {
-                TipoMedio.FOTO -> "image/webp"
+                TipoMedio.FOTO -> "image/jpeg"
                 TipoMedio.AUDIO -> "audio/mp4"
             },
             estadoSubida = EstadoSubida.PENDIENTE,
@@ -68,6 +75,8 @@ class CapturarMedio(
             ubicacionTexto = ubicacionTexto,
             sizeBytes = contenido.size.toLong(),
             durationMs = durationMs,
+            revelada = tipo != TipoMedio.FOTO,
+            rotacionGrados = if (tipo == TipoMedio.FOTO) rotacionGrados else 0,
         )
         return medioRepository.guardar(medio, contenido, miniatura = miniatura)
     }

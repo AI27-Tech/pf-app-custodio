@@ -11,6 +11,8 @@ import com.ai27.app.custodio.domain.model.Gps
 import com.ai27.app.custodio.domain.model.Medio
 import com.ai27.app.custodio.domain.model.OrigenMedio
 import com.ai27.app.custodio.domain.model.TipoMedio
+import com.ai27.app.custodio.domain.repository.MedioRepository
+import java.io.IOException
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
@@ -301,5 +303,40 @@ class RevelarFotoTest {
         )
         assertEquals(1, codec.revelados.size)
         assertArrayEquals(CodecFotoFalso.REVELADA, repo.leerOriginal("foto-1"))
+    }
+
+    // revelar corre en corrutinas sin manejador de excepciones (ViewModel y worker): un error
+    // de disco no puede tumbar la app.
+    @Test
+    fun un_error_al_leer_el_archivo_no_lanza_y_deja_la_cruda() = runBlocking {
+        sembrar(foto())
+        val repoQueFalla = object : MedioRepository by repo {
+            override suspend fun leerOriginal(medioId: String): ByteArray? = throw IOException("disco")
+        }
+        val revelar = RevelarFoto(repoQueFalla, codec, proveedor, fallos, ZoneOffset.UTC, Dispatchers.Default)
+
+        assertEquals(ResultadoRevelado.NO_APLICA, revelar.revelar("foto-1").resultado)
+        assertFalse(repo.obtenerPorId("foto-1")!!.revelada)
+        assertArrayEquals(crudo, repo.leerOriginal("foto-1"))
+        assertEquals(listOf("revelar_foto_leer"), fallos.registrados.map { it.first })
+    }
+
+    @Test
+    fun si_el_mapa_lanza_se_marca_igual_sin_mapa() = runBlocking {
+        sembrar(foto())
+        val proveedorQueFalla = object : ProveedorSnapshotMapa {
+            override suspend fun snapshot(gps: Gps, ladoPx: Int): ImagenMapa? = throw IllegalStateException("maps")
+        }
+        val revelar = RevelarFoto(
+            repo, codec, proveedorQueFalla, fallos, ZoneOffset.UTC, Dispatchers.Default,
+            reloj = { tiempos.removeAt(0) },
+        )
+
+        val revelado = revelar.revelar("foto-1")
+
+        assertEquals(ResultadoRevelado.OK, revelado.resultado)
+        assertFalse(revelado.conMapa)
+        assertNull(codec.revelados.single().mapa)
+        assertEquals("19.432608, -99.133209", codec.revelados.single().marca?.coordenadas)
     }
 }
