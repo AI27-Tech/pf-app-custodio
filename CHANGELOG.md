@@ -2,6 +2,36 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:09 — Feature: el worker revela antes de subir y Storage toma el tipo del contenido (Task 6 de PLAN_REVELAR_FOTO)
+
+**Resumen:** `SubidaMedioProceso` nunca sube una foto cruda. Si encuentra una con más de 20 s desde su captura, la revela sin mapa (D6), emite `foto_revelada` con `origen = subida` y sube el WebP revelado. Si es más joven, no la toca, porque la cámara la está revelando. Las rutas de Storage salen del contenido real: el original toma su extensión del `contentType` y la miniatura toma tipo y extensión de sus propios bytes.
+
+**Cambios:**
+- `data/pipeline/SubidaMedioProceso.kt`: revela antes de `asegurarReporte` y de `marcarEnProgreso` (`guardarRevelado` solo escribe en `PENDIENTE`). `VENTANA_REVELADO_CAMARA` = 20 s (GPS 8 s + mapa 6 s + margen), con reloj inyectable `ahora`. Si tras revelar la foto sigue cruda, no se sube: registra `subida_foto_sin_revelar` y devuelve `FotoSinRevelar` (transitorio), sin marcarla. Si el archivo no existe, devuelve `ArchivoLocalAusente` (permanente, `FALLIDA`), igual que antes. Una miniatura que no es WebP ni JPEG no se sube y se registra `subida_miniatura_formato`. El proceso recibe `RevelarFoto` (el `@Singleton` de `FotoModule`), `RegistroDeEventos` y `RegistroDeFallos`.
+- `data/remote/RutasStorage.kt`: `de(medio, miniatura)`. Extensiones `webp`/`jpg`/`m4a` por `contentType`, y un tipo desconocido lanza `IllegalArgumentException`. `contentTypeMiniatura(bytes)` usa `Miniaturas.esWebp`/`esJpeg`. Las rutas siguen siendo deterministas.
+- `data/remote/FirebaseMedioRemoto.kt`: la miniatura sube con su propio `StorageMetadata`.
+- `domain/error/DominioError.kt`: `FotoSinRevelar`, reintentable en `esReintentable`. Se mapea a `error_inesperado` y a `ResultadoLogin.INESPERADO` en los `when` exhaustivos.
+- `di/PipelineModule.kt`: cablea las tres dependencias nuevas.
+- Pruebas: `CodecFotoFalso` sale de `RevelarFotoTest` a su propio archivo y se comparte. `SubidaMedioProcesoTest` suma 9 casos: cruda vieja, cruda joven, el límite de 20 s, cruda que sigue cruda, cruda sin archivo, ya revelada, `FALLO_DECODE`, audio y miniatura desconocida. `SubidaMedioProcesoRoomTest` suma la cruda vieja contra Room real. `RutasStorageTest` es nuevo, con 5 casos, y `ErroresRemotoTest` suma 1. `FakeMedioRemoto` registra contenidos, miniaturas y rutas. En androidTest se ajustan las firmas de `WorkerSubidaMedioTest` y `RemotoEmuladorTest`.
+
+**Verificación:** `testDebugUnitTest` 305/305 (289 + 9 + 1 + 5 + 1); `assembleDebug` y `assembleDebugAndroidTest` verdes. En el emulador local (Pixel 9a): `WorkerSubidaMedioTest` OK (6) y `BitmapCodecFotoTest` OK (7). `ReconciliacionColaTest` 8/10: las 2 fallas ya existían y dependen de la fecha (el reporte de la prueba tiene `fechaLocal = 2026-09-21`, fuera de la ventana de 30 días de `reconciliar`), y no las toca este cambio. Mutación: al quitar la guarda "nunca se sube sin revelar", falla `nunca sube una foto que sigue cruda tras revelar` (1 de 23). **No verificado:** `RemotoEmuladorTest` (necesita el Emulator Suite de Firebase), una subida real a Storage con la miniatura en su propio tipo, y una foto real en dispositivo.
+
+**Archivos creados:**
+- `app/src/test/java/com/ai27/app/custodio/data/foto/CodecFotoFalso.kt`
+- `app/src/test/java/com/ai27/app/custodio/data/remote/RutasStorageTest.kt`
+
+**Archivos modificados:**
+- `app/src/main/java/com/ai27/app/custodio/data/pipeline/SubidaMedioProceso.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/RutasStorage.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/FirebaseMedioRemoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/remote/ErroresRemoto.kt`
+- `app/src/main/java/com/ai27/app/custodio/domain/error/DominioError.kt`
+- `app/src/main/java/com/ai27/app/custodio/ui/error/DominioErrorRecurso.kt`
+- `app/src/main/java/com/ai27/app/custodio/data/diagnostico/RegistroDeEventos.kt`
+- `app/src/main/java/com/ai27/app/custodio/di/PipelineModule.kt`
+- `docs/PLAN_REVELAR_FOTO.md`
+- Pruebas: `SubidaMedioProcesoTest`, `SubidaMedioProcesoRoomTest`, `FakesPipeline`, `RevelarFotoTest`, `ErroresRemotoTest`, `ResultadoLoginTest`, `WorkerSubidaMedioTest`, `RemotoEmuladorTest`
+
 ## 2026:11:09 — Feature: telemetría `foto_revelada` y borrado del pipeline viejo de marca (Task 5 de PLAN_REVELAR_FOTO)
 
 **Resumen:** cada foto que la cámara revela emite el evento `foto_revelada` (D11) por `RegistroDeEventos`, sin PII: `origen`, `resultado`, `ms_disparo`, `ms_revelado`, `con_gps`, `con_mapa` y `kb_final`. Solo emiten `OK`, `SIN_MARCA` y `FALLO_DECODE`. `YA_REVELADA` y `NO_APLICA` no emiten porque no revelaron nada. Además se borra el pipeline viejo de marca de agua, que quedó sin llamadores desde la Task 4, y `LineaBaseReveladoTest` pasa a medir `BitmapCodecFoto`.

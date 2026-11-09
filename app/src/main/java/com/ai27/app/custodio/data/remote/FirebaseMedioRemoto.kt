@@ -21,7 +21,7 @@ class FirebaseMedioRemoto(
         contenido: ByteArray,
         miniatura: ByteArray?,
     ): Result<RutasRemotas> = ejecutarRemoto {
-        val rutas = RutasStorage.de(medio)
+        val rutas = RutasStorage.de(medio, miniatura)
         val metadatos = StorageMetadata.Builder().setContentType(medio.contentType).build()
         // S4: `storage.rules` hace las rutas create-only (una vez escrito, el blob es
         // inmutable). El reintento idempotente (PLAN §5.4) ya no "sobrescribe": se
@@ -29,8 +29,11 @@ class FirebaseMedioRemoto(
         // caerse la red a mitad— no se escribe nada y solo se completa lo que faltara
         // (p. ej. la miniatura cuando el primer intento murió entre archivo y miniatura).
         subirSiNoExiste(rutas.media, contenido, metadatos)
-        rutas.miniatura?.let { ruta ->
-            if (miniatura != null) subirSiNoExiste(ruta, miniatura, metadatos)
+        // La miniatura lleva su propio tipo: puede ser JPEG (pendientes del 1.0.3) aunque el
+        // original sea WebP, o al revés. RutasStorage solo le da ruta si el tipo se reconoce.
+        if (rutas.miniatura != null && miniatura != null) {
+            val tipoMiniatura = RutasStorage.contentTypeMiniatura(miniatura)
+            subirSiNoExiste(rutas.miniatura, miniatura, StorageMetadata.Builder().setContentType(tipoMiniatura).build())
         }
         rutas
     }
