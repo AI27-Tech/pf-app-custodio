@@ -1,0 +1,64 @@
+# CI de la app Echo (pf-app-custodio).
+#
+# Corre las pruebas unitarias y compila la app y las pruebas instrumentadas en cada PR y en
+# cada push a las tres ramas del flujo (d/q/m), al estilo de los demás repos de la plataforma.
+# Antes no había CI: las 300+ pruebas solo corrían en la máquina de quien abría el PR, y los
+# PRs de promoción (promotion-pr-dq/qm) no tenían un "verde" que esperar.
+#
+# Qué NO corre aquí:
+# - Las pruebas instrumentadas (`connectedDebugAndroidTest`): necesitan un emulador o un
+#   dispositivo. Sí se COMPILAN (`assembleDebugAndroidTest`), porque D8 ya rompió ese APK una
+#   vez sin que nadie se enterara (nombres de método con espacios y minSdk 26).
+# - El APK de release: la firma vive en `keystore.properties`, que no está en el repo.
+#
+# Notas del entorno:
+# - JDK 25: es el `toolchainVersion` de `gradle/gradle-daemon-jvm.properties`. Instalarlo con
+#   setup-java evita que el daemon lo descargue de foojay en cada corrida.
+# - `google-services.json` está versionado a propósito (ver .gitignore), así que el plugin de
+#   Google Services resuelve sin secretos.
+# - Sin `local.properties` la API key de Maps queda vacía; la app compila igual y el snapshot
+#   del mapa simplemente no se genera (requisito 3 de PLAN_MARCA_DE_AGUA).
+# - El SDK de Android viene preinstalado en ubuntu-latest; AGP descarga la plataforma de
+#   compileSdk si falta.
+name: ci
+
+on:
+  push:
+    branches: [pf-appcus-d, pf-appcus-q, pf-appcus-m]
+  pull_request:
+    branches: [pf-appcus-d, pf-appcus-q, pf-appcus-m]
+
+permissions:
+  contents: read
+
+# Un push nuevo al mismo PR cancela la corrida anterior: la vieja ya no dice nada útil.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Pruebas unitarias y compilación
+        run: ./gradlew --stacktrace :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Reportes de pruebas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-pruebas
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          retention-days: 7

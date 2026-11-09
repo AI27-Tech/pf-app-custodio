@@ -2,6 +2,18 @@
 
 Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 
+## 2026:11:09 — Chore: CI de pruebas en GitHub Actions
+
+**Resumen:** se agrega `.github/workflows/ci.yml`. En cada PR y en cada push a `pf-appcus-d`, `-q` y `-m` corre `testDebugUnitTest` y compila `assembleDebug` y `assembleDebugAndroidTest`. Antes no había CI: las pruebas solo corrían en la máquina de quien abría el PR, y los PRs de promoción no tenían un verde que esperar.
+
+**Cambios:**
+- `.github/workflows/ci.yml` (nuevo): un job `pruebas` en `ubuntu-latest` con JDK 25 (Temurin, el `toolchainVersion` del daemon de Gradle) y caché de `gradle/actions/setup-gradle`. Si falla, sube los reportes de pruebas como artefacto (7 días). Un push nuevo cancela la corrida anterior del mismo PR.
+- No corre las pruebas instrumentadas (necesitan emulador) pero sí las compila, porque D8 ya rompió ese APK una vez sin que nadie se enterara. No construye el release (la firma no está en el repo).
+
+**Archivos modificados:**
+- `.github/workflows/ci.yml`
+- `CHANGELOG.md`
+
 ## 2026:11:06 — Docs: revisión de arquitectura para ZTE Blade A54/A55 y plan de RevelarFoto
 
 **Resumen:** se agregan la revisión de arquitectura del pipeline de fotos para los dispositivos que usan los custodios (ZTE Blade A55/A54, Unisoc SC9863A, Android Go) y el borrador del plan del candidato 1. Solo documentación; no cambia código.
