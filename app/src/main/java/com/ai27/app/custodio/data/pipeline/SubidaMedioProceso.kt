@@ -74,7 +74,10 @@ class SubidaMedioProceso(
 
         // Antes de asegurarReporte y de marcarEnProgreso: guardarRevelado solo escribe en PENDIENTE.
         val medio = if (encontrado.tipo == TipoMedio.FOTO && !encontrado.revelada) {
-            if (laCamaraLaEstaRevelando(encontrado)) return Result.Success(Unit)
+            // Reintento y no Success: si la pantalla se cerró, el revelado de la cámara se canceló
+            // con su viewModelScope y nadie más volvería a encolar esta foto. El backoff la trae de
+            // vuelta ya vieja; si la cámara sí terminó, el reintento la encuentra revelada.
+            if (laCamaraLaEstaRevelando(encontrado)) return Result.Failure(DominioError.FotoSinRevelar)
             when (val revelada = revelarAntesDeSubir(medioId)) {
                 null -> return Result.Success(Unit) // se borró mientras se revelaba
                 is Result.Failure -> return revelada

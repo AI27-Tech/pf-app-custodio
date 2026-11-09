@@ -169,9 +169,11 @@ No hay un ZTE A55/A54 disponible, y el único dispositivo de Test Lab con el mis
   `origen = subida`), sin mapa (D6), antes de `asegurarReporte` y de marcar `EN_PROGRESO`,
   porque `guardarRevelado` solo escribe mientras el medio sigue `PENDIENTE`.
 - **Ventana de 20 s (`VENTANA_REVELADO_CAMARA`):** una foto cruda con menos de 20 s desde su
-  captura no se toca (el worker devuelve éxito sin cambiar nada). Por qué: la cámara la está
-  revelando con mapa (GPS ≤ 8 s + mapa ≤ 6 s + margen) y encola su propia subida; si el proceso
-  murió en la ventana, la siguiente reconciliación la encuentra vieja.
+  captura no se toca: el worker devuelve `FotoSinRevelar` (transitorio) y WorkManager reintenta
+  con backoff. Por qué: la cámara la está revelando con mapa (GPS ≤ 8 s + mapa ≤ 6 s + margen).
+  No es éxito porque si el custodio cierra la pantalla, el revelado de la cámara se cancela con su
+  `viewModelScope` y nadie más volvería a encolar la foto hasta la siguiente reconciliación; el
+  reintento la encuentra ya vieja (la revela sin mapa) o ya revelada por la cámara (la sube).
 - **Nunca se sube una cruda:** si tras revelar sigue cruda (p. ej. disco lleno), no se sube, se
   registra el fallo y el worker reintenta (`DominioError.FotoSinRevelar`, transitorio). Si el
   archivo ya no existe, es el `ArchivoLocalAusente` permanente de siempre.

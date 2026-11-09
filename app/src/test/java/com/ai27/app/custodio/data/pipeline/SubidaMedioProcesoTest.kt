@@ -376,13 +376,16 @@ class SubidaMedioProcesoTest {
     }
 
     @Test
-    fun `una foto cruda joven no se toca porque la camara la esta revelando`() = runBlocking {
+    fun `una foto cruda joven se reintenta sin tocarla porque la camara la esta revelando`() = runBlocking {
         val cruda = sembrarCruda()
         ahora = fijo.plusSeconds(5)
 
         val resultado = proceso.ejecutar("r-1", cruda.id)
 
-        assertTrue(resultado is Result.Success)
+        // Reintentable: si la cámara se canceló con su pantalla, el backoff es lo único que vuelve
+        // a traer esta foto; un Success la dejaría hasta la siguiente reconciliación.
+        assertEquals(DominioError.FotoSinRevelar, (resultado as Result.Failure).error)
+        assertTrue(esReintentable(resultado.error))
         assertEquals(0, codec.llamadas)
         assertEquals(0, medioRemoto.subidos.size)
         assertEquals(0, reporteRemoto.creaciones)
