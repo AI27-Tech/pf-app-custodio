@@ -9,6 +9,7 @@ Registro de cambios del proyecto Echo. Las entradas más recientes van primero.
 **Cambios:**
 - `.github/workflows/ci.yml` (nuevo): un job `pruebas` en `ubuntu-latest` con JDK 25 (Temurin, el `toolchainVersion` del daemon de Gradle) y caché de `gradle/actions/setup-gradle`. Si falla, sube los reportes de pruebas como artefacto (7 días). Un push nuevo cancela la corrida anterior del mismo PR.
 - No corre las pruebas instrumentadas (necesitan emulador) pero sí las compila, porque D8 ya rompió ese APK una vez sin que nadie se enterara. No construye el release (la firma no está en el repo).
+- **Nativa de SQLite en Linux:** las pruebas de Room (`BundledSQLiteDriver`) cargan `libsqliteJni` desde `app/src/test/jniLibs`, donde el repo solo trae la dylib de macOS arm64 (idéntica a la del artefacto oficial). En el runner fallaban todas las pruebas que abren Room con `UnsatisfiedLinkError`. El CI baja `natives/linux_x64/libsqliteJni.so` de `sqlite-bundled-jvm` en la versión de `libs.versions.toml`, sin versionar otro binario. Las actions van en sus versiones vigentes (checkout v7, setup-java v6, setup-gradle v6, upload-artifact v7).
 
 **Archivos modificados:**
 - `.github/workflows/ci.yml`
